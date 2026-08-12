@@ -1,0 +1,25 @@
+<Majesty>
+	<Mod id="{d45a135f-31ca-4b53-b3e4-776e231a328c}">
+		<Name>RestoreAbandonedZoo</Name>
+		<DisplayName lang="en_US">Restore Abandoned Zoo</DisplayName>
+		<Description lang="en_US">
+			<Short>Restores the abandoned three-level Zoo building.</Short>
+			<Long>Restores the surviving Zoo art, upgrade shell, and panel. Monster capture is intentionally deferred.</Long>
+		</Description>
+		<DataConfiguration>
+			<Dataset base="Any">
+				<Load>
+					<CAM>Data\restore_zoo_maindata.cam</CAM>
+					<CAM>Data\restore_zoo_miscdata.cam</CAM>
+					<CAM>Data\restore_zoo_textdata.cam</CAM>
+					<CAM>Data\restore_zoo_gpltext.cam</CAM>
+					<Descriptions>Data\restore_zoo_units.xml</Descriptions>
+					<GPL>
+						<Target>Data\RestoreAbandonedZoo.bcd</Target>
+						<Source>GPL\RestoreAbandonedZoo_Building_Data.dat</Source>
+					</GPL>
+				</Load>
+			</Dataset>
+		</DataConfiguration>
+	</Mod>
+</Majesty>

@@ -1,0 +1,41 @@
+[Restore_Zoo1]
+	{Building
+		(type building)
+		(subtype xx)
+		(title Zoo)
+		(Level 1)
+		(Visited_Script Upgrade_Equipment)
+		(birthscript basic_birth)
+		(birthScript2 Building_Birth)
+		(IGdeathscript building_death)
+		(upgradescript basic_upgrade)
+	}
+[end]
+
+[Restore_Zoo2]
+	{Building
+		(type building)
+		(subtype xx)
+		(title Zoo)
+		(Level 2)
+		(Visited_Script Upgrade_Equipment)
+		(birthscript basic_birth)
+		(birthScript2 Building_Birth)
+		(IGdeathscript building_death)
+		(upgradescript basic_upgrade)
+	}
+[end]
+
+[Restore_Zoo3]
+	{Building
+		(type building)
+		(subtype xx)
+		(title Zoo)
+		(Level 3)
+		(birthscript basic_birth)
+		(birthScript2 Building_Birth)
+		(IGdeathscript building_death)
+		(upgradescript basic_upgrade)
+	}
+[end]
+

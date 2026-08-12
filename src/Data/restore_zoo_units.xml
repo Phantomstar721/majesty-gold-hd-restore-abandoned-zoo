@@ -1,0 +1,78 @@
+<Majesty>
+	<Description type="Unit" subType="Building" ID="ZOO1" Name="Restore_Zoo1" Description="Zoo">
+		<Engine version="1">
+			<Info value="Directionless"/>
+			<Info value="BlockGround"/>
+			<Info value="BlockFlying"/>
+			<Info value="ModifyTerrainTextureOnPlacement"/>
+			<CanUse value="HumanPlayer"/>
+			<Menu value="2"/>
+			<ImageIDBase value="ABn1"/>
+			<DefaultSound value="Fairground"/>
+		</Engine>
+		<Game version="1">
+			<DialogID value="MX09"/>
+			<Cost value="500"/>
+			<UpgradeTo value="Restore_Zoo2"/>
+			<Multiplier value="1.0"/>
+			<IncomeType value="2"/>
+			<IncomeAmount value="40"/>
+			<MaxHP value="250"/>
+			<SightRange value="100"/>
+			<Flags value="HasHPBar"/>
+			<Flags value="HasGoldToolTip"/>
+			<HelpID value="hZ01"/>
+		</Game>
+	</Description>
+	<Description type="Unit" subType="Building" ID="ZOO2" Name="Restore_Zoo2" Description="Zoo Level 2">
+		<Engine version="1">
+			<Info value="BlockGround"/>
+			<Info value="BlockFlying"/>
+			<Info value="ModifyTerrainTextureOnPlacement"/>
+			<CanUse value="HumanPlayer"/>
+			<Menu value="2"/>
+			<ImageIDBase value="ABn2"/>
+			<DefaultSound value="Fairground"/>
+		</Engine>
+		<Game version="1">
+			<DialogID value="MX09"/>
+			<Cost value="600"/>
+			<UpgradeTo value="Restore_Zoo3"/>
+			<UpgradeFrom value="Restore_Zoo1"/>
+			<Multiplier value="1.0"/>
+			<IncomeType value="2"/>
+			<IncomeAmount value="40"/>
+			<MaxHP value="300"/>
+			<SightRange value="100"/>
+			<Flags value="NotBuildable"/>
+			<Flags value="HasHPBar"/>
+			<Flags value="HasGoldToolTip"/>
+			<HelpID value="hZ02"/>
+		</Game>
+	</Description>
+	<Description type="Unit" subType="Building" ID="ZOO3" Name="Restore_Zoo3" Description="Zoo Level 3">
+		<Engine version="1">
+			<Info value="BlockGround"/>
+			<Info value="BlockFlying"/>
+			<Info value="ModifyTerrainTextureOnPlacement"/>
+			<CanUse value="HumanPlayer"/>
+			<Menu value="2"/>
+			<ImageIDBase value="ABn3"/>
+			<DefaultSound value="Fairground"/>
+		</Engine>
+		<Game version="1">
+			<DialogID value="MX09"/>
+			<Cost value="800"/>
+			<UpgradeFrom value="Restore_Zoo2"/>
+			<Multiplier value="1.0"/>
+			<IncomeType value="2"/>
+			<IncomeAmount value="40"/>
+			<MaxHP value="400"/>
+			<SightRange value="100"/>
+			<Flags value="NotBuildable"/>
+			<Flags value="HasHPBar"/>
+			<Flags value="HasGoldToolTip"/>
+			<HelpID value="hZ03"/>
+		</Game>
+	</Description>
+</Majesty>
