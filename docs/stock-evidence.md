@@ -67,8 +67,98 @@ capture lifecycle:
 - cancellation and polling clean pursuing heroes' tasks.
 
 That module does not provide the missing player-facing dispatcher, flag unit
-description, placement wiring, or UI control. It is therefore deliberately not
-added to the stock bytecode used by this milestone.
+description, placement wiring, or UI control. The current milestone does not
+attempt to restore its death interception or charm lifecycle. An ordinary
+Attack Flag is used solely as an immediate trigger for an isolated stock
+Hooligan test, enabled by the standard stock completed-building query for a
+player-owned Zoo.
+
+The Reward Flag binding probe proved the mod's `attack_flag_birth` override was
+active. The rollback restores the exact gate that had already passed live
+testing: `$ListObjects` from the flag, type `Building`, followed by
+`#MyPlayer`, title `Zoo`, and `FirstStageBuilt == 1` in stock Mausoleum order.
+
+`mx_Monster_Births.gpl` and `mx_Monster_Deaths.gpl` are not overridden in this
+milestone. Monster spawning and all ordinary lethal events therefore remain
+owned by the selected stock ruleset.
+
+The surviving `Set_Subdue_Chance` contains a definite field-name mismatch: it
+writes `subdue_percentage`, while `zoo_flag_check` reads
+`charm_percentage` and `mx_prototype.gpl` declares only the latter on
+`RewardFlag`. That probability path is not active in this milestone.
+
+The abandoned success branch sets HP without complete engine-death and task
+ownership. Earlier experiments around that gap have been removed. This
+milestone transforms only a still-living agent and contains no resurrection or
+death-state manipulation.
+
+The Wizard's Curse quest supplies the isolated test contract.
+`Be_Dumb`/`Hooligan_Check` assigns a hero stock `Arrest_Hooligan`, which keeps
+the hero near its moving target while retaining low-HP and danger evaluation.
+`Hooligan_Basic` recognizes that targeting hero, marks itself found, and hands
+its own movement to `Hooligan_Goto_Palace`. The target independently enters the
+first Palace and is consumed. This milestone privately clones those two
+monster-side functions and substitutes an available completed Zoo for
+the first Palace. The stock `Hide`, notification, deletion, and quest flag
+lifecycle is retained; pacing and reset ownership are the private seams noted
+below.
+
+`Generate_Character_Attributes` installs `Be_Dumb` as a quest-wide Wizard's
+Curse wrapper. The actual successful arrest branch is smaller:
+`Hooligan_Check` writes the intent and Target, then `Be_Dumb` writes Counter 0
+and ActiveScript `Arrest_Hooligan`. Installing the whole quest wrapper at
+runtime in an unrelated scenario left it owning the hero's reset lifecycle.
+The mod now copies only those successful-branch writes and leaves every native
+hero script field unchanged.
+
+The abandoned Zoo's shipped `zoo_flag_poll` treats a hero as having abandoned
+its monster when `hero.Target` no longer equals the flag target; it removes that
+hero from the seeker list. The private Hooligan return uses the same target-loss
+signal to clear the single-owner claim and re-enter its existing Hooligan Basic
+lifecycle, where one different hero can receive the stock arrest handoff.
+
+The shipped Hooligan unit description declares `Speed 5`, but GPL uses
+`ATTRIB_Speed` for threat and escape comparisons. Actual travel remains tied
+to the unit's movement attachment and `MovementRateModifier`; changing the AI
+rating did not change a converted Harpy's live pace. There is no stock
+Hooligan speed-sync path. Stock war-party followers instead compare distance
+to their declared `leader` and change movement state around a formation radius.
+The private Zoo arrival applies that closest stock pacing shape with the
+existing `#Arrest_Hooligan_Dist` of 50, stopping the Hooligan until its paired
+hero catches up and then resuming the same `Hide` trip.
+
+Stock Palace arrival resets heroes whose Active or Back script is
+`Arrest_Hooligan` only when the globally last Hooligan arrives. That global
+cleanup is insufficient after privatizing each Hooligan to one `leader`: a
+specific hero may otherwise retain a delivered target while unrelated
+Hooligans remain. The Zoo arrival therefore applies stock `Reset_Tasks` to its
+exact owner on every delivery before the stock Hooligan deletion step.
+
+The attempted visitor registration, `Occupants` capacity, Visitors-menu splice,
+and allegiance changes have been removed. The restored checkpoint gates only
+on the stock completed-building query, selects completed Zoo list member 1,
+and retains the proven delete-on-delivery lifecycle.
+
+Stock `Hooligan_Check` uses `Is_Free_Task`; the latter has
+`#is_free_task_max_heroes 2`, an inclusive allowance check, and a closer-hero
+takeover rule. For single ownership, the current milestone instead copies the
+abandoned Zoo's one-hero selection and stock `Control_Monster`'s declared
+`Monster.leader` link. The shipped arrest task and all later behavior are
+unchanged; the private assignment applies its normal successful entry state to
+only that linked hero. The later `Control_Monster` allegiance lifecycle is not
+present in this rollback checkpoint.
+
+## Original-design interview
+
+In the archived June 12, 2001 Cyberlore chat, Jay Adan reads the Zoo entry from
+the 1996 original design guide: three levels, player-set capture rewards,
+higher Zoo levels for higher-level monsters, income based on contained monster
+types, and a danger that monsters might escape. He cautions that this may not
+match the later expansion implementation. The same chat describes the Theater
+as a one-level building whose selected plays would alter hero-class behavior,
+with additional plays unlocked by elves and kingdom events.
+
+Source: <https://archive.kontek.net/majesty.strategyplanet.gamespy.com/iv20010613.shtml>
 
 ## Closest stock analogue
 

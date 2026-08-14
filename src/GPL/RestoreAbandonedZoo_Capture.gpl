@@ -1,0 +1,252 @@
+///////////////////////////////////////////////////////////////////////////////
+// Restore Abandoned Zoo: isolated stock Hooligan diagnostic
+//
+// A completed player Zoo enables the stock Attack Flag trigger which hands a
+// living Monster to the Wizard's Curse Hooligan lifecycle.  The stock arrest
+// handoff is applied directly to one hero; no persistent hero wrapper remains
+// after the Hooligan target is stored or abandoned.
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Has_Completed_Zoo ( agent thisagent ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// Literal stock completed-building query shape from Mausoleum and other MX
+// building checks: player ownership, title, and FirstStageBuilt attribute.
+declare
+	list zoos;
+begin
+	if ( $ListObjects ( thisagent, "building", -1, zoos,
+		#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 ) > 0 )
+		return TRUE;
+
+	return FALSE;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Assign_Hooligan ( agent thisagent, agent previous_owner ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// Stock Be_Dumb's successful Hooligan_Check handoff, applied directly because
+// this mod is not allowed to replace every hero's native decision tree with
+// the Wizard's Curse quest-wide Be_Dumb wrapper.  A hero already arresting a
+// Hooligan and the hero who just abandoned this one are excluded.
+declare
+	list heroes, valid_heroes;
+	agent hero;
+begin
+	$ListObjects ( thisagent, "Hero", -1, heroes, #NoHiddenMap );
+
+	foreach hero in heroes do
+		begin
+			if ( hero != previous_owner )
+				if ( $GetUnitPlayerNumber ( hero ) == #Player_1 )
+					if ( $IsDead ( hero ) == FALSE )
+						if ( hero's "SubType" == "Hero" )
+							if ( hero's "ActiveScript" != $Arrest_Hooligan )
+								if ( hero's "BackScript" != $Arrest_Hooligan )
+									valid_heroes << hero;
+		end
+
+	if ( $ListSize ( valid_heroes ) > 0 )
+		begin
+			hero = $ListMember ( valid_heroes, 1 );
+			thisagent's "leader" = hero;
+			$SpecifyIntent ( hero, #intent_arresting_hooligan );
+			hero's "Target" = thisagent;
+			hero's "Counter" = 0;
+			hero's "ActiveScript" = $Arrest_Hooligan;
+			return TRUE;
+		end
+
+	return FALSE;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Hooligan_Basic ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal stock Hooligan_Basic.  Its sole substitution is the private arrival
+// function assigned after a player-1 hero targets this Hooligan.  If a prior
+// owner abandoned the target, the same active lifecycle offers it to one
+// different hero.
+declare
+	agent hero, owner;
+	list heroes, player1_heroes;
+	integer sight_range;
+begin
+	sight_range = $GetAttribute ( thisagent, #ATTRIB_SightRange );
+	owner = thisagent's "leader";
+
+	if ( $IsValidGamePiece ( owner ) == FALSE )
+		$Restore_Assign_Hooligan ( thisagent, owner );
+	else if ( $IsDead ( owner ))
+		$Restore_Assign_Hooligan ( thisagent, owner );
+	else if ( owner's "Target" != thisagent )
+		$Restore_Assign_Hooligan ( thisagent, owner );
+
+	if ( $IsMoving ( thisagent ) == FALSE )
+		begin
+			if ( $RandomNumber ( 100 ) > 98 )
+				$PerformAction (
+					thisagent, thisagent's "Idle_action", $LocationOf ( thisagent ));
+			else
+				$Move ( thisagent, $RandomCoord ( thisagent's "coord_home",
+					sight_range * #Hooligan_Wander_Mod ));
+		end
+
+	$ListObjects ( thisagent, "Hero", sight_range, heroes );
+	heroes = $ListSubtypes ( heroes, "hero" );
+
+	foreach hero in heroes do
+		begin
+			if ( $GetUnitPlayerNumber ( hero ) == #Player_1 )
+				if ( hero's "Target" == thisagent )
+					player1_heroes << hero;
+		end
+
+	if ( $ListSize ( player1_heroes ) > 0 )
+		begin
+			$StopMoving ( thisagent );
+			$MessageFlag ( thisagent, #message_found_hooligan );
+			thisagent's "Special_Boolean" = TRUE;
+			thisagent's "ActiveScript" = $Restore_Hooligan_Goto_Zoo;
+		end
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Hooligan_Goto_Zoo ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Hooligan_Goto_Palace with the destination changed to the first
+// completed Zoo.  The assigned hero is the single-owner link established by
+// the abandoned Zoo's Control_Monster shape.  The stock arrest distance gates
+// Hide so differing monster movement profiles cannot outrun their escort.
+// The stock Zoo flag abandonment test releases an interrupted owner whenever
+// that hero no longer targets this Hooligan.  Arrival resets the exact owner
+// and returns to the proven stock Hooligan deletion result.
+declare
+	list zoos, hooligans;
+	agent zoo, AIRootAgent, owner;
+begin
+	$ListObjects ( thisagent, "Building", -1, zoos,
+		#CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 );
+	zoo = $ListMember ( zoos, 1 );
+
+	AIRootAgent = $RetrieveAgent ( "GPLAiRoot" );
+
+	owner = thisagent's "leader";
+
+	// Literal stock zoo_flag_poll abandonment signal: a seeker that no longer
+	// targets the flag's target has abandoned it.  Return this Hooligan to its
+	// stock Basic lifecycle and reserve it for one different hero.
+	if ( $IsValidGamePiece ( owner ) == FALSE || $IsDead ( owner ) ||
+		owner's "Target" != thisagent )
+		begin
+			if ( $IsMoving ( thisagent ))
+				$StopMoving ( thisagent );
+			thisagent's "Special_Boolean" = FALSE;
+			thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
+			$Restore_Assign_Hooligan ( thisagent, owner );
+			return;
+		end
+
+	// Stock formation tasks converge around their leader by distance.  Here
+	// the destination-owning Hooligan pauses at the stock arrest radius instead,
+	// allowing its assigned hero to catch up.
+	if ( $DistanceBetweenAgents ( thisagent, owner ) >
+		#Arrest_Hooligan_Dist )
+		begin
+			if ( $IsMoving ( thisagent ))
+				$StopMoving ( thisagent );
+		end
+	else if ( $IsMoving ( thisagent ) == FALSE )
+		$Hide ( thisagent, zoo );
+
+	if ( $IsHidden ( thisagent ))
+		begin
+			$ListObjects ( zoo, "Hooligan", -1, hooligans, #NoHiddenMap );
+			if ( $ListSize ( hooligans ) == 0 )
+				begin
+					$MessageFlag ( zoo, #message_arrested_all_hooligans );
+					AIRootAgent's "Quest_Flag_2" = TRUE;
+
+				end
+
+			// Stock resets arresting heroes before deleting the last Hooligan.
+			// Single-owner Zoo arrests require the same reset for each owner's
+			// delivery, not only for the globally last Hooligan on the map.
+			if ( $isvalidgamepiece ( owner ))
+				if ( $isdead ( owner ) == FALSE )
+					$Reset_Tasks ( owner );
+
+			$DeleteGamePiece ( thisagent );
+		end
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Convert_To_Stock_Hooligan (
+	agent thisagent, agent flag )
+///////////////////////////////////////////////////////////////////////////////
+// Apply the literal Hooligan data fields and private literal Hooligan_Basic
+// clone to a living Monster.  Stock Hooligan_Check, Arrest_Hooligan, and
+// Hooligan_Death remain unchanged; only the Hooligan's destination is private.
+declare
+begin
+	$StopMoving ( thisagent );
+	$ClearList ( thisagent's "Hostiles" );
+	thisagent's "Type" = "Hooligan";
+	thisagent's "SubType" = "Hooligan";
+	thisagent's "EnemyType" = "hero";
+	thisagent's "Idle_action" = "basic_idle";
+	thisagent's "attack_action" = "do_nothing";
+	thisagent's "Guardian_Mod" = 3;
+	thisagent's "coord_home" = $LocationOf ( thisagent );
+	thisagent's "Special_Boolean" = FALSE;
+	thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
+	thisagent's "BasicScript" = $Restore_Hooligan_Basic;
+	thisagent's "BackScript" = $Restore_Hooligan_Basic;
+	thisagent's "StartingScript" = $Restore_Hooligan_Basic;
+	thisagent's "IGDeathScript" = $Hooligan_Death;
+	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
+	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
+	$Reset_Tasks ( thisagent );
+	$SetThreadInterval ( thisagent's "ActiveScript", #Henchmen_Cycle );
+
+	// Apply the exact successful Hooligan_Check + Be_Dumb handoff to one hero.
+	$Restore_Assign_Hooligan ( thisagent, $NullAgent ());
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function attack_flag_birth ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal GPLMx attack_flag_birth.  The sole diagnostic seam converts a live
+// Monster immediately, before combat or any death callback, then removes the
+// flag, but only while its player owns a completed Zoo.  Without that stock
+// building gate, and for every non-Monster target, the flag remains stock.
+declare
+	agent target;
+	integer flagplayer, targetplayer;
+begin
+	$NewThread ( thisagent's "ActiveScript", #flag_Cycle, thisagent );
+	thisagent's "gavereward" = FALSE;
+
+	target = $agentnumber ( $getattribute ( thisagent, #ATTRIB_targetID ));
+	targetplayer = $getunitplayernumber ( target );
+	flagplayer = $getunitplayernumber ( thisagent );
+
+	if ( targetplayer != #monster_player )
+		if ( targetplayer != flagplayer )
+			if ( $getplayerteamnumber ( target ) ==
+				$getplayerteamnumber ( thisagent ) )
+				begin
+					$setplayerteamnumber ( thisagent, $newteamnumber () );
+				end
+
+	if ( $isvalidgamepiece ( target ))
+		if ( $isdead ( target ) == FALSE )
+			if ( target's "Type" == "Monster" )
+				if ( $Restore_Has_Completed_Zoo ( thisagent ))
+					begin
+						$Restore_Convert_To_Stock_Hooligan ( target, thisagent );
+						$DeleteGamePiece ( thisagent );
+					end
+end

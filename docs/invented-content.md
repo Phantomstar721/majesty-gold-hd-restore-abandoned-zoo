@@ -1,7 +1,7 @@
 # Invented and inferred content ledger
 
 Nothing in this file is claimed as recovered Cyberlore design. This is the
-complete ledger for the first milestone.
+complete ledger for the current milestone.
 
 ## Inferred from the Blacksmith shell
 
@@ -29,8 +29,8 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 
 ## Newly chosen or written
 
-- The restored building uses stock dialog/controller ID `MX09`; no private
-  dialog-controller behavior is assumed.
+- The restored building uses the literal stock dialog/controller payload
+  `MX09`; no private dialog command is added.
 - `ZOO1`, `ZOO2`, and `ZOO3` are private unit-description IDs. This avoids the
   existing stock Sewer Entrance ID `ABN1`; recovered `ABn1`–`ABn3` remain art
   references only.
@@ -46,6 +46,70 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   is a thematic guess.
 - The mod name, GUID, package filenames, and explanatory metadata are new.
 
+## Isolated Hooligan diagnostic choices
+
+- A normal Attack Flag is used only as a convenient player-facing trigger.
+  When its player owns a completed Zoo, placing it on a living `Monster`
+  immediately removes the flag and hands that still-living target to the stock
+  Wizard's Curse Hooligan lifecycle. This is diagnostic glue, not recovered
+  Zoo design.
+- The enable gate copies the stock completed-building query shape used by the
+  Mausoleum and other MX systems: player-owned `Building`, title `Zoo`, and
+  `FirstStageBuilt == 1`, called from the flag with the exact argument order
+  that passed the earlier live test. Any completed Zoo level qualifies.
+  Without one, the original Attack Flag remains untouched.
+- The target receives the behavior-relevant fields from stock `[Hooligan]` and
+  shipped `Hooligan_Death`. It retains its original monster art because no
+  unit-description transformation is made.
+- `Restore_Hooligan_Basic` is a private literal clone of the shipped function
+  with only its next-function reference changed. `Restore_Hooligan_Goto_Zoo`
+  retains the stock `Hide`, last-Hooligan detection, message, and quest flag,
+  but changes the destination and privatizes escort pacing and reset ownership
+  as detailed below.
+- The Attack Flag selects the first completed player Zoo and
+  stores it in the Monster prototype's surviving `zoo_agent` field. Repurposing
+  that abandoned Zoo-flag link as the selected destination is new
+  integration behavior.
+- Wizard's Curse reaches `Arrest_Hooligan` through a quest-wide `Be_Dumb`
+  wrapper. Installing that wrapper permanently on a normal scenario hero was
+  an incorrect integration choice and stranded heroes after delivery. The mod
+  now applies only the successful stock branch's four writes: intent, Target,
+  Counter 0, and ActiveScript `Arrest_Hooligan`. The hero's native Starting,
+  Basic, Back, and Quest scripts are never replaced.
+- Single-hero ownership copies the abandoned Zoo and `Control_Monster` seam:
+  filter living native heroes, choose valid list member 1, and store that hero
+  in the Monster prototype's declared `leader` field. Only that selected hero
+  receives the direct stock arrest handoff. Heroes already running or returning
+  to `Arrest_Hooligan` are excluded. Applying this ownership to the Hooligan
+  return path is integration glue, but the ownership fields and selection shape
+  are stock.
+- Interruption recovery copies the abandoned Zoo's `zoo_flag_poll` ownership
+  test: a hero whose Target is no longer the monster has abandoned it. The
+  Hooligan stops, clears its stock `Special_Boolean`, returns to its existing
+  Basic lifecycle, and selects one different eligible hero. Applying that flag
+  cancellation rule to a Hooligan and choosing a replacement are new
+  integration behavior; no separate polling thread or controller is added.
+- Stock Hooligans travel independently through `Hide`; stock contains no
+  escort-speed synchronization. `ATTRIB_Speed` is an AI comparison rating, not
+  a replacement for the unit's movement attachment, so the ineffective
+  hero-speed copy has been removed. The return script now copies the stock
+  formation pattern of checking distance to the declared `leader`: it stops
+  the Hooligan beyond the stock 50-unit arrest distance and resumes stock
+  `Hide` when the hero catches up. Applying that formation gate to a Hooligan
+  is new integration behavior, but it runs in the existing active lifecycle
+  without a new thread, watcher, timer, or guessed species-specific modifier.
+- Stock arrival resets every hero still running `Arrest_Hooligan`, but only
+  when the globally last quest Hooligan reaches the Palace. One-owner arrests
+  require per-delivery cleanup, so the Zoo clone now applies the same stock
+  `Reset_Tasks` operation directly to that Hooligan's `leader` before deleting
+  the target. This ownership substitution is new integration behavior.
+- Visitor registration and the invented 4/8/12 capacity have been removed to
+  restore the last proven checkpoint. Delivery again uses stock Hooligan
+  deletion after the owner reset.
+- Beyond serving as the stock `Hide` destination there
+  is deliberately no capture probability, bounty payment, lethal event,
+  resurrection, carrier pairing, visitor income, or Zoo destruction cleanup.
+
 ## Surviving placeholder content
 
 - `Visited_Script Upgrade_Equipment` is retained in private levels 1 and 2
@@ -53,12 +117,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   placeholder remains part of the literal stock clone until basic construction
   is proven.
 
-## Deferred, not invented yet
+## Still deferred
 
-- no monster-capture dispatcher;
-- no Zoo flag description or interface icon;
-- no rules for which Zoo level unlocks capture;
-- no initial reward, placement restrictions, valid-target filter, or player
-  feedback for capture;
-- no revenue, visitors, or exhibited-animal simulation beyond generic stock
-  building behavior.
+- the complete abandoned Zoo capture design, including its missing dispatcher;
+- a lethal-event handoff that does not corrupt the monster's engine state;
+- carrier-death handling, income, monster-level gates, displayed capture
+  percentage, Zoo destruction cleanup, and random breakouts.

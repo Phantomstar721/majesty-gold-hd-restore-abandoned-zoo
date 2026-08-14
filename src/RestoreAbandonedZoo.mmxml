@@ -4,7 +4,7 @@
 		<DisplayName lang="en_US">Restore Abandoned Zoo</DisplayName>
 		<Description lang="en_US">
 			<Short>Restores the abandoned three-level Zoo building.</Short>
-			<Long>Restores the surviving Zoo art, upgrade shell, and panel. Monster capture is intentionally deferred.</Long>
+			<Long>Restores the surviving Zoo building and includes an isolated stock Hooligan-return diagnostic.</Long>
 		</Description>
 		<DataConfiguration>
 			<Dataset base="Any">
@@ -17,6 +17,7 @@
 					<GPL>
 						<Target>Data\RestoreAbandonedZoo.bcd</Target>
 						<Source>GPL\RestoreAbandonedZoo_Building_Data.dat</Source>
+						<Source>GPL\RestoreAbandonedZoo_Capture.gpl</Source>
 					</GPL>
 				</Load>
 			</Dataset>

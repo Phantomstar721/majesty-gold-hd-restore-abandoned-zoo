@@ -3,7 +3,8 @@
 Restores the abandoned three-level Zoo using the artwork, dialog layout, and
 GPL building lifecycle left in *Majesty Gold HD*.
 
-This first milestone intentionally restores only the building shell:
+The current local-test milestone restores the building and isolates the stock
+Wizard's Curse Hooligan lifecycle:
 
 - the Zoo appears in the stock service-building construction menu;
 - it carries private `Restore_Zoo1`–`Restore_Zoo3` clones of the stock Zoo GPL
@@ -11,15 +12,32 @@ This first milestone intentionally restores only the building shell:
 - it packages literal copies of the three stock Zoo IMAG records with their
   position-preserving MX TILE and palette tables, so Original rules can create
   the construction placement ghost;
-- it uses the stock `MX09` building controller and corrects its obvious
-  Blacksmith placeholder copy;
+- it uses the literal stock `MX09` building controller and corrects its obvious
+  Blacksmith placeholder prose;
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
-- it does **not** yet expose the unfinished monster-capture dispatcher or Zoo
-  flag.
+- while the player owns a completed Zoo, placing an ordinary Attack Flag on a
+  living monster immediately converts it to the shipped Hooligan behavior;
+- without a completed Zoo, Attack Flags and monsters remain stock;
+- shipped `Arrest_Hooligan` and `Hooligan_Death` remain unchanged; private
+  Hooligan clones change the destination and enforce one arresting hero per
+  Hooligan;
+- each Hooligan retains shipped `Hide` travel but pauses whenever it moves more
+  than the stock arrest distance ahead of its selected hero;
+- the Hooligan returns to its selected Zoo and is deleted by the proven stock
+  Hooligan delivery lifecycle;
+- the mod applies only the successful stock Hooligan-check handoff to one hero,
+  leaving that hero's native Basic/Starting scripts untouched so delivery can
+  reset cleanly;
+- if combat or fleeing changes that hero's target, the stock Zoo flag
+  abandonment test releases the Hooligan and assigns one different hero;
+- there is currently no visitor registration, capacity, capture roll,
+  combat/death hook, resurrection, visitor income, Zoo-destruction handling,
+  minion-allegiance protection, or breakout behavior.
 
-See [stock evidence](docs/stock-evidence.md) and the complete
-[invented-content ledger](docs/invented-content.md) before changing gameplay.
+See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
+contract](docs/capture-stock-clone.md), and the complete [invented-content
+ledger](docs/invented-content.md) before changing gameplay.
 
 ## Build
 

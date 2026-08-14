@@ -225,7 +225,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     patched_strings = patch_indexed_strt(
         stock_strings.data,
         {
-            0: "The Zoo is a restored civic building. Monster capture controls are not yet available.",
+            0: "A completed Zoo makes Attack Flags on living monsters trigger the stock Hooligan return lifecycle.",
             4: "Destroy this Zoo.",
         },
     )
@@ -243,19 +243,17 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
             fourcc_id("hZ01"): (
                 "- Restored civic building\n\n"
                 "- May be upgraded twice\n\n"
-                "- Monster capture controls are not available in this version\n\n\n"
+                "- Enables Attack Flags to turn living monsters into stock Hooligans\n\n\n"
                 "\x01BCBCFFThese long-abandoned grounds hint at an unfinished royal plan to exhibit Ardania's creatures."
             ),
             fourcc_id("hZ02"): (
                 "- Second-level Zoo\n\n"
                 "- Increased building hit points\n\n"
-                "- May be upgraded once more\n\n"
-                "- Monster capture controls are not available in this version"
+                "- May be upgraded once more"
             ),
             fourcc_id("hZ03"): (
                 "- Third-level Zoo\n\n"
-                "- Maximum building hit points\n\n"
-                "- Monster capture controls are not available in this version"
+                "- Maximum building hit points"
             ),
         },
     )
@@ -366,6 +364,7 @@ def build(game_path: Path, output_root: Path) -> None:
     shutil.copy2(SOURCE_ROOT / "RestoreAbandonedZoo.mmxml", output_root / "RestoreAbandonedZoo.mmxml")
     shutil.copy2(SOURCE_ROOT / "Data" / "restore_zoo_units.xml", data_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Building_Data.dat", gpl_dir)
+    shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Capture.gpl", gpl_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo.gplproj", gpl_dir)
     write_maindata_cam(game_path, data_dir)
     write_miscdata_cam(game_path, data_dir)

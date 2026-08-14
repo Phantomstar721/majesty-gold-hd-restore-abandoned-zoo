@@ -61,6 +61,7 @@ def validate(root: Path) -> list[str]:
         "Data/restore_zoo_gpltext.cam",
         "Data/RestoreAbandonedZoo.bcd",
         "GPL/RestoreAbandonedZoo_Building_Data.dat",
+        "GPL/RestoreAbandonedZoo_Capture.gpl",
         "GPL/RestoreAbandonedZoo.gplproj",
     )
     for relative in required:
@@ -90,10 +91,19 @@ def validate(root: Path) -> list[str]:
         errors.append("Manifest load block is missing")
     elif load.find("GPL") is None:
         errors.append("Standalone Zoo GPL load block is missing")
+    elif [item.text for item in load.findall("Descriptions")] != [
+        "Data\\restore_zoo_units.xml"
+    ]:
+        errors.append("Manifest must load only the Zoo building descriptions")
 
     text_names = cam_names(root / "Data" / "restore_zoo_textdata.cam")
     if not {(b"SMNU", b"MX09"), (b"STRT", b"MX09"), (b"STRT", b"UNTN")} <= text_names:
         errors.append(f"Zoo text CAM has unexpected entries: {sorted(text_names)}")
+    zoo_menu = cam_entry_data(
+        root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"MX09"
+    )
+    if len(zoo_menu) != 2488:
+        errors.append("Zoo panel must remain the literal stock MX09 payload")
     art_names = cam_names(root / "Data" / "restore_zoo_maindata.cam")
     image_names = {name for extension, name in art_names if extension == b"IMAG"}
     for prefix in (b"ABn1", b"ABn2", b"ABn3"):
@@ -125,6 +135,95 @@ def validate(root: Path) -> list[str]:
     for duplicate in ("[Zoo1]", "[Zoo2]", "[Zoo3]"):
         if duplicate in gpl:
             errors.append(f"GPL duplicates shipped prototype {duplicate}")
+
+    capture = (root / "GPL" / "RestoreAbandonedZoo_Capture.gpl").read_text(
+        encoding="utf-8"
+    )
+    required_capture_contract = (
+        "function attack_flag_birth",
+        "function Restore_Has_Completed_Zoo",
+        '$ListObjects ( thisagent, "building", -1, zoos,',
+        '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 ) > 0',
+        '$Restore_Has_Completed_Zoo ( thisagent )',
+        '$ListObjects ( thisagent, "Building", -1, zoos,',
+        '#CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
+        'zoo = $ListMember ( zoos, 1 )',
+        "function Restore_Convert_To_Stock_Hooligan",
+        "function Restore_Hooligan_Basic",
+        "function Restore_Hooligan_Goto_Zoo",
+        "function Restore_Assign_Hooligan",
+        "valid_heroes << hero",
+        "hero = $ListMember ( valid_heroes, 1 )",
+        'thisagent\'s "leader" = hero',
+        "$SpecifyIntent ( hero, #intent_arresting_hooligan )",
+        'hero\'s "Target" = thisagent',
+        'hero\'s "ActiveScript" = $Arrest_Hooligan',
+        'hero\'s "ActiveScript" != $Arrest_Hooligan',
+        'hero\'s "BackScript" != $Arrest_Hooligan',
+        'thisagent\'s "Type" = "Hooligan"',
+        'thisagent\'s "ActiveScript" = $Restore_Hooligan_Basic',
+        'thisagent\'s "ActiveScript" = $Restore_Hooligan_Goto_Zoo',
+        "$Hide ( thisagent, zoo )",
+        'owner = thisagent\'s "leader"',
+        'owner\'s "Target" != thisagent',
+        'thisagent\'s "Special_Boolean" = FALSE',
+        '$Restore_Assign_Hooligan ( thisagent, owner )',
+        "$DistanceBetweenAgents ( thisagent, owner ) >",
+        "#Arrest_Hooligan_Dist",
+        "$StopMoving ( thisagent )",
+        "$Reset_Tasks ( owner )",
+        "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
+        "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
+        'thisagent\'s "IGDeathScript" = $Hooligan_Death',
+        "#ATTRIB_NotFlaggable, 1",
+        "#ATTRIB_NotSpellTarget, 1",
+        '$SetThreadInterval ( thisagent\'s "ActiveScript", #Henchmen_Cycle )',
+        'target\'s "Type" == "Monster"',
+        'target, thisagent',
+        "$DeleteGamePiece ( thisagent )",
+    )
+    for snippet in required_capture_contract:
+        if snippet not in capture:
+            errors.append(f"Zoo capture stock-clone contract is missing: {snippet}")
+    forbidden_capture_contract = (
+        "function monster_birth",
+        "function monster_gravestone",
+        "function Restore_Zoo_Capacity",
+        "function Restore_Get_Available_Zoo",
+        "Restore_Zoo_Get_Completed_Zoo",
+        "ClearEngineDeathFlags",
+        "CreateEffector",
+        "Resurrect",
+        'zoo\'s "Occupants" << thisagent',
+        '$KillThread ( thisagent\'s "ActiveScript" )',
+        "$SetUnitPlayerNumber (",
+        "TEMPORARY ROLLBACK LOAD PROBE",
+        "$ListPalaces (",
+        "$Hooligan_Goto_Palace",
+        "$Hooligan_Check (",
+        "$Is_Free_Task (",
+        "function Restore_Is_Free_Hooligan_Task",
+        "$SetAttribute ( thisagent, #ATTRIB_Speed",
+        "function Restore_Hooligan_Check",
+        "function Restore_Install_Hooligan_Check",
+        "function Restore_Hooligan_Hero_Check",
+        '"QuestScript"',
+        'thisagent\'s "StartingScript" = thisagent\'s "QuestScript"',
+        'thisagent\'s "BasicScript" = thisagent\'s "QuestScript"',
+        'thisagent\'s "ActiveScript" = thisagent\'s "QuestScript"',
+        'thisagent\'s "BackScript" = thisagent\'s "QuestScript"',
+    )
+    for snippet in forbidden_capture_contract:
+        if snippet in capture:
+            errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
+
+    project = (root / "GPL" / "RestoreAbandonedZoo.gplproj").read_text(
+        encoding="utf-8"
+    )
+    if 'source="RestoreAbandonedZoo_Capture.gpl"' not in project:
+        errors.append("GPL project does not compile the Zoo capture bridge")
+    if gpl.count("(IGdeathscript building_death)") != 3:
+        errors.append("All three Zoo levels must retain stock building_death")
     return errors
 
 
