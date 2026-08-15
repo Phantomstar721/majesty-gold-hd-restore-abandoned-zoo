@@ -113,10 +113,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   require per-delivery cleanup, so the Zoo clone now applies the same stock
   `Reset_Tasks` operation directly to that Hooligan's `leader` before storing
   the target. This ownership substitution is new integration behavior.
-- Visitor registration copies the permanent-storage tail of
-  `Check_Mausoleum`: after the existing `Hide` arrival and paired-owner reset,
-  kill the stored agent's active thread and append it to the Zoo's generic
-  `Occupants` list. Applying those statements to a living Hooligan is new
+- Visitor registration calls stock `Enter_Building` only after the existing
+  `Hide` arrival and paired-owner reset, then kills the stored agent's active
+  thread. Applying the ordinary visitor callback to a living Hooligan is new
   integration behavior. There is intentionally no capacity; the prior invented
   4/8/12 limits remain removed.
 - For repeatable testing only, the mod overrides `DEAL_DEMON` with a literal

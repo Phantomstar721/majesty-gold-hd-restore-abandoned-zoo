@@ -30,14 +30,15 @@ iterates agents and branches only on validity and death.
 
 ## Monster handoff under test
 
-The implemented storage lifecycle uses the generic building path plus the
-permanent-storage tail from Mausoleum, not Mausoleum resurrection:
+The implemented storage lifecycle uses the generic building visitor path, not
+Mausoleum resurrection:
 
 1. let the current stock `Hide` trip finish;
 2. keep the valid hidden monster agent instead of deleting it;
 3. reset the paired arresting hero as before;
-4. kill the hidden Hooligan's active thread, matching `Check_Mausoleum`;
-5. append it to `zoo.Occupants`, matching the next Mausoleum statement.
+4. call stock `Enter_Building` now that delivery is complete; it adds the
+   captive once to `zoo.Occupants` and plays the normal entry effect;
+5. kill the hidden Hooligan's active thread so it remains stored.
 
 There is no GPL Hero filter in the generic occupant list or Visitors control.
 However, the stock shipped scenarios do not place Monster/Hooligan agents in

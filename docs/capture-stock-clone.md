@@ -72,8 +72,8 @@ shape, with the adaptations required by private single-owner arrests:
 - after it becomes hidden, check whether this was the last Hooligan;
 - emit the stock completion message and set quest flag 2 for the last one;
 - reset the exact paired owner on every arrival;
-- stop the hidden Hooligan's active thread and append it to the Zoo's
-  `Occupants` list in stock Mausoleum storage order.
+- call stock `Enter_Building` only after `Hide` has completed, then stop the
+  hidden Hooligan's active thread so it remains in the Zoo's `Occupants` list.
 
 The flag-side completed-building query gates conversion using the Attack Flag's
 player ownership. The Hooligan-side destination query independently selects the

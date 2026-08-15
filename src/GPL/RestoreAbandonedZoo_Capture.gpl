@@ -222,10 +222,11 @@ begin
 				if ( $isdead ( owner ) == FALSE )
 					$Reset_Tasks ( owner );
 
-			// Literal permanent-storage tail from Check_Mausoleum: stop the
-			// hidden agent's active lifecycle and register it with the building.
+			// The stock visitor callback runs only after travel has delivered the
+			// agent.  Hide has now completed, so register this hidden captive
+			// through that callback, then stop its permanent stored lifecycle.
+			$Enter_Building ( thisagent, zoo );
 			$KillThread ( thisagent's "ActiveScript" );
-			zoo's "Occupants" << thisagent;
 		end
 end
 
