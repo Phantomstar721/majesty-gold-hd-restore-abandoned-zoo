@@ -25,6 +25,49 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Hooligan_Control_Delay ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal fake_wander timing from stock Control_Monster.  Its Hidden type and
+// transferred player ownership make existing friendly attackers drop it before
+// the Hooligan arrest lifecycle becomes visible.
+declare
+begin
+	thisagent's "Counter" ++;
+
+	if ( thisagent's "Counter" * #Normal_Cycle >= #Charm_Delay_Time )
+		begin
+			thisagent's "ActiveScript" = $Restore_Become_Hooligan;
+		end
+	else
+		begin
+			if ( $IsMoving ( thisagent ) == FALSE )
+				$Move ( thisagent, $RandomCoord ( thisagent, 300 ));
+		end
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Become_Hooligan ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal Become_Controlled completion shape, with Hooligan replacing
+// Controlled and the already-proven single-hero arrest handoff appended.
+declare
+begin
+	if ( $IsDead ( thisagent ))
+		return;
+
+	thisagent's "Type" = "Hooligan";
+	thisagent's "ActiveScript" = thisagent's "BackScript";
+	thisagent's "BasicScript" = thisagent's "BackScript";
+	thisagent's "StartingScript" = thisagent's "BackScript";
+
+	thisagent's "Target" == $NullAgent ();
+	$ClearList ( thisagent's "Hostiles" );
+	$SetThreadInterval ( thisagent's "ActiveScript", #Henchmen_Cycle );
+
+	$Restore_Assign_Hooligan ( thisagent, $NullAgent ());
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Assign_Hooligan ( agent thisagent, agent previous_owner ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
 // Stock Be_Dumb's successful Hooligan_Check handoff, applied directly because
@@ -186,14 +229,13 @@ end
 function Restore_Convert_To_Stock_Hooligan (
 	agent thisagent, agent flag )
 ///////////////////////////////////////////////////////////////////////////////
-// Apply the literal Hooligan data fields and private literal Hooligan_Basic
-// clone to a living Monster.  Stock Hooligan_Check, Arrest_Hooligan, and
-// Hooligan_Death remain unchanged; only the Hooligan's destination is private.
+// Apply the literal Hooligan data fields through Control_Monster's stock
+// Hidden/ownership-transfer lifecycle.  Existing player minions therefore
+// stop attacking before the private Hooligan_Basic clone becomes active.
 declare
 begin
 	$StopMoving ( thisagent );
 	$ClearList ( thisagent's "Hostiles" );
-	thisagent's "Type" = "Hooligan";
 	thisagent's "SubType" = "Hooligan";
 	thisagent's "EnemyType" = "hero";
 	thisagent's "Idle_action" = "basic_idle";
@@ -201,18 +243,20 @@ begin
 	thisagent's "Guardian_Mod" = 3;
 	thisagent's "coord_home" = $LocationOf ( thisagent );
 	thisagent's "Special_Boolean" = FALSE;
-	thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
-	thisagent's "BasicScript" = $Restore_Hooligan_Basic;
+
+	// Stock Control_Monster uses this temporary Hidden state specifically so
+	// other units stop attacking the target, then transfers it to the
+	// controller's player before the delayed controlled state becomes active.
+	thisagent's "ActiveScript" = $Restore_Hooligan_Control_Delay;
+	thisagent's "Type" = "Hidden";
+	thisagent's "Counter" = 0;
 	thisagent's "BackScript" = $Restore_Hooligan_Basic;
-	thisagent's "StartingScript" = $Restore_Hooligan_Basic;
 	thisagent's "IGDeathScript" = $Hooligan_Death;
+	$SetUnitPlayerNumber (
+		thisagent, $GetUnitPlayerNumber ( flag ));
+
 	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
-	$Reset_Tasks ( thisagent );
-	$SetThreadInterval ( thisagent's "ActiveScript", #Henchmen_Cycle );
-
-	// Apply the exact successful Hooligan_Check + Be_Dumb handoff to one hero.
-	$Restore_Assign_Hooligan ( thisagent, $NullAgent ());
 end
 
 ///////////////////////////////////////////////////////////////////////////////

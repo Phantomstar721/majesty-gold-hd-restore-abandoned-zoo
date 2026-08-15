@@ -50,7 +50,7 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 
 - A normal Attack Flag is used only as a convenient player-facing trigger.
   When its player owns a completed Zoo, placing it on a living `Monster`
-  immediately removes the flag and hands that still-living target to the stock
+  immediately removes the flag and begins a stock control transition into the
   Wizard's Curse Hooligan lifecycle. This is diagnostic glue, not recovered
   Zoo design.
 - The enable gate copies the stock completed-building query shape used by the
@@ -66,10 +66,20 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   retains the stock `Hide`, last-Hooligan detection, message, and quest flag,
   but changes the destination and privatizes escort pacing and reset ownership
   as detailed below.
-- The Attack Flag selects the first completed player Zoo and
-  stores it in the Monster prototype's surviving `zoo_agent` field. Repurposing
-  that abandoned Zoo-flag link as the selected destination is new
-  integration behavior.
+- The Attack Flag owns only the proven player-Zoo gate. The converted Hooligan
+  later uses the private stock destination clone to select the first completed
+  Zoo.
+- Minion protection copies stock `Control_Monster`, whose source explicitly
+  sets `Type = Hidden` so other units stop attacking, transfers the target to
+  the controller's player, waits `Charm_Delay_Time`, and then activates the
+  controlled type. The private completion substitutes `Hooligan` for
+  `Controlled` and appends the existing single-hero arrest handoff. That
+  substitution is new integration behavior; the Hidden state, ownership
+  transfer, 3300 ms counter timing, and hostile-list cleanup are stock.
+- The stock intent remains `#intent_arresting_hooligan` (numeric slot 117), but
+  this mod replaces only its `STRT/AITX` display string, “Arresting a
+  hooligan,” with the invented Zoo-facing wording “Capturing a monster.” No
+  intent number or GPL behavior changes.
 - Wizard's Curse reaches `Arrest_Hooligan` through a quest-wide `Be_Dumb`
   wrapper. Installing that wrapper permanently on a normal scenario hero was
   an incorrect integration choice and stranded heroes after delivery. The mod

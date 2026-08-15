@@ -13,17 +13,35 @@ Construction sites therefore do not enable the trigger; any completed Zoo
 level does. The first completed Zoo becomes the destination.
 
 With that gate satisfied, placing a normal Attack Flag on a living agent whose
-current `Type` is `Monster` immediately converts that target. The trigger does
-not wait for combat, roll capture chance, intercept death, or retain the reward
-flag.
+current `Type` is `Monster` immediately removes the flag and begins the stock
+controlled-monster transition described below. The trigger does not wait for
+combat, roll capture chance, or intercept death.
 
 Without a completed player Zoo, or when placed on a non-monster target, Attack
 Flags retain the literal stock `attack_flag_birth` lifecycle.
 
 ## Monster handoff
 
-The bridge stops the living monster, clears its hostile list, applies the stock
-Hooligan data values that behavior depends on, and assigns:
+The bridge copies the complete target-protection lifecycle from stock
+`Control_Monster`, `fake_wander`, and `Become_Controlled` before activating the
+Hooligan behavior:
+
+1. stop the target and clear its Hostiles;
+2. make its active script the private stock `fake_wander` clone;
+3. temporarily set `Type` to `Hidden` so attackers treat the target as invalid;
+4. transfer the target to the Attack Flag's player with
+   `SetUnitPlayerNumber`, matching stock control/charm;
+5. wait the shipped `Charm_Delay_Time` of 3300 ms;
+6. change `Type` to `Hooligan`, clear Hostiles again, and activate the proven
+   Hooligan arrest lifecycle.
+
+Player-controlled minions use `list_enemies_seen`, which lists only Hero and
+Monster agents on `NotMyTeam`. The temporary Hidden state cancels an attack
+already underway; the ownership transfer and final Hooligan type prevent the
+same minion from reacquiring the captive afterward.
+
+The final handoff applies the stock Hooligan data values that behavior depends
+on and assigns:
 
 - private literal `Restore_Hooligan_Basic` to Starting, Basic, Active, and Back
   scripts;
@@ -33,9 +51,9 @@ Hooligan data values that behavior depends on, and assigns:
   location as `coord_home`, `Special_Boolean FALSE`, the stock Hooligan
   non-flaggable/non-spell-target attributes, and the Henchman cycle interval.
 
-No task thread is killed, created, delayed, or resurrected during conversion.
-`Reset_Tasks` hands the already-living agent to the literal Hooligan clone
-exactly as other stock behavior changes hand off living units.
+No task thread is killed or created. The target's existing active thread owns
+the same counter-based delayed transition as stock charm/control; completion
+switches that thread to the literal Hooligan clone.
 
 ## Destination substitution
 
@@ -47,7 +65,7 @@ radius query, Player 1 restriction, target check, message, and
 `Restore_Hooligan_Goto_Zoo` preserves the shipped destination and arrival
 shape, with the adaptations required by private single-owner arrests:
 
-- travel to the available Zoo selected when the flag was placed;
+- query the first completed Zoo when delivery starts;
 - call `Hide` only while the Hooligan is not moving and its assigned hero is
   within the stock arrest distance;
 - stop the Hooligan when it gets farther than that distance from its owner;
@@ -56,16 +74,15 @@ shape, with the adaptations required by private single-owner arrests:
 - reset the exact paired owner on every arrival;
 - delete the delivered Hooligan through the stock arrival result.
 
-The flag-side completed-building query selects the first completed player Zoo
-and stores that agent in the Monster prototype's surviving `zoo_agent` field.
-Stock resets all arresting heroes only when the globally
+The flag-side completed-building query gates conversion using the Attack Flag's
+player ownership. The Hooligan-side destination query independently selects the
+first completed Zoo after conversion. Stock resets all arresting heroes only when the globally
 last quest Hooligan arrives. The private one-owner system instead uses the same
 `Reset_Tasks` cleanup on the delivered Hooligan's `leader` before deleting the
 target.
 
 This is the rollback checkpoint from before visitor registration. It contains
-no `Occupants` writes, visitor capacity, Visitors-menu modification, or captive
-allegiance change.
+no `Occupants` writes, visitor capacity, or Visitors-menu modification.
 
 ## Hero handoff
 
@@ -126,8 +143,10 @@ does not guess per-species movement-rate modifiers.
 1. Before completing a Zoo, place an Attack Flag on a monster. It remains an
    ordinary bounty and the monster remains unchanged.
 2. Complete any level of Zoo, then place an Attack Flag on a living monster.
-3. The flag disappears immediately; no bounty is paid.
-4. One selected hero receives the stock arrest intent, target, counter, and
+3. The flag disappears immediately; no bounty is paid. For the stock 3300 ms
+   control delay, the target is Hidden and transferred to the player's
+   allegiance so existing player-minion attacks terminate.
+4. After that delay, one selected hero receives the stock arrest intent, target, counter, and
    `Arrest_Hooligan` ActiveScript; every other hero retains normal behavior.
    The Hooligan pauses if it gets more than 50 units ahead of that hero.
 5. The literal Hooligan Basic clone sees the targeting hero and switches itself

@@ -50,6 +50,16 @@ def cam_entry_data(path: Path, wanted_extension: bytes, wanted_name: bytes) -> b
     raise ValueError(f"Missing {wanted_extension!r}/{wanted_name!r} in {path}")
 
 
+def indexed_strt_record(data: bytes, index: int) -> tuple[int, str]:
+    count = struct.unpack_from("<H", data, 0)[0]
+    if index >= count:
+        raise ValueError(f"STRT index {index} is outside its {count} records")
+    offset = struct.unpack_from(f"<{count}I", data, 4)[index]
+    string_id = struct.unpack_from("<I", data, offset)[0]
+    end = data.index(b"\x00", offset + 4)
+    return string_id, data[offset + 4 : end].decode("cp1252")
+
+
 def validate(root: Path) -> list[str]:
     errors: list[str] = []
     required = (
@@ -114,8 +124,19 @@ def validate(root: Path) -> list[str]:
     if not any(extension == b"SPLT" for extension, _ in art_names):
         errors.append("Zoo main-data CAM lacks the stock palette table")
     help_names = cam_names(root / "Data" / "restore_zoo_gpltext.cam")
-    if (b"STRT", b"HPTX") not in help_names:
-        errors.append("Zoo GPL text CAM lacks STRT/HPTX")
+    if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
+        errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")
+    else:
+        intent_record = indexed_strt_record(
+            cam_entry_data(
+                root / "Data" / "restore_zoo_gpltext.cam", b"STRT", b"AITX"
+            ),
+            117,
+        )
+        if intent_record != (117, "Capturing a monster"):
+            errors.append(
+                "Intent 117 must change only its text to Capturing a monster"
+            )
     bdep = cam_entry_data(
         root / "Data" / "restore_zoo_miscdata.cam", b"DATA", b"BDEP"
     )
@@ -149,6 +170,13 @@ def validate(root: Path) -> list[str]:
         '#CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
         'zoo = $ListMember ( zoos, 1 )',
         "function Restore_Convert_To_Stock_Hooligan",
+        "function Restore_Hooligan_Control_Delay",
+        "function Restore_Become_Hooligan",
+        'thisagent\'s "Counter" * #Normal_Cycle >= #Charm_Delay_Time',
+        'thisagent\'s "ActiveScript" = $Restore_Become_Hooligan',
+        'thisagent\'s "Type" = "Hidden"',
+        '$SetUnitPlayerNumber (',
+        'thisagent, $GetUnitPlayerNumber ( flag ))',
         "function Restore_Hooligan_Basic",
         "function Restore_Hooligan_Goto_Zoo",
         "function Restore_Assign_Hooligan",
@@ -161,7 +189,8 @@ def validate(root: Path) -> list[str]:
         'hero\'s "ActiveScript" != $Arrest_Hooligan',
         'hero\'s "BackScript" != $Arrest_Hooligan',
         'thisagent\'s "Type" = "Hooligan"',
-        'thisagent\'s "ActiveScript" = $Restore_Hooligan_Basic',
+        'thisagent\'s "ActiveScript" = thisagent\'s "BackScript"',
+        'thisagent\'s "BackScript" = $Restore_Hooligan_Basic',
         'thisagent\'s "ActiveScript" = $Restore_Hooligan_Goto_Zoo',
         "$Hide ( thisagent, zoo )",
         'owner = thisagent\'s "leader"',
@@ -196,7 +225,6 @@ def validate(root: Path) -> list[str]:
         "Resurrect",
         'zoo\'s "Occupants" << thisagent',
         '$KillThread ( thisagent\'s "ActiveScript" )',
-        "$SetUnitPlayerNumber (",
         "TEMPORARY ROLLBACK LOAD PROBE",
         "$ListPalaces (",
         "$Hooligan_Goto_Palace",

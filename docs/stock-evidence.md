@@ -92,6 +92,20 @@ ownership. Earlier experiments around that gap have been removed. This
 milestone transforms only a still-living agent and contains no resurrection or
 death-state manipulation.
 
+`TaskModules/Subtasks/mx_Control_Monster.gpl` supplies the stock protection
+lifecycle for a living creature changing sides. `Control_Monster` comments that
+its temporary setup exists so other units stop attacking the target, assigns
+`Type = Hidden`, transfers the target to the controller's player, and leaves
+the target's existing active thread running `fake_wander`. After the shipped
+3300 ms `Charm_Delay_Time`, `Become_Controlled` exposes the allied Hero type and
+clears the target and Hostiles. The Zoo bridge copies that sequence, changing
+only the final exposed type and script from Controlled to Hooligan arrest.
+
+This also matches the target-selection path used by Priestess familiars and
+charmed monsters: `list_enemies_seen` lists only Hero and Monster agents on
+`#NotMyTeam`. Hidden invalidates an already-selected target; player allegiance
+plus the final Hooligan type keep it out of subsequent minion enemy lists.
+
 The Wizard's Curse quest supplies the isolated test contract.
 `Be_Dumb`/`Hooligan_Check` assigns a hero stock `Arrest_Hooligan`, which keeps
 the hero near its moving target while retaining low-HP and danger evaluation.
@@ -110,6 +124,11 @@ and ActiveScript `Arrest_Hooligan`. Installing the whole quest wrapper at
 runtime in an unrelated scenario left it owning the hero's reset lifecycle.
 The mod now copies only those successful-branch writes and leaves every native
 hero script field unchanged.
+
+`#intent_arresting_hooligan` is stock intent number 117. The matching indexed
+record is `STRT/AITX[117]`, whose shipped text is “Arresting a hooligan.” The
+mod packages the complete stock AITX table with only that record's text changed
+to “Capturing a monster”; the GPL continues to call the same stock intent.
 
 The abandoned Zoo's shipped `zoo_flag_poll` treats a hero as having abandoned
 its monster when `hero.Target` no longer equals the flag target; it removes that

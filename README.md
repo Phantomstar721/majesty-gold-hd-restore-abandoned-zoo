@@ -17,8 +17,12 @@ Wizard's Curse Hooligan lifecycle:
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
 - while the player owns a completed Zoo, placing an ordinary Attack Flag on a
-  living monster immediately converts it to the shipped Hooligan behavior;
+  living monster begins the shipped controlled-monster handoff into Hooligan
+  behavior;
 - without a completed Zoo, Attack Flags and monsters remain stock;
+- the stock 3.3-second `Control_Monster` transition temporarily hides the
+  target and transfers it to the flag player's allegiance, forcing Priestess
+  skeletons and charmed monsters to drop existing attacks before arrest begins;
 - shipped `Arrest_Hooligan` and `Hooligan_Death` remain unchanged; private
   Hooligan clones change the destination and enforce one arresting hero per
   Hooligan;
@@ -33,7 +37,7 @@ Wizard's Curse Hooligan lifecycle:
   abandonment test releases the Hooligan and assigns one different hero;
 - there is currently no visitor registration, capacity, capture roll,
   combat/death hook, resurrection, visitor income, Zoo-destruction handling,
-  minion-allegiance protection, or breakout behavior.
+  or breakout behavior.
 
 See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
 contract](docs/capture-stock-clone.md), and the complete [invented-content

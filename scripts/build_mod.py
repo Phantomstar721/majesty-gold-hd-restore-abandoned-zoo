@@ -220,6 +220,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     stock_menu = read_cam_entry(expansion_textdata, b"SMNU", b"MX09")
     stock_strings = read_cam_entry(expansion_textdata, b"STRT", b"MX09")
     unit_names = read_cam_entry(base_textdata, b"STRT", b"UNTN")
+    advisor_text = read_cam_entry(gpltext, b"STRT", b"AITX")
     help_text = read_cam_entry(gpltext, b"STRT", b"HPTX")
 
     patched_strings = patch_indexed_strt(
@@ -257,6 +258,12 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
             ),
         },
     )
+    patched_advisor_text = patch_indexed_strt(
+        advisor_text.data,
+        {
+            117: "Capturing a monster",
+        },
+    )
 
     write_cam(
         data_dir / "restore_zoo_textdata.cam",
@@ -273,7 +280,15 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     )
     write_cam(
         data_dir / "restore_zoo_gpltext.cam",
-        (CamSection(b"STRT", (CamEntry(pad_name(b"HPTX"), patched_help),)),),
+        (
+            CamSection(
+                b"STRT",
+                (
+                    CamEntry(pad_name(b"AITX"), patched_advisor_text),
+                    CamEntry(pad_name(b"HPTX"), patched_help),
+                ),
+            ),
+        ),
     )
 
 
