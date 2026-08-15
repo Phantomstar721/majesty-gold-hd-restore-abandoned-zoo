@@ -166,6 +166,17 @@ The call is deliberately not used for travel: stock `Enter_Building` has no
 active movement or `Hide` statement. It does not copy hero-specific death,
 guild, intent, resurrection, or home logic.
 
+Live inspection confirmed that each delivered monster remains a valid
+`VehicleRec`, appears in the Visitors controller's unit vector, and owns a
+selectable row whose stored agent ID opens the correct monster primary panel.
+The ordinary stock row nevertheless renders without visible content. Static
+tracing subsequently proved that the common unit-list formatter already sends
+all `VehicleRec` agents, including monsters, through the stock instance-name
+getter. The attempted native formatter wrapper therefore targeted the wrong
+stage and has been removed completely. The unresolved display fault is after
+formatting, in the row-cell/layout path; capture, delivery, occupant ownership,
+and selection are not implicated.
+
 Stock `Hooligan_Check` uses `Is_Free_Task`; the latter has
 `#is_free_task_max_heroes 2`, an inclusive allowance check, and a closer-hero
 takeover rule. For single ownership, the current milestone instead copies the

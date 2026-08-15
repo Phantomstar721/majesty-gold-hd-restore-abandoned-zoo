@@ -41,9 +41,13 @@ Mausoleum resurrection:
 5. kill the hidden Hooligan's active thread so it remains stored.
 
 There is no GPL Hero filter in the generic occupant list or Visitors control.
-However, the stock shipped scenarios do not place Monster/Hooligan agents in
-the ordinary Visitors window, so portrait/list rendering for a stored monster
-still requires a live test before capture delivery is changed.
+Live inspection proved that the controller receives every delivered monster,
+creates a selectable row with the correct agent ID, and opens the correct
+monster primary panel. The row itself remains visually blank. Static tracing
+proved that the common formatter already invokes the instance-name getter for
+all `VehicleRec` agents; a formatter wrapper consequently made no visual change
+and has been removed. The remaining fault is downstream in the stock row-cell
+or layout path.
 
 There is deliberately no capacity, income, breakout, release command, or
 Zoo-destruction-specific behavior in this test. Generic `building_death` will
