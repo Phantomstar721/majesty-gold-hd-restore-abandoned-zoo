@@ -153,10 +153,12 @@ specific hero may otherwise retain a delivered target while unrelated
 Hooligans remain. The Zoo arrival therefore applies stock `Reset_Tasks` to its
 exact owner on every delivery before the stock Hooligan deletion step.
 
-The attempted visitor registration, `Occupants` capacity, Visitors-menu splice,
-and allegiance changes have been removed. The restored checkpoint gates only
-on the stock completed-building query, selects completed Zoo list member 1,
-and retains the proven delete-on-delivery lifecycle.
+The attempted visitor registration and `Occupants` capacity remain removed.
+The generic Visitors-menu control is now restored independently: MX09 already
+contains the Visitors strings, rectangle, command ID `0x1F55`, and the first
+0x84 bytes of AP02's stock control, but its record ends 16 bytes early. The mod
+replaces only that truncated record with AP02's complete 0x98-byte control.
+Capture still performs no `Occupants` write and retains delete-on-delivery.
 
 Stock `Hooligan_Check` uses `Is_Free_Task`; the latter has
 `#is_free_task_max_heroes 2`, an inclusive allowance check, and a closer-hero
@@ -164,8 +166,9 @@ takeover rule. For single ownership, the current milestone instead copies the
 abandoned Zoo's one-hero selection and stock `Control_Monster`'s declared
 `Monster.leader` link. The shipped arrest task and all later behavior are
 unchanged; the private assignment applies its normal successful entry state to
-only that linked hero. The later `Control_Monster` allegiance lifecycle is not
-present in this rollback checkpoint.
+only that linked hero. The subsequent stock `Control_Monster` Hidden delay and
+player-allegiance transfer protect the captive from allied minions before the
+Hooligan state becomes active.
 
 ## Original-design interview
 

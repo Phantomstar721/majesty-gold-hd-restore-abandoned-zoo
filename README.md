@@ -30,6 +30,11 @@ Wizard's Curse Hooligan lifecycle:
   than the stock arrest distance ahead of its selected hero;
 - the Hooligan returns to its selected Zoo and is deleted by the proven stock
   Hooligan delivery lifecycle;
+- the abandoned Zoo panel's truncated `Visitors` control is completed with the
+  missing bytes from the stock Blacksmith control; it currently shows the
+  generic visitor window but capture still registers no occupants;
+- Deal with a Demon starts with one completed level-one Zoo as a temporary,
+  deterministic test fixture;
 - the mod applies only the successful stock Hooligan-check handoff to one hero,
   leaving that hero's native Basic/Starting scripts untouched so delivery can
   reset cleanly;
@@ -40,8 +45,9 @@ Wizard's Curse Hooligan lifecycle:
   or breakout behavior.
 
 See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
-contract](docs/capture-stock-clone.md), and the complete [invented-content
-ledger](docs/invented-content.md) before changing gameplay.
+contract](docs/capture-stock-clone.md), the [visitor stock trace](docs/visitor-stock-trace.md),
+and the complete [invented-content ledger](docs/invented-content.md) before
+changing gameplay.
 
 ## Build
 

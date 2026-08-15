@@ -72,6 +72,7 @@ def validate(root: Path) -> list[str]:
         "Data/RestoreAbandonedZoo.bcd",
         "GPL/RestoreAbandonedZoo_Building_Data.dat",
         "GPL/RestoreAbandonedZoo_Capture.gpl",
+        "GPL/RestoreAbandonedZoo_DealDemon_Test.gpl",
         "GPL/RestoreAbandonedZoo.gplproj",
     )
     for relative in required:
@@ -101,10 +102,17 @@ def validate(root: Path) -> list[str]:
         errors.append("Manifest load block is missing")
     elif load.find("GPL") is None:
         errors.append("Standalone Zoo GPL load block is missing")
-    elif [item.text for item in load.findall("Descriptions")] != [
-        "Data\\restore_zoo_units.xml"
-    ]:
-        errors.append("Manifest must load only the Zoo building descriptions")
+    else:
+        if [item.text for item in load.findall("Descriptions")] != [
+            "Data\\restore_zoo_units.xml"
+        ]:
+            errors.append("Manifest must load only the Zoo building descriptions")
+        if [item.text for item in load.find("GPL").findall("Source")] != [
+            "GPL\\RestoreAbandonedZoo_Building_Data.dat",
+            "GPL\\RestoreAbandonedZoo_Capture.gpl",
+            "GPL\\RestoreAbandonedZoo_DealDemon_Test.gpl",
+        ]:
+            errors.append("Manifest GPL sources are missing the Deal Demon test fixture")
 
     text_names = cam_names(root / "Data" / "restore_zoo_textdata.cam")
     if not {(b"SMNU", b"MX09"), (b"STRT", b"MX09"), (b"STRT", b"UNTN")} <= text_names:
@@ -112,8 +120,10 @@ def validate(root: Path) -> list[str]:
     zoo_menu = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"MX09"
     )
-    if len(zoo_menu) != 2488:
-        errors.append("Zoo panel must remain the literal stock MX09 payload")
+    if zoo_menu.count(struct.pack("<I", 0x1F55)) != 1:
+        errors.append("Zoo panel must contain exactly one stock Visitors command")
+    if len(zoo_menu) != 2504:
+        errors.append("Zoo panel must restore AP02's complete Visitors control")
     art_names = cam_names(root / "Data" / "restore_zoo_maindata.cam")
     image_names = {name for extension, name in art_names if extension == b"IMAG"}
     for prefix in (b"ABn1", b"ABn2", b"ABn3"):
@@ -250,8 +260,28 @@ def validate(root: Path) -> list[str]:
     )
     if 'source="RestoreAbandonedZoo_Capture.gpl"' not in project:
         errors.append("GPL project does not compile the Zoo capture bridge")
+    if 'source="RestoreAbandonedZoo_DealDemon_Test.gpl"' not in project:
+        errors.append("GPL project does not compile the Deal Demon test fixture")
     if gpl.count("(IGdeathscript building_death)") != 3:
         errors.append("All three Zoo levels must retain stock building_death")
+
+    deal_demon = (
+        root / "GPL" / "RestoreAbandonedZoo_DealDemon_Test.gpl"
+    ).read_text(encoding="utf-8")
+    required_deal_demon_contract = (
+        "function DEAL_DEMON()",
+        'AIRootAgent\'s "Quest_Number" = #QNumber_Deal_Demon',
+        "palaces = $ListPalaces()",
+        "palace = $listmember(palaces,1)",
+        '$SpawnUnit (Palace, "Restore_Zoo1", "MaxHP", $RandomCoord (Palace, 200) )',
+        "$Setup_Quest_Music (AiRootAgent)",
+        "$setup_random_treasure(30, #default_spawn_treasure_dist)",
+        'AIRootAgent\'s "VictoryCondition" = $Demon_victory',
+        'AIRootAgent\'s "VictoryCondition2" = $Demon_victory2',
+    )
+    for snippet in required_deal_demon_contract:
+        if snippet not in deal_demon:
+            errors.append(f"Deal Demon stock-clone fixture is missing: {snippet}")
     return errors
 
 

@@ -116,6 +116,11 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Visitor registration and the invented 4/8/12 capacity have been removed to
   restore the last proven checkpoint. Delivery again uses stock Hooligan
   deletion after the owner reset.
+- For repeatable testing only, the mod overrides `DEAL_DEMON` with a literal
+  stock copy plus one stock completed-building `SpawnUnit` call for
+  `Restore_Zoo1` beside the first Palace. The quest's music, treasure, enemy
+  guild, lair, and victory setup remain in stock order. Starting this quest
+  with a Zoo is invented test scaffolding, not recovered Zoo design.
 - Beyond serving as the stock `Hide` destination there
   is deliberately no capture probability, bounty payment, lethal event,
   resurrection, carrier pairing, visitor income, or Zoo destruction cleanup.

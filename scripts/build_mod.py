@@ -16,6 +16,11 @@ ENTRY_HEADER_SIZE = 28
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = REPO_ROOT / "src"
 DEFAULT_OUTPUT = REPO_ROOT / "dist" / "RestoreAbandonedZoo"
+VISITORS_CONTROL_ID = 0x1F55
+AP02_VISITORS_RECORD_START = 0x013C
+AP02_VISITORS_RECORD_END = 0x01D4
+MX09_VISITORS_RECORD_START = 0x013C
+MX09_VISITORS_RECORD_END = 0x01C4
 
 
 @dataclass(frozen=True)
@@ -213,11 +218,36 @@ def encode_strt(version: bytes, records: list[tuple[int, bytes]]) -> bytes:
     return bytes(output)
 
 
+def restore_zoo_visitors_control(zoo_menu: bytes, blacksmith_menu: bytes) -> bytes:
+    """Replace MX09's truncated Visitors record with stock AP02's full control."""
+    command = struct.pack("<I", VISITORS_CONTROL_ID)
+    if zoo_menu.count(command) != 1 or blacksmith_menu.count(command) != 1:
+        raise ValueError("Stock Visitors command contract changed")
+
+    abandoned = zoo_menu[MX09_VISITORS_RECORD_START:MX09_VISITORS_RECORD_END]
+    stock = blacksmith_menu[AP02_VISITORS_RECORD_START:AP02_VISITORS_RECORD_END]
+    if len(abandoned) != 0x88 or abandoned[-4:] != b"\xff" * 4:
+        raise ValueError("Abandoned MX09 Visitors record boundary changed")
+    if len(stock) != 0x98 or stock[-4:] != b"\xff" * 4:
+        raise ValueError("Stock AP02 Visitors control boundary changed")
+    if abandoned[:0x84] != stock[:0x84]:
+        raise ValueError("MX09 Visitors prefix no longer matches stock AP02")
+    if struct.unpack_from("<4I", stock, 0x08) != (32, 162, 139, 26):
+        raise ValueError("Stock AP02 Visitors rectangle changed")
+
+    return (
+        zoo_menu[:MX09_VISITORS_RECORD_START]
+        + stock
+        + zoo_menu[MX09_VISITORS_RECORD_END:]
+    )
+
+
 def write_text_cams(game_path: Path, data_dir: Path) -> None:
     base_textdata = game_path / "Data" / "textdata.cam"
     expansion_textdata = game_path / "DataMX" / "mx_textdata.cam"
     gpltext = game_path / "DataMX" / "mx_gpltext.cam"
     stock_menu = read_cam_entry(expansion_textdata, b"SMNU", b"MX09")
+    stock_blacksmith_menu = read_cam_entry(base_textdata, b"SMNU", b"AP02")
     stock_strings = read_cam_entry(expansion_textdata, b"STRT", b"MX09")
     unit_names = read_cam_entry(base_textdata, b"STRT", b"UNTN")
     advisor_text = read_cam_entry(gpltext, b"STRT", b"AITX")
@@ -268,7 +298,17 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     write_cam(
         data_dir / "restore_zoo_textdata.cam",
         (
-            CamSection(b"SMNU", (CamEntry(pad_name(b"MX09"), stock_menu.data),)),
+            CamSection(
+                b"SMNU",
+                (
+                    CamEntry(
+                        pad_name(b"MX09"),
+                        restore_zoo_visitors_control(
+                            stock_menu.data, stock_blacksmith_menu.data
+                        ),
+                    ),
+                ),
+            ),
             CamSection(
                 b"STRT",
                 (
@@ -380,6 +420,9 @@ def build(game_path: Path, output_root: Path) -> None:
     shutil.copy2(SOURCE_ROOT / "Data" / "restore_zoo_units.xml", data_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Building_Data.dat", gpl_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Capture.gpl", gpl_dir)
+    shutil.copy2(
+        SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_DealDemon_Test.gpl", gpl_dir
+    )
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo.gplproj", gpl_dir)
     write_maindata_cam(game_path, data_dir)
     write_miscdata_cam(game_path, data_dir)

@@ -1,0 +1,56 @@
+///////////////////////////////////////////////////////////////////////////////
+// Restore Abandoned Zoo: Deal with the Demon test fixture
+//
+// This is the literal stock MX DEAL_DEMON entry point with one completed-
+// building SpawnUnit call added after the first Palace is resolved.
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// A Deal with the Demon Quest entry point
+function DEAL_DEMON()
+
+declare
+	agent AIRootAgent,palace,guild,lair;
+	list guilds,palaces,lairs;
+
+begin
+	AIRootAgent = $RetrieveAgent ("GplAIRoot");
+	AIRootAgent's "Quest_Number" = #QNumber_Deal_Demon;
+
+	palaces = $ListPalaces();
+	palace = $listmember(palaces,1);
+
+	// Stock Dead Heroes event completed-building spawn shape, using Zoo 1.
+	$SpawnUnit (Palace, "Restore_Zoo1", "MaxHP", $RandomCoord (Palace, 200) );
+
+	//Start playing music
+	$Setup_Quest_Music (AiRootAgent);
+
+	// what is restricted in this quest?
+
+	// special setup
+	$ListObjects (Palace, "Building", -1, Guilds, #NotMyPlayer, #NoHiddenMap);
+	Guilds = $ListSubtypes (Guilds, "Guild");
+
+	$setup_random_treasure(30, #default_spawn_treasure_dist);
+
+	Foreach Guild in Guilds do
+		begin
+			Guild's "SpecialScript" = $Hero_Generator;
+			$NewThread( Guild's "SpecialScript", 60000 + $randomnumber(60000), Guild );
+		end
+
+	$listobjects(palace,"lair",-1,lairs,#NoHiddenMap);
+	foreach lair in lairs do
+		begin
+			if (lair's "special_spawn_type" == "vampire")
+				lair's "special_spawn_type" = "werewolf";
+		end
+
+
+	// what scripts need to be run during the game?
+	AIRootAgent's "VictoryCondition" = $Demon_victory;
+	$NewThread( AIRootAgent's "VictoryCondition", #VictoryCondition_callback_frequency );
+	AIRootAgent's "VictoryCondition2" = $Demon_victory2;
+	$newThread( AIRootAgent's "VictoryCondition2", 1200000);
+end
