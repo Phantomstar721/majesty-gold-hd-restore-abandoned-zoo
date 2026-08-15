@@ -43,11 +43,17 @@ Mausoleum resurrection:
 There is no GPL Hero filter in the generic occupant list or Visitors control.
 Live inspection proved that the controller receives every delivered monster,
 creates a selectable row with the correct agent ID, and opens the correct
-monster primary panel. The row itself remains visually blank. Static tracing
-proved that the common formatter already invokes the instance-name getter for
-all `VehicleRec` agents; a formatter wrapper consequently made no visual change
-and has been removed. The remaining fault is downstream in the stock row-cell
-or layout path.
+monster primary panel. Monster rows contain correct parsed titles such as
+`Harpy`, `Giant Rat`, `Troll`, and `Werewolf`.
+
+The blank display was native category filtering, not missing row data. During
+painting, visitor controller code at `0x004985C0` calls stock classifier
+`0x00508510`. Category 1 enters the complete hero row renderer, category 2
+enters its alternate renderer, and all other categories jump to cleanup at
+`0x00498A91` without drawing. The generic QOL patch changes only that final
+branch so otherwise-valid occupants enter the existing category-1 renderer at
+`0x004986A5`. Live Zoo testing displays monster level, name, current action,
+and HP. No Zoo-specific or per-monster display code is required.
 
 There is deliberately no capacity, income, breakout, release command, or
 Zoo-destruction-specific behavior in this test. Generic `building_death` will
