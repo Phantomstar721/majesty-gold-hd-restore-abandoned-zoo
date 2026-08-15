@@ -111,17 +111,20 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Stock arrival resets every hero still running `Arrest_Hooligan`, but only
   when the globally last quest Hooligan reaches the Palace. One-owner arrests
   require per-delivery cleanup, so the Zoo clone now applies the same stock
-  `Reset_Tasks` operation directly to that Hooligan's `leader` before deleting
+  `Reset_Tasks` operation directly to that Hooligan's `leader` before storing
   the target. This ownership substitution is new integration behavior.
-- Visitor registration and the invented 4/8/12 capacity have been removed to
-  restore the last proven checkpoint. Delivery again uses stock Hooligan
-  deletion after the owner reset.
+- Visitor registration copies the permanent-storage tail of
+  `Check_Mausoleum`: after the existing `Hide` arrival and paired-owner reset,
+  kill the stored agent's active thread and append it to the Zoo's generic
+  `Occupants` list. Applying those statements to a living Hooligan is new
+  integration behavior. There is intentionally no capacity; the prior invented
+  4/8/12 limits remain removed.
 - For repeatable testing only, the mod overrides `DEAL_DEMON` with a literal
   stock copy plus one stock completed-building `SpawnUnit` call for
   `Restore_Zoo1` beside the first Palace. The quest's music, treasure, enemy
   guild, lair, and victory setup remain in stock order. Starting this quest
   with a Zoo is invented test scaffolding, not recovered Zoo design.
-- Beyond serving as the stock `Hide` destination there
+- Beyond serving as the stock `Hide` destination and generic occupant container there
   is deliberately no capture probability, bounty payment, lethal event,
   resurrection, carrier pairing, visitor income, or Zoo destruction cleanup.
 

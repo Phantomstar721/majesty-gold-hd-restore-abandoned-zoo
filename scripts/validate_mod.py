@@ -211,6 +211,8 @@ def validate(root: Path) -> list[str]:
         "#Arrest_Hooligan_Dist",
         "$StopMoving ( thisagent )",
         "$Reset_Tasks ( owner )",
+        '$KillThread ( thisagent\'s "ActiveScript" )',
+        'zoo\'s "Occupants" << thisagent',
         "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
         "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
         'thisagent\'s "IGDeathScript" = $Hooligan_Death',
@@ -233,8 +235,6 @@ def validate(root: Path) -> list[str]:
         "ClearEngineDeathFlags",
         "CreateEffector",
         "Resurrect",
-        'zoo\'s "Occupants" << thisagent',
-        '$KillThread ( thisagent\'s "ActiveScript" )',
         "TEMPORARY ROLLBACK LOAD PROBE",
         "$ListPalaces (",
         "$Hooligan_Goto_Palace",
@@ -254,6 +254,12 @@ def validate(root: Path) -> list[str]:
     for snippet in forbidden_capture_contract:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
+    if capture.count("$DeleteGamePiece ( thisagent )") != 1:
+        errors.append("Only the consumed Attack Flag may retain DeleteGamePiece")
+    storage_kill = capture.index('$KillThread ( thisagent\'s "ActiveScript" )')
+    storage_append = capture.index('zoo\'s "Occupants" << thisagent')
+    if storage_kill > storage_append:
+        errors.append("Zoo storage must stop the active lifecycle before registration")
 
     project = (root / "GPL" / "RestoreAbandonedZoo.gplproj").read_text(
         encoding="utf-8"

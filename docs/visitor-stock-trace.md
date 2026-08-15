@@ -28,23 +28,23 @@ an agent and building without checking Type or SubType, appends the agent once,
 and stock `exit_building` removes it. Generic `release_occupants` likewise
 iterates agents and branches only on validity and death.
 
-## Required future monster handoff
+## Monster handoff under test
 
-The closest stock storage lifecycle for a delivered monster is therefore the
-generic building path, not Mausoleum resurrection:
+The implemented storage lifecycle uses the generic building path plus the
+permanent-storage tail from Mausoleum, not Mausoleum resurrection:
 
 1. let the current stock `Hide` trip finish;
 2. keep the valid hidden monster agent instead of deleting it;
-3. append it once to `zoo.Occupants`, matching `enter_building`;
-4. stop or replace the delivered Hooligan active ownership so it cannot run
-   arrival repeatedly;
-5. define Zoo-destruction behavior using stock `release_occupants` semantics;
-6. remove the agent from `Occupants` before any later deletion or release.
+3. reset the paired arresting hero as before;
+4. kill the hidden Hooligan's active thread, matching `Check_Mausoleum`;
+5. append it to `zoo.Occupants`, matching the next Mausoleum statement.
 
 There is no GPL Hero filter in the generic occupant list or Visitors control.
 However, the stock shipped scenarios do not place Monster/Hooligan agents in
 the ordinary Visitors window, so portrait/list rendering for a stored monster
 still requires a live test before capture delivery is changed.
 
-At this milestone the Visitors control exists, but the Zoo occupant list stays
-empty because delivery still resets the paired hero and deletes the Hooligan.
+There is deliberately no capacity, income, breakout, release command, or
+Zoo-destruction-specific behavior in this test. Generic `building_death` will
+call stock `release_occupants`; whether that produces a sensible released
+Hooligan remains deferred.

@@ -51,9 +51,9 @@ on and assigns:
   location as `coord_home`, `Special_Boolean FALSE`, the stock Hooligan
   non-flaggable/non-spell-target attributes, and the Henchman cycle interval.
 
-No task thread is killed or created. The target's existing active thread owns
-the same counter-based delayed transition as stock charm/control; completion
-switches that thread to the literal Hooligan clone.
+No task thread is killed or created during conversion. The target's existing
+active thread owns the same counter-based delayed transition as stock
+charm/control; completion switches that thread to the literal Hooligan clone.
 
 ## Destination substitution
 
@@ -72,17 +72,18 @@ shape, with the adaptations required by private single-owner arrests:
 - after it becomes hidden, check whether this was the last Hooligan;
 - emit the stock completion message and set quest flag 2 for the last one;
 - reset the exact paired owner on every arrival;
-- delete the delivered Hooligan through the stock arrival result.
+- stop the hidden Hooligan's active thread and append it to the Zoo's
+  `Occupants` list in stock Mausoleum storage order.
 
 The flag-side completed-building query gates conversion using the Attack Flag's
 player ownership. The Hooligan-side destination query independently selects the
 first completed Zoo after conversion. Stock resets all arresting heroes only when the globally
 last quest Hooligan arrives. The private one-owner system instead uses the same
-`Reset_Tasks` cleanup on the delivered Hooligan's `leader` before deleting the
+`Reset_Tasks` cleanup on the delivered Hooligan's `leader` before storing the
 target.
 
-This is the rollback checkpoint from before visitor registration. It contains
-no `Occupants` writes, visitor capacity, or Visitors-menu modification.
+There is no visitor capacity, income, breakout, or Zoo-destruction-specific
+cleanup in this storage test.
 
 ## Hero handoff
 
@@ -151,9 +152,10 @@ does not guess per-species movement-rate modifiers.
    The Hooligan pauses if it gets more than 50 units ahead of that hero.
 5. The literal Hooligan Basic clone sees the targeting hero and switches itself
    to the literal Zoo-arrival clone.
-6. The Hooligan enters its selected Zoo through stock `Hide` and is deleted.
+6. The Hooligan enters its selected Zoo through stock `Hide`; its active thread
+   is stopped and the valid hidden agent is appended to `Zoo.Occupants`.
 7. Arrival resets the paired hero to its unchanged native BasicScript before
-   deleting the target.
+   storing the target.
 8. If the hero changes targets before delivery, the Hooligan becomes available
    and one different hero receives the same stock arrest handoff.
 9. If an owner dies or loses the target, the captive can be reassigned.
@@ -161,4 +163,5 @@ does not guess per-species movement-rate modifiers.
 Monster birth, monster death, Zoo destruction-specific cleanup,
 Agrela/Phoenix resurrection, and separate movement machinery are absent. The
 Zoo substitutes the Palace destination, adds a stock formation-style escort-
-distance gate, and privatizes stock arrival cleanup to the paired owner.
+distance gate, privatizes stock arrival cleanup to the paired owner, and uses
+the stock Mausoleum storage tail to retain the hidden occupant.

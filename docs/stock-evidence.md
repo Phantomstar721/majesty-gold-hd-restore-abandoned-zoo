@@ -151,14 +151,18 @@ Stock Palace arrival resets heroes whose Active or Back script is
 cleanup is insufficient after privatizing each Hooligan to one `leader`: a
 specific hero may otherwise retain a delivered target while unrelated
 Hooligans remain. The Zoo arrival therefore applies stock `Reset_Tasks` to its
-exact owner on every delivery before the stock Hooligan deletion step.
+exact owner on every delivery before the occupant-storage step.
 
-The attempted visitor registration and `Occupants` capacity remain removed.
-The generic Visitors-menu control is now restored independently: MX09 already
+The prior invented `Occupants` capacity remains removed. The generic
+Visitors-menu control is restored independently: MX09 already
 contains the Visitors strings, rectangle, command ID `0x1F55`, and the first
 0x84 bytes of AP02's stock control, but its record ends 16 bytes early. The mod
 replaces only that truncated record with AP02's complete 0x98-byte control.
-Capture still performs no `Occupants` write and retains delete-on-delivery.
+On delivery, the captive already satisfies the first half of stock Mausoleum
+storage: it is a valid agent hidden inside the destination. The arrival then
+copies `Check_Mausoleum`'s final two storage statements in order—kill the
+agent's active thread, then append it to the building's `Occupants` list. It
+does not copy hero-specific death, guild, intent, resurrection, or home logic.
 
 Stock `Hooligan_Check` uses `Is_Free_Task`; the latter has
 `#is_free_task_max_heroes 2`, an inclusive allowance check, and a closer-hero

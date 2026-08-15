@@ -165,7 +165,8 @@ function Restore_Hooligan_Goto_Zoo ( agent thisagent )
 // Hide so differing monster movement profiles cannot outrun their escort.
 // The stock Zoo flag abandonment test releases an interrupted owner whenever
 // that hero no longer targets this Hooligan.  Arrival resets the exact owner
-// and returns to the proven stock Hooligan deletion result.
+// and stores the valid hidden Hooligan through the stock Mausoleum occupant
+// handoff instead of deleting it.
 declare
 	list zoos, hooligans;
 	agent zoo, AIRootAgent, owner;
@@ -214,14 +215,17 @@ begin
 
 				end
 
-			// Stock resets arresting heroes before deleting the last Hooligan.
+			// Stock resets arresting heroes before completing the Hooligan.
 			// Single-owner Zoo arrests require the same reset for each owner's
 			// delivery, not only for the globally last Hooligan on the map.
 			if ( $isvalidgamepiece ( owner ))
 				if ( $isdead ( owner ) == FALSE )
 					$Reset_Tasks ( owner );
 
-			$DeleteGamePiece ( thisagent );
+			// Literal permanent-storage tail from Check_Mausoleum: stop the
+			// hidden agent's active lifecycle and register it with the building.
+			$KillThread ( thisagent's "ActiveScript" );
+			zoo's "Occupants" << thisagent;
 		end
 end
 
