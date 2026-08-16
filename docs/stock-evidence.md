@@ -370,12 +370,15 @@ fixed Mausoleum constant: the stock building `Level` field selects 4, 6, or 8
 visitors at levels 1, 2, or 3.
 
 Mausoleum interment hides and stores synchronously, but a Zoo captive travels
-with a hero. To preserve the capacity invariant during that stock lifecycle,
-an admitted captive uses its already-declared Monster `Target` field for the
-selected Zoo. Pending Hidden/Hooligan agents naming that Zoo count with its
-`Occupants`; after `Enter_Building` appends the captive, the target reservation
-is cleared. This travel reservation is Zoo integration, not recovered stock
-functionality, but adds no watcher, thread, counter, or prototype field.
+with a hero. The captive uses its already-declared Monster `Target` field for
+the selected Zoo. Pending capacity requires the complete stock arrest ownership
+shape: a valid living `leader`, that hero's `Target` still naming the captive,
+and `Arrest_Hooligan` active or stored as its back task. Hidden/Hooligan agents
+without that live pairing remain queued and do not consume capacity. Before a
+queued captive receives a hero, assignment compares `Occupants` plus those real
+pairings against the level limit. This latch definition is Zoo integration, not
+recovered stock functionality, but adds no watcher, thread, counter, or
+prototype field.
 
 Stock monster birth assigns `ATTRIB_Zoo_Legal_Target`, documenting it as the
 Zoo flag interface's legality channel. The private `ZCF0` gate reuses that

@@ -30,12 +30,33 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Is_Latched_Capture ( agent hooligan ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// A pending slot exists only while the stock arrest handoff is genuinely
+// owned by a live hero: the captive names that hero as leader, the hero still
+// targets this captive, and Arrest_Hooligan is its active or resumable task.
+declare
+	agent hero;
+begin
+	hero = hooligan's "leader";
+
+	if ( $IsValidGamePiece ( hero ))
+		if ( $IsDead ( hero ) == FALSE )
+			if ( hero's "Target" == hooligan )
+				if ( hero's "ActiveScript" == $Arrest_Hooligan ||
+					hero's "BackScript" == $Arrest_Hooligan )
+					return TRUE;
+
+	return FALSE;
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Pending_Reservations ( agent zoo ) is integer
 ///////////////////////////////////////////////////////////////////////////////
 // A Mausoleum stores immediately after its stock capacity check. Zoo captives
-// must travel, so count only already-admitted Hooligans whose ordinary Target
-// field names this Zoo until Enter_Building replaces the reservation with an
-// Occupants entry. This prevents simultaneous captures exceeding the limit.
+// must travel, so count only Hooligans whose ordinary Target names this Zoo
+// and whose stock arrest task is actually latched to a live hero. Flagged but
+// unassigned captives remain queued without consuming visitor capacity.
 declare
 	list hidden_hooligans, hooligans;
 	agent hooligan;
@@ -48,7 +69,8 @@ begin
 	foreach hooligan in hidden_hooligans do
 		begin
 			if ( hooligan's "Target" == zoo )
-				reservations ++;
+				if ( $Restore_Is_Latched_Capture ( hooligan ))
+					reservations ++;
 		end
 
 	$ListObjects ( zoo, "Hooligan", -1, hooligans,
@@ -56,7 +78,8 @@ begin
 	foreach hooligan in hooligans do
 		begin
 			if ( hooligan's "Target" == zoo )
-				reservations ++;
+				if ( $Restore_Is_Latched_Capture ( hooligan ))
+					reservations ++;
 		end
 
 	return reservations;
@@ -208,8 +231,28 @@ function Restore_Assign_Hooligan ( agent thisagent, agent previous_owner ) is bo
 // Hooligan and the hero who just abandoned this one are excluded.
 declare
 	list heroes, valid_heroes;
-	agent hero;
+	agent hero, zoo;
+	list visitors;
+	integer committed, limit;
 begin
+	zoo = thisagent's "Target";
+	if ( $IsValidGamePiece ( zoo ) == FALSE )
+		return FALSE;
+
+	// A queued Capture Flag may seek heroes only while the Zoo has room for a
+	// new real arrest pairing. This is the same Occupants + pending comparison
+	// used by the private placement gate; the unlatched current captive is not
+	// yet part of Restore_Zoo_Pending_Reservations.
+	visitors = zoo's "Occupants";
+	committed = $ListSize ( visitors ) +
+		$Restore_Zoo_Pending_Reservations ( zoo );
+	limit = $Restore_Zoo_Visitor_Limit ( zoo );
+	if ( committed >= limit )
+		begin
+			$Restore_Refresh_Zoo_Capacity ( zoo );
+			return FALSE;
+		end
+
 	$ListObjects ( thisagent, "Hero", -1, heroes, #NoHiddenMap );
 
 	foreach hero in heroes do
@@ -231,9 +274,11 @@ begin
 			hero's "Target" = thisagent;
 			hero's "Counter" = 0;
 			hero's "ActiveScript" = $Arrest_Hooligan;
+			$Restore_Refresh_Zoo_Capacity ( zoo );
 			return TRUE;
 		end
 
+	$Restore_Refresh_Zoo_Capacity ( zoo );
 	return FALSE;
 end
 
@@ -257,6 +302,9 @@ begin
 	else if ( $IsDead ( owner ))
 		$Restore_Assign_Hooligan ( thisagent, owner );
 	else if ( owner's "Target" != thisagent )
+		$Restore_Assign_Hooligan ( thisagent, owner );
+	else if ( owner's "ActiveScript" != $Arrest_Hooligan &&
+		owner's "BackScript" != $Arrest_Hooligan )
 		$Restore_Assign_Hooligan ( thisagent, owner );
 
 	if ( $IsMoving ( thisagent ) == FALSE )
@@ -320,7 +368,9 @@ begin
 	// targets the flag's target has abandoned it.  Return this Hooligan to its
 	// stock Basic lifecycle and reserve it for one different hero.
 	if ( $IsValidGamePiece ( owner ) == FALSE || $IsDead ( owner ) ||
-		owner's "Target" != thisagent )
+		owner's "Target" != thisagent ||
+		( owner's "ActiveScript" != $Arrest_Hooligan &&
+		owner's "BackScript" != $Arrest_Hooligan ))
 		begin
 			if ( $IsMoving ( thisagent ))
 				$StopMoving ( thisagent );

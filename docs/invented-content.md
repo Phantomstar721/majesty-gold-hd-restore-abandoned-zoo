@@ -214,11 +214,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Visitor capacity is requested invented design: 4 at Zoo level 1, 6 at level
   2, and 8 at level 3. Admission copies stock `Check_Mausoleum`'s completed
   player-building query, `Occupants` size comparison, and first-legal choice.
-  Unlike immediate Mausoleum interment, Zoo escort adds travel time, so an
-  admitted Hooligan temporarily records its selected Zoo in the stock Monster
-  `Target` field. Pending reservations count with stored occupants and are
-  cleared only after `Enter_Building`; this prevents concurrent overbooking
-  without adding a new field, counter, timer, or watcher.
+  Unlike immediate Mausoleum interment, Zoo escort adds travel time, so a
+  captured Hooligan records its selected Zoo in the stock Monster `Target`
+  field. Pending capacity counts only a real stock arrest pairing: a live
+  `leader` hero still targeting that Hooligan with `Arrest_Hooligan` active or
+  resumable. Unassigned flagged captives remain queued, and assignment refuses
+  another pairing once stored visitors plus real pairings reach the limit.
+  This avoids overbooking without adding a new field, counter, timer, or
+  watcher.
 - The private Capture placement gate uses the otherwise Zoo-specific stock
   `ATTRIB_Zoo_Legal_Target` attribute on the selected Zoo as its refreshed
   has-capacity bit. Repurposing that attribute on a building and retaining the

@@ -66,7 +66,8 @@ displayed the correct Harpy and Troll icons through that resolver. The generic
 patch contains no monster-type or Zoo-specific icon table.
 
 Admission now follows stock `Check_Mausoleum`: it compares the Zoo's generic
-`Occupants` list with a limit before accepting another captive. The requested
+`Occupants` list plus captives genuinely latched to live arresting heroes with
+a limit. Flagged but unassigned captives do not consume capacity. The requested
 limits are 4 / 6 / 8 at Zoo levels 1 / 2 / 3. The selected Zoo exposes whether
 that comparison has room through the stock Zoo legality attribute, allowing
 the private Capture target gate to reject placement before a flag exists.

@@ -104,19 +104,24 @@ shape, with the adaptations required by private single-owner arrests:
 The flag-side query uses the Capture Flag's player ownership and copies stock
 `Check_Mausoleum`: list completed buildings, inspect each generic `Occupants`
 list, and take the first one below its limit. The limit comes from the stock
-building `Level` field and is 4 / 6 / 8 for Zoo levels 1 / 2 / 3. Because Zoo
-delivery is delayed while Mausoleum interment is immediate, an admitted
-Hooligan keeps its selected Zoo in the ordinary Monster `Target` field. That
-reservation is counted until `Enter_Building` creates the occupant entry, then
-cleared. This prevents simultaneous escorts from overbooking a Zoo without a
-new thread, timer, building counter, or per-monster definition.
+building `Level` field and is 4 / 6 / 8 for Zoo levels 1 / 2 / 3. A captured
+Hooligan keeps its selected Zoo in the ordinary Monster `Target` field, but it
+consumes pending capacity only after the stock arrest handoff is real: its
+`leader` is a live hero, that hero still targets the captive, and
+`Arrest_Hooligan` is active or resumable. Flagged but unassigned captives stay
+queued without consuming a visitor slot. Assignment repeats the same
+Occupants-plus-latched comparison, so queued captives cannot overbook the Zoo.
+The existing Hooligan Basic/Goto lifecycle checks also treat loss of both the
+active and resumable arrest task as abandonment, triggering the same reassignment
+and capacity refresh instead of leaving the native placement bit stale.
 
 The Zoo refreshes the shipped `ATTRIB_Zoo_Legal_Target` attribute after stock
 construction, through the stock `building_upgraded` -> `upgradescript` seam,
-and whenever reservations or occupants change.
+and whenever hero latches or occupants change.
 The private Capture placement validator and its independent completion check
 both read that capacity bit before applying their existing monster-only test.
-If the selected Zoo is full or fully reserved, clicking a Monster is rejected
+If stored visitors plus real hero/captive latches fill the selected Zoo,
+clicking a Monster is rejected
 by exactly the same private gate that rejects a Hero or building; no flag is
 created and no gold is spent.
 Stock resets all arresting heroes only when the globally last quest Hooligan

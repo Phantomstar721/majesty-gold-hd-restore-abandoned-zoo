@@ -56,10 +56,10 @@ Wizard's Curse Hooligan lifecycle:
 - the Hooligan returns to its selected Zoo, stops its active lifecycle, and is
   stored as a valid hidden agent in the Zoo's stock `Occupants` list;
 - Zoo admission uses the stock Mausoleum capacity pattern, with requested
-  visitor limits of 4 at level 1, 6 at level 2, and 8 at level 3; admitted
-  captives reserve a slot during escort so simultaneous captures cannot exceed
-  the limit, and the private Capture Flag target gate rejects all placement
-  once the selected Zoo has no unreserved slot;
+  visitor limits of 4 at level 1, 6 at level 2, and 8 at level 3; stored
+  visitors and captives actually latched to a live arresting hero consume
+  capacity, while flagged but unassigned captives do not; the private Capture
+  Flag target gate rejects placement once those real commitments fill the Zoo;
 - delivered monsters use the stock occupant-intent field so their visitor rows
   read “is waiting in the zoo” rather than the default “is Thinking”;
 - the abandoned Zoo panel's truncated `Visitors` control is completed with the
