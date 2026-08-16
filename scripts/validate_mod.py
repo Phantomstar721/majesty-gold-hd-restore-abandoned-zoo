@@ -66,6 +66,7 @@ def validate(root: Path) -> list[str]:
         "RestoreAbandonedZoo.mmxml",
         "Data/restore_zoo_units.xml",
         "Data/restore_zoo_maindata.cam",
+        "Data/restore_zoo_interfacedata.cam",
         "Data/restore_zoo_miscdata.cam",
         "Data/restore_zoo_textdata.cam",
         "Data/restore_zoo_gpltext.cam",
@@ -133,6 +134,17 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo main-data CAM lacks the positional stock TILE table")
     if not any(extension == b"SPLT" for extension, _ in art_names):
         errors.append("Zoo main-data CAM lacks the stock palette table")
+    interface_names = cam_names(root / "Data" / "restore_zoo_interfacedata.cam")
+    interface_images = {
+        name for extension, name in interface_names if extension == b"IMAG"
+    }
+    for prefix in (b"IX92", b"IX94"):
+        if sum(name.startswith(prefix) for name in interface_images) != 1:
+            errors.append(
+                f"Zoo interface-data CAM lacks one stock {prefix.decode()} IMAG record"
+            )
+    if not any(extension == b"TILE" for extension, _ in interface_names):
+        errors.append("Zoo interface-data CAM lacks the positional stock TILE table")
     help_names = cam_names(root / "Data" / "restore_zoo_gpltext.cam")
     if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
         errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")

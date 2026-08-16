@@ -169,13 +169,19 @@ guild, intent, resurrection, or home logic.
 Live inspection confirmed that each delivered monster remains a valid
 `VehicleRec`, appears in the Visitors controller's unit vector, and owns a
 selectable row whose stored agent ID opens the correct monster primary panel.
-The ordinary stock row nevertheless renders without visible content. Static
-tracing subsequently proved that the common unit-list formatter already sends
-all `VehicleRec` agents, including monsters, through the stock instance-name
-getter. The attempted native formatter wrapper therefore targeted the wrong
-stage and has been removed completely. The unresolved display fault is after
-formatting, in the row-cell/layout path; capture, delivery, occupant ownership,
-and selection are not implicated.
+Static tracing proved that the blank display was the native row painter's
+category gate, not formatting or occupant ownership. The standalone Generic
+Visitor Lists patch now routes that discarded category through the stock hero
+row and calls the shipped `IX92`/`IX94` monster-icon resolver.
+
+That resolver's stock caller runs only where expansion interface resources are
+already loaded and assumes its atlas exists. Deal with a Demon does not load
+`DataMX/mx_interfacedata.cam`; calling the resolver there without its resource
+faulted in the stock atlas-list accessor. The Zoo therefore exposes literal
+`IX92` and `IX94` IMAG records through `restore_zoo_interfacedata.cam`, together
+with the complete 785-entry positional TILE table from the same stock archive.
+With that prerequisite loaded through the ordinary `base="Any"` dataset, live
+testing rendered the correct Harpy and Troll icons and preserved row selection.
 
 Stock `Hooligan_Check` uses `Is_Free_Task`; the latter has
 `#is_free_task_max_heroes 2`, an inclusive allowance check, and a closer-hero

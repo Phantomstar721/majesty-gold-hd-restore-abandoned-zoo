@@ -55,6 +55,14 @@ branch so otherwise-valid occupants enter the existing category-1 renderer at
 `0x004986A5`. Live Zoo testing displays monster level, name, current action,
 and HP. No Zoo-specific or per-monster display code is required.
 
+Hero icons normally come from a direct `Interface-02` image on the unit record.
+Stock monsters instead use the `IX92`/`IX94` interface atlases and resolver at
+`0x004BB0A0`. Because Original-rules quests do not load those expansion
+resources, the Zoo's interface CAM carries the two literal stock IMAG records
+and their complete positional TILE table. Live Deal with a Demon testing then
+displayed the correct Harpy and Troll icons through that resolver. The generic
+patch contains no monster-type or Zoo-specific icon table.
+
 There is deliberately no capacity, income, breakout, release command, or
 Zoo-destruction-specific behavior in this test. Generic `building_death` will
 call stock `release_occupants`; whether that produces a sensible released

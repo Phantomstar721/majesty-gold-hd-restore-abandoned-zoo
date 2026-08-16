@@ -388,6 +388,40 @@ def write_maindata_cam(game_path: Path, data_dir: Path) -> None:
     )
 
 
+def write_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
+    """Expose the literal stock monster-icon atlases in every Zoo dataset.
+
+    The stock IX92/IX94 resolver assumes these expansion interface resources
+    are already loaded. Base quests do not load mx_interfacedata.cam, so retain
+    its complete positional TILE table and expose only the two atlas IMAG
+    records through the Zoo's ordinary mod dataset.
+    """
+    source = game_path / "DataMX" / "mx_interfacedata.cam"
+    images = read_cam_entries(source, b"IMAG")
+    icon_prefixes = (b"IX92", b"IX94")
+    icon_images = tuple(
+        entry
+        for prefix in icon_prefixes
+        for entry in images
+        if entry.name.rstrip(b"\x00").startswith(prefix)
+    )
+    if len(icon_images) != 2:
+        raise ValueError(
+            f"Expected stock IX92 and IX94 monster-icon records in {source}, "
+            f"found {len(icon_images)}"
+        )
+    tiles = tuple(read_cam_entries(source, b"TILE"))
+    if not tiles:
+        raise ValueError(f"Stock monster-icon TILE table is incomplete in {source}")
+    write_cam(
+        data_dir / "restore_zoo_interfacedata.cam",
+        (
+            CamSection(b"IMAG", icon_images),
+            CamSection(b"TILE", tiles, padding=b"\x01\x00\x00\x00"),
+        ),
+    )
+
+
 def prepare_output(output_root: Path) -> tuple[Path, Path]:
     resolved = output_root.resolve()
     if resolved.exists():
@@ -425,6 +459,7 @@ def build(game_path: Path, output_root: Path) -> None:
     )
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo.gplproj", gpl_dir)
     write_maindata_cam(game_path, data_dir)
+    write_interfacedata_cam(game_path, data_dir)
     write_miscdata_cam(game_path, data_dir)
     write_text_cams(game_path, data_dir)
     result = subprocess.run(

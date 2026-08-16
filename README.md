@@ -33,6 +33,9 @@ Wizard's Curse Hooligan lifecycle:
 - the abandoned Zoo panel's truncated `Visitors` control is completed with the
   missing bytes from the stock Blacksmith control and displays delivered
   monsters from the generic occupant list;
+- it loads the literal stock `IX92`/`IX94` monster-icon records with their
+  complete positional interface TILE table so the generic visitor renderer can
+  use Majesty's shipped monster-icon resolver in Original-rules quests;
 - Deal with a Demon starts with one completed level-one Zoo as a temporary,
   deterministic test fixture;
 - the mod applies only the successful stock Hooligan-check handoff to one hero,
