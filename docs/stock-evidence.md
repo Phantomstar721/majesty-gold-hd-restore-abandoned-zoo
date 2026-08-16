@@ -114,12 +114,54 @@ the stock validation callback at `0x0045D360` and completion callback at
 name `Flag_Attack` to the stock creation path at `0x0045CC90`.
 
 The private clone preserves both halves of that lifecycle. At the same stock
-registration boundary, it appends mode `ZCF0` with the same parameters and
-validation callback plus a relocated byte-for-byte completion callback. The
-sole callback substitution is its prototype-name pointer:
+registration boundary, it appends mode `ZCF0` with the same parameters and a
+relocated byte-for-byte completion callback. The sole completion-callback
+substitution is its prototype-name pointer:
 `Flag_Attack` becomes `Restore_Capture_Flag`. Target validation, mouse state,
 gold checks, successful placement, cancellation, and panel return remain in
 stock order.
+
+The private validation callback first calls the complete stock Fl00 validator
+at `0x0045D360` and returns its insufficient-gold or invalid result unchanged.
+Only after stock returns a valid target does the callback read the selected
+agent from the placement-mode field at `+0x60`. This is the exact field written
+by Fl00's stock target check at `0x0045D2D0-0x0045D314`; the `+0x08` member of
+the object returned by `0x0045E900` is the picker object used to perform that
+check, not the selected agent. The callback then combines two shipped
+classifications:
+
+- the stock runtime display-category classifier at `0x00508510` reads shipped
+  `subtype`, `type`, and `original_type` metadata and returns categories used
+  by stock interface dispatch. A focused live trace of an ordinary monster
+  returned category `4`. This is not the raw GPL `GetUnitType` result; the
+  earlier category-`0` inference was disproved by the runtime trace.
+- the stock XML description registry created at `0x005A013A-0x005A023C` maps
+  `Character` to structural subtype `3`, independently excluding Building,
+  Projectile, Overlay, ParticleSystem, and the other non-character resources.
+
+The same live target returned structural subtype `3`. Their intersection is
+the observed engine shape of a normal monster: display category `4` +
+`Character`. A target failing either stock classification returns the same
+invalid-placement result (`1`) used by Fl00. No prototype names or stock
+monster roster are hardcoded. Palace Fl00 continues to point directly at its
+original validator.
+
+Fl00 also reports its ordinary placement-ready state before the cursor has an
+agent selected. The wrapper preserves that stock mode initialization but maps
+the empty selected-agent slot to invalid result `1`; it never dereferences the
+slot. This is target validation only and does not add a new placement state.
+
+Stock completion does not trust the hover validator as an authorization gate.
+The Fl00 completion callback independently calls `0x0045D2D0` at
+`0x0045D4AC`, receives either the selected-agent pointer or zero, and only then
+enters reward deduction and flag creation. The relocated private completion
+callback redirects that single internal call to a private check with the same
+two-argument shape and pointer/zero return contract. The check calls the full
+stock `0x0045D2D0` first, returns zero on any stock rejection, and returns the
+stock pointer only when that agent also passes category `4` + `Character`.
+Every subsequent completion instruction remains the relocated stock clone.
+This prevents creation on non-monsters even if the UI attempts completion;
+Palace Fl00's callback continues to call `0x0045D2D0` directly.
 
 Only the private ZC01 AP41 object receives a cloned primary vtable whose command
 handler substitutes `ZCF0` for `Fl00` on Capture placement and on the two live

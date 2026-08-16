@@ -25,6 +25,11 @@ Wizard's Curse Hooligan lifecycle:
   25x25 button frame while replacing the crossed-blade flag with the Zoo paw;
 - its Capture control selects a private `ZCF0` placement-mode clone, whose
   completion callback creates private `Restore_Capture_Flag` reward flags;
+- `ZCF0` preserves the complete stock Attack Flag placement validator, then
+  accepts only Majesty's stock runtime display category `4` plus
+  unit-description `Character` intersection—the generic stock shape observed
+  for a normal monster—so Capture Flags cannot be placed on heroes, henchmen,
+  buildings, or effects;
 - that placement clone selects private tactical-cursor selector 32, backed by
   an appended `CUR1` set 1032 repaint of stock Attack cursor set 1005;
 - the private flag retains the stock Attack Flag animation topology but selects
@@ -103,7 +108,9 @@ The same command also installs one private `.mzoo` executable section. Two
 guarded redirects let only `MX09` open `ZC01` and let only `ZC01` use Majesty's
 literal AP41 controller constructor. A third stock-boundary redirect appends
 private `ZCF0` beside the shipped flag-placement modes; ZC01 alone receives a
-private vtable selecting it. The stock Palace `AP41`/`Fl00`, the existing
+private vtable selecting it. Its private validator calls the full stock Fl00
+validator before applying the stock monster-class intersection. The stock
+Palace `AP41`/`Fl00`, the existing
 `CGxx` custom-guild route, and unrelated QOL patches remain untouched. Restore
 only the Zoo redirects, mode registration, and section with:
 

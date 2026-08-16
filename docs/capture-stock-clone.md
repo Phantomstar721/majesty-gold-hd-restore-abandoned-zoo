@@ -12,16 +12,32 @@ game: from the Reward Flag, list `Building` agents with arguments ordered
 Construction sites therefore do not enable the trigger; any completed Zoo
 level does. The first completed Zoo becomes the destination.
 
-With that gate satisfied, placing the Zoo's private Capture Flag on a living
-agent whose current `Type` is `Monster` begins the stock controlled-monster
+The private ZCF0 placement validator first runs the complete stock Attack Flag
+validator. It then permits only the intersection of the shipped gameplay
+display-classifier category `4` and the shipped structural unit-description
+subtype `Character`. A focused live trace returned category `4` and structural
+subtype `3` for an ordinary monster. This generic stock intersection rejects
+heroes/mercenaries, henchmen, buildings/lairs, flags, projectiles, and effects
+before a flag can be created without hardcoding monster prototypes.
+
+The shipped completion callback repeats target acquisition separately from its
+hover validator. The private relocated callback preserves that ordering: its
+target-acquisition call first runs the complete stock check, then returns the
+selected pointer only for the same monster intersection. A rejected target
+therefore never reaches stock reward deduction or flag creation.
+
+With that placement test and the Zoo gate satisfied, placing the Zoo's private
+Capture Flag on a living agent whose current `Type` is `Monster` begins the stock controlled-monster
 transition described below. The private flag remains attached to that target
 under its cloned stock `attack_flag_poll` and `attack_flag_death` lifecycle.
 The trigger does not wait for combat, roll capture chance, or intercept death.
 
-Without a completed player Zoo, or when placed on a non-monster target, the
-Capture Flag retains its cloned stock Attack Flag lifecycle. Palace Attack
-Flags always retain the literal shipped `attack_flag_birth` lifecycle and no
-longer enter this file's conversion seam.
+Without a completed player Zoo, a Capture Flag placed on an otherwise eligible
+monster retains its cloned stock Attack Flag lifecycle. Non-monsters are
+rejected during placement; the GPL `Type == Monster` test remains as a
+defensive conversion guard. Palace Attack Flags always retain the literal
+shipped validator and `attack_flag_birth` lifecycle and never enter this file's
+conversion seam.
 
 While placing the private flag, ZCF0 uses tactical-cursor selector 32. The
 loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set

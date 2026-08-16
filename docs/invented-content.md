@@ -119,8 +119,22 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   stock data. `ZCA2` changes only its private image selection; the placement
   and reward lifecycle remain the already-tested stock clone.
 - The private placement mode is a literal clone of stock `Fl00`: the same
-  registration parameters, target-validation callback, mouse lifecycle,
-  reward amount, cancellation, gold accounting, and completion code are used.
+  registration parameters, mouse lifecycle, reward amount, cancellation, gold
+  accounting, and completion code are used. Its private validation wrapper
+  first calls the complete shipped Fl00 validator, then adds the invented
+  Capture-only policy of requiring the intersection of two shipped classes:
+  runtime display category `4` and XML unit subtype `Character`. A focused
+  live trace established that pair for an ordinary monster. The intersection
+  is generic and rejects heroes, henchmen, buildings, and non-character
+  resources without per-monster definitions. The wrapper also maps Fl00's
+  placement-ready state with no selected agent to the stock invalid result
+  before applying either classification.
+- Because stock Fl00 independently reacquires its target during completion,
+  the relocated private completion callback redirects only that stock call to
+  a pointer/zero wrapper. It calls the original acquisition first and returns
+  its selected pointer only for the same invented category-`4` + `Character`
+  policy; reward deduction, creation, cancellation, and cleanup remain stock
+  order.
   The completion callback changes only the created prototype-name pointer from
   `Flag_Attack` to `Restore_Capture_Flag`. The private flag then retains stock
   `RewardFlag` type, `Flag_Attack` subtype/title, AP46 panel, death callback,

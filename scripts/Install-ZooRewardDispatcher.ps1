@@ -6,17 +6,19 @@ param(
 $ErrorActionPreference = "Stop"
 $SectionName = ".mzoo"
 $SectionCharacteristics = 0x60000020
-$PatchVirtualSize = 0x450
+$PatchVirtualSize = 0x490
 $PatchRawSize = 0x600
 $LegacyPatchVirtualSize = 0xA0
 $LegacyPatchRawSize = 0x200
 $PrivateFactoryHookOffset = 0x40
+$CaptureTargetValidatorOffset = 0x60
 $PrivateFactoryOffset = 0xA0
 $PrivateHandlerOffset = 0xE0
 $PrivateVtableOffset = 0x160
 $ModeRegistrationOffset = 0x1C0
 $CaptureCallbackOffset = 0x240
 $CapturePrototypeNameOffset = 0x420
+$CaptureCompletionTargetCheckOffset = 0x450
 $CaptureCursorSelector = 0x20
 
 $FactoryHookOffset = 0x10A020
@@ -46,6 +48,10 @@ $Fl00RegistrationLength = 0x53
 $StockCaptureCallbackOffset = 0x5C800
 $StockCaptureCallbackVa = 0x0045D400
 $StockCaptureCallbackLength = 0x1D2
+$StockCaptureValidatorVa = 0x0045D360
+$StockFlagTargetCheckVa = 0x0045D2D0
+$GetFlagModeStateVa = 0x0045E900
+$DisplayClassifierVa = 0x00508510
 $StockAp41VtableOffset = 0x33D3B4
 $StockAp41VtableLength = 0x2C
 
@@ -238,7 +244,12 @@ function New-PrivateFactory {
 }
 
 function New-CaptureCallback {
-    param([byte[]]$Bytes, [uint32]$CallbackVa, [uint32]$PrototypeNameVa)
+    param(
+        [byte[]]$Bytes,
+        [uint32]$CallbackVa,
+        [uint32]$PrototypeNameVa,
+        [uint32]$TargetCheckVa
+    )
     [byte[]]$callback = $Bytes[$StockCaptureCallbackOffset..($StockCaptureCallbackOffset + $StockCaptureCallbackLength - 1)]
     if (-not (Test-BytesEqual $callback 0xCF $StockCallbackCreateSignature)) {
         throw "Stock Attack Flag completion callback creation seam changed."
@@ -246,7 +257,7 @@ function New-CaptureCallback {
     $externalCalls = @{
         0x12 = 0x0045E900; 0x19 = 0x00425D00; 0x4F = 0x006418F0
         0x66 = 0x005D8620; 0x90 = 0x00641850; 0x9A = 0x00424A00
-        0xAC = 0x0045D2D0; 0xBE = 0x0045E910; 0xCA = 0x005C2060
+        0xAC = $TargetCheckVa; 0xBE = 0x0045E910; 0xCA = 0x005C2060
         0xD5 = 0x0045CC90; 0x117 = 0x00641850; 0x143 = 0x0045C950
         0x163 = 0x00641990; 0x17C = 0x00641990; 0x189 = 0x0045CAF0
         0x196 = 0x0045CA40
@@ -264,17 +275,20 @@ function New-CaptureModeRegistration {
     param(
         [byte[]]$Bytes,
         [uint32]$RegistrationVa,
+        [uint32]$ValidatorVa,
         [uint32]$CallbackVa,
         [byte]$CursorSelector
     )
     [byte[]]$registration = $Bytes[$Fl00RegistrationOffset..($Fl00RegistrationOffset + $Fl00RegistrationLength - 1)]
     if ($registration[0x20] -ne 0x68 -or (Read-U32 $registration 0x21) -ne $StockCaptureCallbackVa -or
+        $registration[0x25] -ne 0x68 -or (Read-U32 $registration 0x26) -ne $StockCaptureValidatorVa -or
         $registration[0x2E] -ne 0x6A -or $registration[0x2F] -ne 0x05 -or
         $registration[0x30] -ne 0x68 -or (Read-U32 $registration 0x31) -ne 0x30306C46) {
         throw "Stock Fl00 placement-mode registration changed."
     }
     [BitConverter]::GetBytes([uint32]0x22).CopyTo($registration, 0x14)
     [BitConverter]::GetBytes($CallbackVa).CopyTo($registration, 0x21)
+    [BitConverter]::GetBytes($ValidatorVa).CopyTo($registration, 0x26)
     [byte[]]$captureMode = @(0x5A,0x43,0x46,0x30) # ZCF0
     $captureMode.CopyTo($registration, 0x31)
     $registration[0x2F] = $CursorSelector
@@ -290,8 +304,227 @@ function New-CaptureModeRegistration {
     $result
 }
 
+function New-UnsafeCaptureTargetValidator {
+    param([uint32]$ValidatorVa)
+    # Upgrade-only fingerprint for the first monster filter. It omitted the
+    # stock placement mode's empty selected-target state and must never be used
+    # by the current payload.
+    [byte[]]$validator = @(
+        0x56,                              # push esi
+        0x8B,0x74,0x24,0x08,              # mov esi,[esp+8]
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                     # call stock Fl00 validator
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x28,                        # jne done (preserve stock 1/2)
+        0x8B,0xCE,                        # mov ecx,esi
+        0xE8,0,0,0,0,                    # call placement-mode state getter
+        0x8B,0x48,0x08,                   # mov ecx,[eax+8] (selected target)
+        0x8B,0x81,0x90,0x00,0x00,0x00,   # mov eax,[ecx+90] (description)
+        0x83,0x78,0x08,0x03,              # cmp dword ptr [eax+8],Character
+        0x75,0x0D,                        # jne invalid
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax (OTHER == 0)
+        0x74,0x05,                        # je done
+        0xB8,0x01,0x00,0x00,0x00,        # invalid: mov eax,1
+        0x5E,                              # done: pop esi
+        0xC3                               # ret
+    )
+    if ($validator.Length -ne 0x3C) { throw "Unsafe Capture target validator fingerprint changed length." }
+    Write-Bytes $validator 0x06 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x06)) $StockCaptureValidatorVa)
+    Write-Bytes $validator 0x14 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x14)) $GetFlagModeStateVa)
+    Write-Bytes $validator 0x29 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x29)) $DisplayClassifierVa)
+    $validator
+}
+
+function New-StateTargetCaptureTargetValidator {
+    param([uint32]$ValidatorVa)
+    # Upgrade-only fingerprint for the null-safe second filter. It read the
+    # picker object from placement state +8 rather than the selected agent that
+    # stock Fl00 stores on the placement mode at +60.
+    [byte[]]$validator = @(
+        0x56,                              # push esi
+        0x8B,0x74,0x24,0x08,              # mov esi,[esp+8]
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                     # call stock Fl00 validator
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x2A,                        # jne done (preserve stock 1/2)
+        0x8B,0xCE,                        # mov ecx,esi
+        0xE8,0,0,0,0,                    # call placement-mode state getter
+        0x8B,0x48,0x08,                   # mov ecx,[eax+8] (selected target)
+        0xE3,0x19,                        # jecxz invalid (empty placement state)
+        0x8B,0x81,0x90,0x00,0x00,0x00,   # mov eax,[ecx+90] (description)
+        0x83,0x78,0x08,0x03,              # cmp dword ptr [eax+8],Character
+        0x75,0x0D,                        # jne invalid
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax (OTHER == 0)
+        0x74,0x05,                        # je done
+        0xB8,0x01,0x00,0x00,0x00,        # invalid: mov eax,1
+        0x5E,                              # done: pop esi
+        0xC3                               # ret
+    )
+    if ($validator.Length -ne 0x3E) { throw "State-target Capture validator fingerprint changed length." }
+    Write-Bytes $validator 0x06 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x06)) $StockCaptureValidatorVa)
+    Write-Bytes $validator 0x14 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x14)) $GetFlagModeStateVa)
+    Write-Bytes $validator 0x2B (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x2B)) $DisplayClassifierVa)
+    $validator
+}
+
+function New-ZeroCategoryCaptureTargetValidator {
+    param([uint32]$ValidatorVa)
+    # Preserve the complete stock Fl00 validator first. Its 0x45D2D0 target
+    # check stores the selected agent at placement mode +60. Accept that agent
+    # only when the display classifier returns 0 and its description registry
+    # reports Character (3). This is retained only to recognize and upgrade the
+    # failed version-3/version-4 payloads; live tracing proved monsters are 4.
+    [byte[]]$validator = @(
+        0x56,                              # push esi
+        0x8B,0x74,0x24,0x08,              # mov esi,[esp+8]
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                     # call stock Fl00 validator
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x26,                        # jne done (preserve stock 1/2)
+        0x8B,0x8E,0x60,0x00,0x00,0x00,   # mov ecx,[esi+60] (selected agent)
+        0xE3,0x19,                        # jecxz invalid (empty placement state)
+        0x8B,0x81,0x90,0x00,0x00,0x00,   # mov eax,[ecx+90] (description)
+        0x83,0x78,0x08,0x03,              # cmp dword ptr [eax+8],Character
+        0x75,0x0D,                        # jne invalid
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax (OTHER == 0)
+        0x74,0x05,                        # je done
+        0xB8,0x01,0x00,0x00,0x00,        # invalid: mov eax,1
+        0x5E,                              # done: pop esi
+        0xC3                               # ret
+    )
+    if ($validator.Length -ne 0x3A) { throw "Private Capture target validator assembly changed length." }
+    Write-Bytes $validator 0x06 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x06)) $StockCaptureValidatorVa)
+    Write-Bytes $validator 0x27 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x27)) $DisplayClassifierVa)
+    $validator
+}
+
+function New-ZeroCategoryCaptureCompletionTargetCheck {
+    param([uint32]$TargetCheckVa)
+    # The stock completion callback independently calls 0x45D2D0 and expects
+    # either the selected-agent pointer or zero. Preserve that complete check,
+    # then return its pointer only for category-0 Character agents. Retained
+    # only as the failed version-4 upgrade fingerprint.
+    [byte[]]$targetCheck = @(
+        0x56,                              # push esi
+        0x8B,0x44,0x24,0x0C,              # mov eax,[esp+0C] (stock arg 2)
+        0x8B,0x4C,0x24,0x08,              # mov ecx,[esp+08] (placement mode)
+        0x50,                              # push eax
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                     # call stock 0x45D2D0
+        0x83,0xC4,0x08,                   # add esp,8
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x1D,                        # je done
+        0x8B,0xF0,                        # mov esi,eax (selected agent)
+        0x8B,0x8E,0x90,0x00,0x00,0x00,   # mov ecx,[esi+90] (description)
+        0x83,0x79,0x08,0x03,              # cmp dword ptr [ecx+8],Character
+        0x75,0x11,                        # jne invalid
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax (OTHER == 0)
+        0x75,0x04,                        # jne invalid
+        0x8B,0xC6,                        # mov eax,esi
+        0x5E,                              # done: pop esi
+        0xC3,                              # ret
+        0x33,0xC0,                        # invalid: xor eax,eax
+        0xEB,0xFA                         # jmp done
+    )
+    if ($targetCheck.Length -ne 0x3A) { throw "Private Capture completion target check changed length." }
+    Write-Bytes $targetCheck 0x0B (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x0B)) $StockFlagTargetCheckVa)
+    Write-Bytes $targetCheck 0x26 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x26)) $DisplayClassifierVa)
+    $targetCheck
+}
+
+function New-CaptureTargetValidator {
+    param([uint32]$ValidatorVa)
+    # Preserve the complete stock Fl00 validator first. Its 0x45D2D0 target
+    # check stores the selected agent at placement mode +60. The stock display
+    # classifier returns 4 for ordinary monsters; require that category plus
+    # the stock structural Character (3) description subtype. Empty +60 maps
+    # to stock invalid result 1.
+    [byte[]]$validator = @(
+        0x56,                              # push esi
+        0x8B,0x74,0x24,0x08,              # mov esi,[esp+8]
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                     # call stock Fl00 validator
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x27,                        # jne done (preserve stock 1/2)
+        0x8B,0x8E,0x60,0x00,0x00,0x00,   # mov ecx,[esi+60] (selected agent)
+        0xE3,0x1A,                        # jecxz invalid (empty placement state)
+        0x8B,0x81,0x90,0x00,0x00,0x00,   # mov eax,[ecx+90] (description)
+        0x83,0x78,0x08,0x03,              # cmp dword ptr [eax+8],Character
+        0x75,0x0E,                        # jne invalid
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x83,0xF8,0x04,                   # cmp eax,4 (monster)
+        0x74,0x05,                        # je done
+        0xB8,0x01,0x00,0x00,0x00,        # invalid: mov eax,1
+        0x5E,                              # done: pop esi
+        0xC3                               # ret
+    )
+    if ($validator.Length -ne 0x3B) { throw "Private Capture target validator assembly changed length." }
+    Write-Bytes $validator 0x06 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x06)) $StockCaptureValidatorVa)
+    Write-Bytes $validator 0x27 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x27)) $DisplayClassifierVa)
+    $validator
+}
+
+function New-CaptureCompletionTargetCheck {
+    param([uint32]$TargetCheckVa)
+    # Stock completion independently reacquires a selected-agent pointer. Call
+    # that stock check first, then return its pointer only for category-4
+    # Character agents, matching the hover validator exactly.
+    [byte[]]$targetCheck = @(
+        0x56,                              # push esi
+        0x8B,0x44,0x24,0x0C,              # mov eax,[esp+0C] (stock arg 2)
+        0x8B,0x4C,0x24,0x08,              # mov ecx,[esp+08] (placement mode)
+        0x50,                              # push eax
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                     # call stock 0x45D2D0
+        0x83,0xC4,0x08,                   # add esp,8
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x1E,                        # je done
+        0x8B,0xF0,                        # mov esi,eax (selected agent)
+        0x8B,0x8E,0x90,0x00,0x00,0x00,   # mov ecx,[esi+90] (description)
+        0x83,0x79,0x08,0x03,              # cmp dword ptr [ecx+8],Character
+        0x75,0x12,                        # jne invalid
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x83,0xF8,0x04,                   # cmp eax,4 (monster)
+        0x75,0x04,                        # jne invalid
+        0x8B,0xC6,                        # mov eax,esi
+        0x5E,                              # done: pop esi
+        0xC3,                              # ret
+        0x33,0xC0,                        # invalid: xor eax,eax
+        0xEB,0xFA                         # jmp done
+    )
+    if ($targetCheck.Length -ne 0x3B) { throw "Private Capture completion target check changed length." }
+    Write-Bytes $targetCheck 0x0B (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x0B)) $StockFlagTargetCheckVa)
+    Write-Bytes $targetCheck 0x26 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x26)) $DisplayClassifierVa)
+    $targetCheck
+}
+
 function New-PatchBlob {
-    param([byte[]]$Bytes, [uint32]$PatchVa, [byte]$CursorSelector)
+    param(
+        [byte[]]$Bytes,
+        [uint32]$PatchVa,
+        [byte]$CursorSelector,
+        [int]$CaptureTargetValidatorVersion
+    )
     [byte[]]$blob = New-Object byte[] $PatchRawSize
     [byte[]]$dispatch = @(
         0x8B,0x44,0x24,0x04,             # mov eax,[esp+4]
@@ -321,6 +554,23 @@ function New-PatchBlob {
     Write-Bytes $factoryHook 21 (New-RelativeInstruction 0xE9 ([uint32]($factoryHookVa + 21)) $FactoryResumeVa)
     Write-Bytes $blob $PrivateFactoryHookOffset $factoryHook
 
+    $captureTargetValidatorVa = [uint32]($PatchVa + $CaptureTargetValidatorOffset)
+    if ($CaptureTargetValidatorVersion -eq 5) {
+        Write-Bytes $blob $CaptureTargetValidatorOffset (New-CaptureTargetValidator $captureTargetValidatorVa)
+    }
+    elseif ($CaptureTargetValidatorVersion -eq 4 -or $CaptureTargetValidatorVersion -eq 3) {
+        Write-Bytes $blob $CaptureTargetValidatorOffset (New-ZeroCategoryCaptureTargetValidator $captureTargetValidatorVa)
+    }
+    elseif ($CaptureTargetValidatorVersion -eq 2) {
+        Write-Bytes $blob $CaptureTargetValidatorOffset (New-StateTargetCaptureTargetValidator $captureTargetValidatorVa)
+    }
+    elseif ($CaptureTargetValidatorVersion -eq 1) {
+        Write-Bytes $blob $CaptureTargetValidatorOffset (New-UnsafeCaptureTargetValidator $captureTargetValidatorVa)
+    }
+    elseif ($CaptureTargetValidatorVersion -ne 0) {
+        throw "Unknown Capture target-validator payload version."
+    }
+
     $handlerVa = [uint32]($PatchVa + $PrivateHandlerOffset)
     $vtableVa = [uint32]($PatchVa + $PrivateVtableOffset)
     Write-Bytes $blob $PrivateFactoryOffset (New-PrivateFactory ([uint32]($PatchVa + $PrivateFactoryOffset)) $vtableVa)
@@ -334,8 +584,17 @@ function New-PatchBlob {
     $registrationVa = [uint32]($PatchVa + $ModeRegistrationOffset)
     $callbackVa = [uint32]($PatchVa + $CaptureCallbackOffset)
     $prototypeNameVa = [uint32]($PatchVa + $CapturePrototypeNameOffset)
-    Write-Bytes $blob $ModeRegistrationOffset (New-CaptureModeRegistration $Bytes $registrationVa $callbackVa $CursorSelector)
-    Write-Bytes $blob $CaptureCallbackOffset (New-CaptureCallback $Bytes $callbackVa $prototypeNameVa)
+    $completionTargetCheckVa = [uint32]($PatchVa + $CaptureCompletionTargetCheckOffset)
+    $validatorVa = $(if ($CaptureTargetValidatorVersion -ne 0) { $captureTargetValidatorVa } else { $StockCaptureValidatorVa })
+    Write-Bytes $blob $ModeRegistrationOffset (New-CaptureModeRegistration $Bytes $registrationVa $validatorVa $callbackVa $CursorSelector)
+    $callbackTargetCheckVa = $(if ($CaptureTargetValidatorVersion -ge 4) { $completionTargetCheckVa } else { $StockFlagTargetCheckVa })
+    Write-Bytes $blob $CaptureCallbackOffset (New-CaptureCallback $Bytes $callbackVa $prototypeNameVa $callbackTargetCheckVa)
+    if ($CaptureTargetValidatorVersion -eq 5) {
+        Write-Bytes $blob $CaptureCompletionTargetCheckOffset (New-CaptureCompletionTargetCheck $completionTargetCheckVa)
+    }
+    elseif ($CaptureTargetValidatorVersion -eq 4) {
+        Write-Bytes $blob $CaptureCompletionTargetCheckOffset (New-ZeroCategoryCaptureCompletionTargetCheck $completionTargetCheckVa)
+    }
     [Text.Encoding]::ASCII.GetBytes("Restore_Capture_Flag`0").CopyTo($blob, $CapturePrototypeNameOffset)
     [Text.Encoding]::ASCII.GetBytes("RestoreAbandonedZoo.ZC01.ZCF0").CopyTo($blob, 0x190)
     $blob
@@ -375,8 +634,13 @@ elseif ($section.Characteristics -ne $SectionCharacteristics -or
 }
 
 $patchVa = [uint32]($pe.ImageBase + $section.Rva)
-[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector
-[byte[]]$previousPayload = New-PatchBlob $bytes $patchVa 0x05
+[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 5
+[byte[]]$zeroCategoryPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 4
+[byte[]]$validatorOnlyPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 3
+[byte[]]$stateTargetPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 2
+[byte[]]$unsafeTargetPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 1
+[byte[]]$previousTargetPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 0
+[byte[]]$previousCursorPayload = New-PatchBlob $bytes $patchVa 0x05 0
 [byte[]]$legacyPayload = New-LegacyPatchBlob $patchVa
 [byte[]]$factoryHook = New-RelativeInstruction 0xE9 $FactoryHookVa ([uint32]($patchVa + $PrivateFactoryHookOffset))
 $factoryHook += [byte[]]@(0x90)
@@ -392,15 +656,25 @@ $dispatchIsPatched = Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatch
 $modeRegistryIsStock = Test-BytesEqual $bytes $ModeRegistryHookOffset $StockModeRegistryHook
 $modeRegistryIsPatched = Test-BytesEqual $bytes $ModeRegistryHookOffset $modeRegistryHook
 $payloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $payload)
-$previousPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $previousPayload)
+$zeroCategoryPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $zeroCategoryPayload)
+$validatorOnlyPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $validatorOnlyPayload)
+$stateTargetPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $stateTargetPayload)
+$unsafeTargetPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $unsafeTargetPayload)
+$previousTargetPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $previousTargetPayload)
+$previousCursorPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $previousCursorPayload)
 $legacyPayloadMatches = -not $sectionIsNew -and (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
 $payloadIsZero = -not $sectionIsNew -and (Test-ZeroRange $bytes $section.RawOffset $section.RawSize)
 $installed = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $payloadMatches
-$cursorUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $previousPayloadMatches
+$zeroCategoryUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $zeroCategoryPayloadMatches
+$validatorOnlyUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $validatorOnlyPayloadMatches
+$stateTargetUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $stateTargetPayloadMatches
+$unsafeTargetUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $unsafeTargetPayloadMatches
+$targetUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $previousTargetPayloadMatches
+$cursorUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $previousCursorPayloadMatches
 $legacyInstalled = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsStock -and $legacyPayloadMatches
 $installable = $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy)
 $reactivatable = -not $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy) -and $payloadIsZero
-if (-not ($installed -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
+if (-not ($installed -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
     throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch; refusing to overwrite it."
 }
 
@@ -413,7 +687,7 @@ if ($installed) {
     Write-Host "MajestyHD.exe: the private ZC01/ZCF0 placement lifecycle is already installed."
 }
 elseif ($DryRun) {
-    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through private ZCF0 placement." -f $(if ($cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
+    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through monster-only ZCF0 placement." -f $(if ($zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before installing the Zoo Capture Flag." }
@@ -445,5 +719,5 @@ else {
         -not (Test-BytesEqual $verified $section.RawOffset $payload)) {
         throw "MajestyHD.exe verification failed after installing the private Capture Flag."
     }
-    Write-Host "MajestyHD.exe: ZC01 now uses private ZCF0 placement; Palace AP41 remains on stock Fl00."
+    Write-Host "MajestyHD.exe: ZC01 now uses monster-only private ZCF0 placement; Palace AP41 remains on stock Fl00."
 }
