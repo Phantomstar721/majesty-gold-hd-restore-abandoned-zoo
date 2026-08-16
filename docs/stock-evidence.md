@@ -33,6 +33,39 @@ matching `STRT/MX09` strings. The panel calls the building `ZOO`, exposes the
 normal visitors, repair, tax, track, help, reward, and status controls, and has
 obvious Blacksmith placeholder prose in two strings.
 
+## Stock reward-placement dispatch
+
+The abandoned `MX09` Place Reward control is visually complete but sends
+command `0x2293`. Its native controller dispatch slot points to the generic
+building handler at `0x004BD280`, which immediately delegates to the base panel
+handler. That handler recognizes the common `0x1F42`-series building controls,
+but not `0x2293`; this is why the surviving button has no action.
+
+The stock Palace `AP39` REWARDS control sends command `0x1389`. The Palace
+controller handler at `0x004A5440` intercepts exactly that command and opens
+the stock `AP41` Palace Rewards panel. Unrecognized commands tail-call the same
+base handler used by `MX09`. The restoration therefore copies AP39's literal
+four-byte command into the existing MX09 control and changes only MX09's
+controller-dispatch vtable entry at `0x0073EBA8` from `0x004BD280` to the
+literal Palace handler `0x004A5440`. Visitors, upgrade, destroy, help, tracking,
+and navigation remain on their existing fallback path.
+
+`AP41` owns the rest of the lifecycle. On entry it validates each stored reward
+amount against the player's available gold. An unset value is initialized from
+the stock `#RewardDelta`, which is 100 gold. Its ATTACK control (`0x138A`)
+passes the selected amount and stock Attack descriptor `Fl00` to the engine's
+existing reward-placement mode. The engine retains target validation, cursor
+placement, gold handling, right-click/Escape cancellation, and panel return.
+Successful placement creates the ordinary `Flag_Attack`/`RewardFlag`; shipped
+birth, poll, target-death callback, manual flag-death cleanup, hero-task reset,
+and UI refresh remain unchanged. This milestone adds no Zoo flag prototype,
+placement state, timer, callback, cancellation branch, or reward accounting.
+
+The current diagnostic `attack_flag_birth` override is deliberately unchanged
+in this step. Consequently both Palace-placed and Zoo-button-placed ordinary
+Attack Flags still reach the same completed-Zoo Hooligan conversion until a
+later tested step moves capture behavior onto a private Zoo flag.
+
 ## Confirmed GPL prototypes
 
 `SDK/OriginalQuests/GPLMx/mx_Building_Data.dat` defines `Zoo1`, `Zoo2`, and
@@ -66,8 +99,8 @@ capture lifecycle:
 - the flag is deleted after the attempt;
 - cancellation and polling clean pursuing heroes' tasks.
 
-That module does not provide the missing player-facing dispatcher, flag unit
-description, placement wiring, or UI control. The current milestone does not
+That module does not provide a working player-facing dispatcher, flag unit
+description, private placement wiring, or completed UI control. The current milestone does not
 attempt to restore its death interception or charm lifecycle. An ordinary
 Attack Flag is used solely as an immediate trigger for an isolated stock
 Hooligan test, enabled by the standard stock completed-building query for a

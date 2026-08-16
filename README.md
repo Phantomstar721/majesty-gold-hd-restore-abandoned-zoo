@@ -14,6 +14,8 @@ Wizard's Curse Hooligan lifecycle:
   the construction placement ghost;
 - it uses the literal stock `MX09` building controller and corrects its obvious
   Blacksmith placeholder prose;
+- its surviving **Place Reward** control now opens the stock Palace Rewards
+  panel, whose initial Attack reward is the stock 100-gold increment;
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
 - while the player owns a completed Zoo, placing an ordinary Attack Flag on a
@@ -79,6 +81,15 @@ powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1
 The installed package is
 `Documents\My Games\MajestyHD\Mods\RestoreAbandonedZoo`. Re-running the command
 replaces only that exact package and verifies every deployed file by SHA-256.
+The same command also applies one guarded four-byte executable edit that routes
+only the abandoned `MX09` controller's dispatch slot through Majesty's literal
+Palace button dispatcher. It preserves unrelated executable patches. Restore
+that one slot without touching other patches with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Restore-ZooRewardDispatcher.ps1
+```
+
 Enable **Restore Abandoned Zoo** in Majesty's Mods screen before starting a new
 game. Workshop metadata and publishing are intentionally not part of this local
 development setup.

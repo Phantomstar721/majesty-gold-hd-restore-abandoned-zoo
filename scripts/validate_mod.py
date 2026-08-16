@@ -123,6 +123,12 @@ def validate(root: Path) -> list[str]:
     )
     if zoo_menu.count(struct.pack("<I", 0x1F55)) != 1:
         errors.append("Zoo panel must contain exactly one stock Visitors command")
+    if zoo_menu.count(struct.pack("<I", 0x1389)) != 1:
+        errors.append("Zoo panel must contain exactly one stock Palace REWARDS command")
+    if zoo_menu.count(struct.pack("<I", 0x2293)) != 0:
+        errors.append("Zoo panel must not retain its orphaned Place Reward command")
+    if zoo_menu[0x08A8:0x08AC] != struct.pack("<I", 0x1389):
+        errors.append("Zoo Place Reward control must dispatch the stock Palace REWARDS command")
     if len(zoo_menu) != 2504:
         errors.append("Zoo panel must restore AP02's complete Visitors control")
     art_names = cam_names(root / "Data" / "restore_zoo_maindata.cam")

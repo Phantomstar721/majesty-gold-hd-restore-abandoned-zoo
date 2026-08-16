@@ -17,10 +17,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = REPO_ROOT / "src"
 DEFAULT_OUTPUT = REPO_ROOT / "dist" / "RestoreAbandonedZoo"
 VISITORS_CONTROL_ID = 0x1F55
+ZOO_PLACE_REWARD_CONTROL_ID = 0x2293
+PALACE_REWARDS_CONTROL_ID = 0x1389
 AP02_VISITORS_RECORD_START = 0x013C
 AP02_VISITORS_RECORD_END = 0x01D4
 MX09_VISITORS_RECORD_START = 0x013C
 MX09_VISITORS_RECORD_END = 0x01C4
+MX09_PLACE_REWARD_COMMAND_OFFSET = 0x0898
+AP39_REWARDS_COMMAND_OFFSET = 0x0130
 
 
 @dataclass(frozen=True)
@@ -242,12 +246,35 @@ def restore_zoo_visitors_control(zoo_menu: bytes, blacksmith_menu: bytes) -> byt
     )
 
 
+def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
+    """Give MX09's orphaned reward button AP39's literal REWARDS command."""
+    zoo_command = struct.pack("<I", ZOO_PLACE_REWARD_CONTROL_ID)
+    palace_command = struct.pack("<I", PALACE_REWARDS_CONTROL_ID)
+    if zoo_menu.count(zoo_command) != 1:
+        raise ValueError("Stock MX09 Place Reward command contract changed")
+    if palace_menu[AP39_REWARDS_COMMAND_OFFSET : AP39_REWARDS_COMMAND_OFFSET + 4] != palace_command:
+        raise ValueError("Stock AP39 REWARDS command contract changed")
+    if zoo_menu[
+        MX09_PLACE_REWARD_COMMAND_OFFSET : MX09_PLACE_REWARD_COMMAND_OFFSET + 4
+    ] != zoo_command:
+        raise ValueError("Stock MX09 Place Reward command offset changed")
+
+    patched = bytearray(zoo_menu)
+    patched[
+        MX09_PLACE_REWARD_COMMAND_OFFSET : MX09_PLACE_REWARD_COMMAND_OFFSET + 4
+    ] = palace_menu[
+        AP39_REWARDS_COMMAND_OFFSET : AP39_REWARDS_COMMAND_OFFSET + 4
+    ]
+    return bytes(patched)
+
+
 def write_text_cams(game_path: Path, data_dir: Path) -> None:
     base_textdata = game_path / "Data" / "textdata.cam"
     expansion_textdata = game_path / "DataMX" / "mx_textdata.cam"
     gpltext = game_path / "DataMX" / "mx_gpltext.cam"
     stock_menu = read_cam_entry(expansion_textdata, b"SMNU", b"MX09")
     stock_blacksmith_menu = read_cam_entry(base_textdata, b"SMNU", b"AP02")
+    stock_palace_menu = read_cam_entry(base_textdata, b"SMNU", b"AP39")
     stock_strings = read_cam_entry(expansion_textdata, b"STRT", b"MX09")
     unit_names = read_cam_entry(base_textdata, b"STRT", b"UNTN")
     advisor_text = read_cam_entry(gpltext, b"STRT", b"AITX")
@@ -305,7 +332,10 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                     CamEntry(
                         pad_name(b"MX09"),
                         restore_zoo_visitors_control(
-                            stock_menu.data, stock_blacksmith_menu.data
+                            restore_zoo_reward_dispatch(
+                                stock_menu.data, stock_palace_menu.data
+                            ),
+                            stock_blacksmith_menu.data,
                         ),
                     ),
                 ),

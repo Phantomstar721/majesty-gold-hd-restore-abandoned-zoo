@@ -30,7 +30,12 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 ## Newly chosen or written
 
 - The restored building uses the literal stock dialog/controller payload
-  `MX09`; no private dialog command is added.
+  `MX09`. Its orphaned Place Reward command is replaced with the literal stock
+  AP39 REWARDS command, and MX09's native dispatch slot is routed through the
+  literal Palace dispatcher so that command can open AP41. Reusing the Palace
+  reward interface for the unfinished Zoo control is new integration glue;
+  the dispatcher, 100-gold initial increment, placement state, cancellation,
+  flag construction, callbacks, and cleanup are stock.
 - `ZOO1`, `ZOO2`, and `ZOO3` are private unit-description IDs. This avoids the
   existing stock Sewer Entrance ID `ABN1`; recovered `ABn1`–`ABn3` remain art
   references only.
@@ -58,6 +63,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   `FirstStageBuilt == 1`, called from the flag with the exact argument order
   that passed the earlier live test. Any completed Zoo level qualifies.
   Without one, the original Attack Flag remains untouched.
+- The Zoo button now creates those same ordinary Attack Flags through the stock
+  Palace Rewards panel. This does not yet privatize capture to Zoo-placed flags,
+  and ordinary Palace Attack Flags retain the current diagnostic conversion.
 - The target receives the behavior-relevant fields from stock `[Hooligan]` and
   shipped `Hooligan_Death`. It retains its original monster art because no
   unit-description transformation is made.

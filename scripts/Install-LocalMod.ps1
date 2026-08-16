@@ -77,5 +77,10 @@ foreach ($relative in $sourceFiles.Keys) {
     }
 }
 
+& (Join-Path $PSScriptRoot "Install-ZooRewardDispatcher.ps1") -GamePath $GamePath
+if ($LASTEXITCODE -ne 0) {
+    throw "Zoo reward-dispatch installation failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "Installed and verified $($sourceFiles.Count) files:"
 Write-Host $target
