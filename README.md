@@ -18,6 +18,9 @@ Wizard's Curse Hooligan lifecycle:
   the stock Palace Rewards panel;
 - that clone retains only the Attack placement path, labels it **Capture
   Flag**, and uses the stock 100-gold initial increment;
+- only that private clone selects a Zoo-themed `ZOBG` backing, which retains
+  the stock Capture controls and removes the baked-in appearance of the hidden
+  Explore row without changing controller behavior;
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
 - while the player owns a completed Zoo, placing an ordinary Attack Flag on a
@@ -106,3 +109,19 @@ python scripts/validate_mod.py dist/RestoreAbandonedZoo
 The validator checks the package structure, XML links, private standalone GPL,
 stock dialog resources, and all documented first-milestone boundaries. It
 does not replace an in-game construction and upgrade test.
+
+## Regenerate the Zoo rewards art
+
+The build consumes the checked-in, packed
+`assets/generated/interface/zoo-rewards-panel.tile`, so Pillow is not required
+for an ordinary mod build. To regenerate it from the source master, use a
+Python environment with Pillow installed:
+
+```powershell
+python scripts/generate_zoo_rewards_art.py `
+  --game-path "C:\Program Files (x86)\Steam\steamapps\common\Majesty HD"
+```
+
+The generator derives the exact 202x245 geometry and functional chrome from
+stock `INBg` set 1019, composites the Zoo-themed backing, and packs it back into
+Majesty's embedded-palette V1 TILE format.

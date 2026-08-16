@@ -50,6 +50,40 @@ def cam_entry_data(path: Path, wanted_extension: bytes, wanted_name: bytes) -> b
     raise ValueError(f"Missing {wanted_extension!r}/{wanted_name!r} in {path}")
 
 
+def cam_section_entries(path: Path, wanted_extension: bytes) -> list[tuple[bytes, bytes]]:
+    data = path.read_bytes()
+    section_count = struct.unpack_from("<I", data, 12)[0]
+    cursor = 20
+    for _ in range(section_count):
+        extension = data[cursor : cursor + 4]
+        section_offset = struct.unpack_from("<I", data, cursor + 4)[0]
+        cursor += 8
+        if extension != wanted_extension:
+            continue
+        count = struct.unpack_from("<I", data, section_offset)[0]
+        entry_cursor = section_offset + 8
+        result: list[tuple[bytes, bytes]] = []
+        for _ in range(count):
+            name = data[entry_cursor : entry_cursor + 20].rstrip(b"\x00")
+            offset, size = struct.unpack_from("<II", data, entry_cursor + 20)
+            entry_cursor += 28
+            result.append((name, data[offset : offset + size]))
+        return result
+    raise ValueError(f"Missing {wanted_extension!r} section in {path}")
+
+
+def interface_imag_set_tile_index(imag: bytes, set_id: int) -> int:
+    set_count = struct.unpack_from("<I", imag, 20)[0]
+    for set_index in range(set_count):
+        current_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+        if current_id != set_id:
+            continue
+        relative = struct.unpack_from("<i", imag, set_offset + 64)[0]
+        direction_offset = set_offset + relative + 4
+        return struct.unpack_from("<I", imag, direction_offset + 24)[0] & 0xFFFF
+    raise ValueError(f"Interface IMAG has no set {set_id}")
+
+
 def indexed_strt_record(data: bytes, index: int) -> tuple[int, str]:
     count = struct.unpack_from("<H", data, 0)[0]
     if index >= count:
@@ -67,6 +101,7 @@ def validate(root: Path) -> list[str]:
         "Data/restore_zoo_units.xml",
         "Data/restore_zoo_maindata.cam",
         "Data/restore_zoo_interfacedata.cam",
+        "Data/restore_zoo_rewards_interfacedata.cam",
         "Data/restore_zoo_miscdata.cam",
         "Data/restore_zoo_textdata.cam",
         "Data/restore_zoo_gpltext.cam",
@@ -108,6 +143,15 @@ def validate(root: Path) -> list[str]:
             "Data\\restore_zoo_units.xml"
         ]:
             errors.append("Manifest must load only the Zoo building descriptions")
+        if [item.text for item in load.findall("CAM")] != [
+            "Data\\restore_zoo_maindata.cam",
+            "Data\\restore_zoo_interfacedata.cam",
+            "Data\\restore_zoo_rewards_interfacedata.cam",
+            "Data\\restore_zoo_miscdata.cam",
+            "Data\\restore_zoo_textdata.cam",
+            "Data\\restore_zoo_gpltext.cam",
+        ]:
+            errors.append("Manifest CAM load order does not match the Zoo package contract")
         if [item.text for item in load.find("GPL").findall("Source")] != [
             "GPL\\RestoreAbandonedZoo_Building_Data.dat",
             "GPL\\RestoreAbandonedZoo_Capture.gpl",
@@ -140,6 +184,8 @@ def validate(root: Path) -> list[str]:
     zoo_rewards_menu = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"ZC01"
     )
+    if zoo_rewards_menu.count(b"ZOBG") != 1 or b"INBg" in zoo_rewards_menu:
+        errors.append("Private Zoo rewards panel must select only private ZOBG art")
     hidden_controls = {
         0x00A0: 0x1388,
         0x0118: 0x1389,
@@ -180,7 +226,7 @@ def validate(root: Path) -> list[str]:
         2: "Capture Flag",
         3: "Place a Capture Flag.",
         9: "Current Capture Flag default reward amount in gold",
-        10: "ZOO REWARDS",
+        10: "Capture",
         11: "Decrease Capture Flag reward amount.",
         12: "Increase Capture Flag reward amount.",
         13: "Return to the Zoo's Main Window.",
@@ -208,6 +254,26 @@ def validate(root: Path) -> list[str]:
             )
     if not any(extension == b"TILE" for extension, _ in interface_names):
         errors.append("Zoo interface-data CAM lacks the positional stock TILE table")
+    rewards_interface = root / "Data" / "restore_zoo_rewards_interfacedata.cam"
+    rewards_interface_names = cam_names(rewards_interface)
+    if (b"IMAG", b"ZOBGbuilding dialog") not in rewards_interface_names:
+        errors.append("Zoo rewards interface CAM lacks its private ZOBG IMAG")
+    if not any(extension == b"TILE" for extension, _ in rewards_interface_names):
+        errors.append("Zoo rewards interface CAM lacks its private positional TILE table")
+    else:
+        rewards_imag = cam_entry_data(
+            rewards_interface, b"IMAG", b"ZOBGbuilding dialog"
+        )
+        rewards_tiles = cam_section_entries(rewards_interface, b"TILE")
+        rewards_tile_index = interface_imag_set_tile_index(rewards_imag, 1019)
+        if rewards_tile_index >= len(rewards_tiles):
+            errors.append("Private ZOBG set 1019 references a missing TILE")
+        else:
+            rewards_tile = rewards_tiles[rewards_tile_index][1]
+            if len(rewards_tile) < 26 or struct.unpack_from("<H", rewards_tile, 0)[0] != 1:
+                errors.append("Private Zoo rewards backing is not a V1 TILE")
+            elif struct.unpack_from("<HH", rewards_tile, 2) != (245, 202):
+                errors.append("Private Zoo rewards backing is not stock 202x245 geometry")
     help_names = cam_names(root / "Data" / "restore_zoo_gpltext.cam")
     if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
         errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")

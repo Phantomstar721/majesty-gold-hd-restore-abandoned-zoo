@@ -40,9 +40,25 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   hidden-control position `(1500,1500)` demonstrated by AP50. The earlier
   experimental layouts are not retained; the live parser trace used to correct
   the Explore-placement record boundary was diagnostic only. “Capture Flag,”
-  its related Capture tooltips, “ZOO REWARDS,” and the Zoo return tooltip are
+  its related Capture tooltips, “Capture,” and the Zoo return tooltip are
   newly written presentation text. All control records and internal Attack Flag
   IDs remain stock, so this step changes no placement behavior or flag type.
+- The Zoo-themed rewards backing is newly created presentation art, not a
+  recovered Cyberlore asset. Its warm stucco, terracotta roof, dark timber,
+  stone courtyard, iron enclosure, greenery, and restrained gold motifs are
+  inferred from the surviving Zoo building/profile art. The source master was
+  produced with built-in image generation and then reduced beneath stock AP41
+  chrome. The generator deliberately preserves the title band, functional
+  Capture row, outer frame, and navigation strip from stock set 1019 while
+  replacing the baked-in unused Explore half. It recolors the stock title fill
+  as dark Zoo timber and supplies a near-black green amount-field backing,
+  because the stock amount field uses transparent palette index 0 and normally
+  borrows its darkness from the Palace panel beneath it.
+- `ZOBGbuilding dialog`, the `ZOBG` resource token, the generated 202x245
+  backing TILE, and `restore_zoo_rewards_interfacedata.cam` are new private art
+  integration. Their scope is only `SMNU/ZC01`; the stock `INBg` resource and
+  all other dialogs are untouched. This is presentation-only and does not
+  alter reward values, flag placement, callbacks, or cleanup.
 - `ZOO1`, `ZOO2`, and `ZOO3` are private unit-description IDs. This avoids the
   existing stock Sewer Entrance ID `ABN1`; recovered `ABn1`–`ABn3` remain art
   references only.

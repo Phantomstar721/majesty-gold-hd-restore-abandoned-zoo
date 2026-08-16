@@ -77,6 +77,21 @@ record's stock opcode `2` rather than its x coordinate. The corrected stock
 record begins at `0x0238`; its coordinates are the dwords at `0x0240` and
 `0x0244`. The trace hook was removed immediately after capture.
 
+The lower disabled button, amount box, and +/- shapes that remained visible
+after those controls moved offscreen are not additional controls. They are
+painted directly into `IMAG/INBgbuilding dialog` set 1019's single 202x245
+background TILE in base `Data/interfacedata.cam`. Stock contains no one-row
+variant of that reward backing, so suppressing those shapes requires a private
+art resource rather than another dialog-stream change.
+
+The custom presentation follows the already proven Alchemist Brewing-panel
+resource pattern. The complete stock `INBgbuilding dialog` IMAG is cloned as
+private `ZOBGbuilding dialog`; every TILE reached by the private IMAG is cloned
+to appended private positions, and only set 1019's backing is replaced. The
+private `SMNU/ZC01` changes its one background token from `INBg` to `ZOBG`.
+Stock AP41, every other `INBg` consumer, and all functional AP41 control records
+remain unchanged.
+
 The literal AP41 controller owns the rest of the lifecycle. On entry it
 validates each stored reward amount against the player's available gold. An
 unset value is initialized from

@@ -20,6 +20,13 @@ VISITORS_CONTROL_ID = 0x1F55
 ZOO_PLACE_REWARD_CONTROL_ID = 0x2293
 PALACE_REWARDS_CONTROL_ID = 0x1389
 ZOO_REWARDS_DIALOG_ID = b"ZC01"
+ZOO_REWARDS_BACKGROUND_SOURCE = b"INBgbuilding dialog"
+ZOO_REWARDS_BACKGROUND_CUSTOM = b"ZOBGbuilding dialog"
+ZOO_REWARDS_BACKGROUND_TOKEN = b"ZOBG"
+ZOO_REWARDS_BACKGROUND_SET = 1019
+ZOO_REWARDS_TILE = (
+    REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel.tile"
+)
 AP02_VISITORS_RECORD_START = 0x013C
 AP02_VISITORS_RECORD_END = 0x01D4
 MX09_VISITORS_RECORD_START = 0x013C
@@ -279,6 +286,10 @@ def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
 
 def privatize_zoo_rewards_menu(palace_rewards_menu: bytes) -> bytes:
     """Clone AP41 and move its Explore controls to stock's hidden position."""
+    if palace_rewards_menu.count(b"INBg") != 1:
+        raise ValueError("Stock AP41 no longer contains exactly one INBg background token")
+    if ZOO_REWARDS_BACKGROUND_TOKEN in palace_rewards_menu:
+        raise ValueError("Stock AP41 unexpectedly already contains the Zoo background token")
     patched = bytearray(palace_rewards_menu)
     for start, end, command_ids in AP41_EXPLORE_CONTROLS:
         control = palace_rewards_menu[start:end]
@@ -296,6 +307,7 @@ def privatize_zoo_rewards_menu(palace_rewards_menu: bytes) -> bytes:
             STOCK_HIDDEN_CONTROL_COORDINATE,
             STOCK_HIDDEN_CONTROL_COORDINATE,
         )
+    patched = patched.replace(b"INBg", ZOO_REWARDS_BACKGROUND_TOKEN, 1)
     return bytes(patched)
 
 
@@ -326,7 +338,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
             2: "Capture Flag",
             3: "Place a Capture Flag.",
             9: "Current Capture Flag default reward amount in gold",
-            10: "ZOO REWARDS",
+            10: "Capture",
             11: "Decrease Capture Flag reward amount.",
             12: "Increase Capture Flag reward amount.",
             13: "Return to the Zoo's Main Window.",
@@ -505,6 +517,148 @@ def write_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
     )
 
 
+def interface_imag_set_tile_offset(imag: bytes, set_id: int) -> int:
+    """Return the sole frame TILE field for a stock one-direction UI set."""
+    set_count = u32(imag, 20)
+    if set_count <= 0 or 24 + set_count * 8 > len(imag):
+        raise ValueError("Interface IMAG has an invalid animation-set table")
+    for set_index in range(set_count):
+        table_offset = 24 + set_index * 8
+        current_id, set_offset = struct.unpack_from("<II", imag, table_offset)
+        if current_id != set_id:
+            continue
+        if set_offset + 68 > len(imag) or u32(imag, set_offset) != 1:
+            raise ValueError(f"Interface IMAG set {set_id} no longer has one direction")
+        relative = struct.unpack_from("<i", imag, set_offset + 64)[0]
+        direction_offset = set_offset + relative + 4
+        if direction_offset + 28 > len(imag):
+            raise ValueError(f"Interface IMAG set {set_id} has a truncated direction")
+        if u32(imag, direction_offset) >> 16 != 1:
+            raise ValueError(f"Interface IMAG set {set_id} no longer has one frame")
+        return direction_offset + 24
+    raise ValueError(f"Interface IMAG has no set {set_id}")
+
+
+def privateize_interface_imag_tiles(
+    imag: bytes,
+    tiles: list[CamEntry],
+    append,
+    name_prefix: bytes,
+    overrides: dict[int, bytes],
+) -> bytes:
+    """Clone every TILE reached by a stock interface IMAG into private slots.
+
+    This is the same stock-adjacent positional-TILE pattern used by the
+    Alchemist Brewing subpanel: the original index range remains empty, and
+    every frame in the private IMAG is redirected to an appended private TILE.
+    """
+    patched = bytearray(imag)
+    set_count = u32(imag, 20)
+    if set_count <= 0 or 24 + set_count * 8 > len(imag):
+        raise ValueError("Interface IMAG has an invalid animation-set table")
+    replacements: dict[int, int] = {}
+    for set_index in range(set_count):
+        table_offset = 24 + set_index * 8
+        set_id, set_offset = struct.unpack_from("<II", imag, table_offset)
+        if set_offset + 68 > len(imag):
+            raise ValueError(f"Interface IMAG set {set_id} is truncated")
+        direction_count = u32(imag, set_offset)
+        if direction_count <= 0 or direction_count > 32:
+            raise ValueError(f"Interface IMAG set {set_id} has invalid directions")
+        for direction in range(direction_count):
+            relative = struct.unpack_from(
+                "<i", imag, set_offset + 64 + direction * 4
+            )[0]
+            direction_offset = set_offset + relative + 4
+            if direction_offset + 28 > len(imag):
+                raise ValueError(f"Interface IMAG set {set_id} has a truncated direction")
+            frame_count = u32(imag, direction_offset) >> 16
+            if frame_count <= 0 or frame_count > 64:
+                raise ValueError(f"Interface IMAG set {set_id} has invalid frames")
+            for frame in range(frame_count):
+                tile_offset = direction_offset + 24 + frame * 8
+                encoded = u32(imag, tile_offset)
+                source_index = encoded & 0xFFFF
+                if source_index >= len(tiles):
+                    raise ValueError(
+                        f"Interface IMAG references missing TILE {source_index}"
+                    )
+                if source_index not in replacements:
+                    replacements[source_index] = append(
+                        name_prefix + f"{source_index:05d}".encode("ascii"),
+                        overrides.get(source_index, tiles[source_index].data),
+                    )
+                struct.pack_into(
+                    "<I",
+                    patched,
+                    tile_offset,
+                    (encoded & 0xFFFF0000) | replacements[source_index],
+                )
+    return bytes(patched)
+
+
+def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
+    """Package a private Zoo-themed clone of stock INBg for ZC01 only."""
+    source = game_path / "Data" / "interfacedata.cam"
+    stock_imag = read_cam_entry(
+        source, b"IMAG", ZOO_REWARDS_BACKGROUND_SOURCE
+    ).data
+    tiles = read_cam_entries(source, b"TILE")
+    if not tiles:
+        raise ValueError(f"Stock interface TILE table is incomplete in {source}")
+    source_offset = interface_imag_set_tile_offset(
+        stock_imag, ZOO_REWARDS_BACKGROUND_SET
+    )
+    source_index = u32(stock_imag, source_offset) & 0xFFFF
+    if source_index >= len(tiles):
+        raise ValueError("Stock AP41 backing references a missing TILE")
+    if not ZOO_REWARDS_TILE.is_file():
+        raise FileNotFoundError(
+            f"Generated Zoo rewards TILE is missing: {ZOO_REWARDS_TILE}"
+        )
+    custom_tile = ZOO_REWARDS_TILE.read_bytes()
+    if len(custom_tile) < 26 or struct.unpack_from("<H", custom_tile, 0)[0] != 1:
+        raise ValueError("Zoo rewards art is not an embedded-palette V1 TILE")
+    if struct.unpack_from("<HH", custom_tile, 2) != (245, 202):
+        raise ValueError("Zoo rewards art must retain stock 202x245 geometry")
+    if custom_tile == tiles[source_index].data:
+        raise ValueError("Zoo rewards art is still identical to the stock AP41 backing")
+
+    extra: list[CamEntry] = []
+
+    def append(name: bytes, data: bytes) -> int:
+        index = len(tiles) + len(extra)
+        extra.append(CamEntry(pad_name(name), data))
+        return index
+
+    custom_imag = privateize_interface_imag_tiles(
+        stock_imag,
+        tiles,
+        append,
+        ZOO_REWARDS_BACKGROUND_TOKEN,
+        {source_index: custom_tile},
+    )
+    private_source_index = u32(custom_imag, source_offset) & 0xFFFF
+    if private_source_index < len(tiles):
+        raise ValueError("Private Zoo rewards backing was not moved to an appended TILE")
+
+    blank_stock_slots = tuple(CamEntry(entry.name, b"") for entry in tiles)
+    write_cam(
+        data_dir / "restore_zoo_rewards_interfacedata.cam",
+        (
+            CamSection(
+                b"IMAG",
+                (CamEntry(pad_name(ZOO_REWARDS_BACKGROUND_CUSTOM), custom_imag),),
+            ),
+            CamSection(
+                b"TILE",
+                blank_stock_slots + tuple(extra),
+                padding=b"\x01\x00\x00\x00",
+            ),
+        ),
+    )
+
+
 def prepare_output(output_root: Path) -> tuple[Path, Path]:
     resolved = output_root.resolve()
     if resolved.exists():
@@ -543,6 +697,7 @@ def build(game_path: Path, output_root: Path) -> None:
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo.gplproj", gpl_dir)
     write_maindata_cam(game_path, data_dir)
     write_interfacedata_cam(game_path, data_dir)
+    write_zoo_rewards_interfacedata_cam(game_path, data_dir)
     write_miscdata_cam(game_path, data_dir)
     write_text_cams(game_path, data_dir)
     result = subprocess.run(
