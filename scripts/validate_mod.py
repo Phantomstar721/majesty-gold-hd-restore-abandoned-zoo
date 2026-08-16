@@ -149,15 +149,18 @@ def validate(root: Path) -> list[str]:
     if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
         errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")
     else:
-        intent_record = indexed_strt_record(
-            cam_entry_data(
-                root / "Data" / "restore_zoo_gpltext.cam", b"STRT", b"AITX"
-            ),
-            117,
+        intent_data = cam_entry_data(
+            root / "Data" / "restore_zoo_gpltext.cam", b"STRT", b"AITX"
         )
+        intent_record = indexed_strt_record(intent_data, 117)
         if intent_record != (117, "Capturing a monster"):
             errors.append(
                 "Intent 117 must change only its text to Capturing a monster"
+            )
+        zoo_occupant_intent = indexed_strt_record(intent_data, 199)
+        if zoo_occupant_intent != (199, "waiting in the zoo"):
+            errors.append(
+                "Reserved intent 199 must contain the Zoo occupant text"
             )
     bdep = cam_entry_data(
         root / "Data" / "restore_zoo_miscdata.cam", b"DATA", b"BDEP"
@@ -193,6 +196,7 @@ def validate(root: Path) -> list[str]:
         'zoo = $ListMember ( zoos, 1 )',
         "function Restore_Convert_To_Stock_Hooligan",
         "function Restore_Hooligan_Control_Delay",
+        "expression #intent_waiting_in_zoo 199",
         "function Restore_Become_Hooligan",
         'thisagent\'s "Counter" * #Normal_Cycle >= #Charm_Delay_Time',
         'thisagent\'s "ActiveScript" = $Restore_Become_Hooligan',
@@ -224,6 +228,7 @@ def validate(root: Path) -> list[str]:
         "$StopMoving ( thisagent )",
         "$Reset_Tasks ( owner )",
         "$Enter_Building ( thisagent, zoo )",
+        "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )",
         '$KillThread ( thisagent\'s "ActiveScript" )',
         "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
         "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
@@ -269,11 +274,14 @@ def validate(root: Path) -> list[str]:
     if capture.count("$DeleteGamePiece ( thisagent )") != 1:
         errors.append("Only the consumed Attack Flag may retain DeleteGamePiece")
     storage_enter = capture.index("$Enter_Building ( thisagent, zoo )")
+    storage_intent = capture.index(
+        "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )"
+    )
     storage_kill = capture.index('$KillThread ( thisagent\'s "ActiveScript" )')
     hidden_arrival = capture.index("if ( $IsHidden ( thisagent ))")
-    if storage_enter < hidden_arrival or storage_enter > storage_kill:
+    if not hidden_arrival < storage_enter < storage_intent < storage_kill:
         errors.append(
-            "Zoo storage must enter only after hidden arrival and before lifecycle stop"
+            "Zoo storage must enter, set its occupant intent, then stop after arrival"
         )
 
     project = (root / "GPL" / "RestoreAbandonedZoo.gplproj").read_text(

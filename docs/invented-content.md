@@ -118,6 +118,12 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   thread. Applying the ordinary visitor callback to a living Hooligan is new
   integration behavior. There is intentionally no capacity; the prior invented
   4/8/12 limits remain removed.
+- The visitor-row wording “waiting in the zoo” is invented. Its mechanism is
+  stock: after `Enter_Building`, delivery calls `SpecifyIntent`, matching stock
+  `Lived_In` occupant ordering. Private `#intent_waiting_in_zoo` uses expansion
+  AITX slot 199, one of the shipped `empty` placeholders from 177 through 199;
+  no live stock intent/message string and no generic row-painter behavior is
+  replaced.
 - For repeatable testing only, the mod overrides `DEAL_DEMON` with a literal
   stock copy plus one stock completed-building `SpawnUnit` call for
   `Restore_Zoo1` beside the first Palace. The quest's music, treasure, enemy

@@ -292,6 +292,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
         advisor_text.data,
         {
             117: "Capturing a monster",
+            199: "waiting in the zoo",
         },
     )
 

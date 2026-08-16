@@ -7,6 +7,11 @@
 // after the Hooligan target is stored or abandoned.
 ///////////////////////////////////////////////////////////////////////////////
 
+// DataMX/mx_gpltext.cam reserves slots 177-199 as "empty".  Use one of those
+// shipped placeholders for the Zoo occupant intent without replacing a live
+// stock intent or quest message.
+expression #intent_waiting_in_zoo 199
+
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -224,8 +229,11 @@ begin
 
 			// The stock visitor callback runs only after travel has delivered the
 			// agent.  Hide has now completed, so register this hidden captive
-			// through that callback, then stop its permanent stored lifecycle.
+			// through that callback, give it a persistent occupant intent using
+			// the same Enter_Building -> SpecifyIntent ordering as stock Lived_In,
+			// then stop its permanent stored lifecycle.
 			$Enter_Building ( thisagent, zoo );
+			$SpecifyIntent ( thisagent, #intent_waiting_in_zoo );
 			$KillThread ( thisagent's "ActiveScript" );
 		end
 end

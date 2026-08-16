@@ -166,6 +166,22 @@ The call is deliberately not used for travel: stock `Enter_Building` has no
 active movement or `Hide` statement. It does not copy hero-specific death,
 guild, intent, resurrection, or home logic.
 
+Stock occupants do not require a visitor-specific text formatter. Both
+`TaskModules/Buildings/Gambling_Hall.gpl` and
+`TaskModules/Buildings/Lived_In.gpl` write the occupant's
+`ATTRIB_AIIntentionString` through `SpecifyIntent` as part of the ordinary
+`Enter_Building` lifecycle; the visitor row then renders that stored intent.
+`Lived_In` uses the exact order needed here: enter the building, specify the
+inside-building intent, then schedule the occupant's next lifecycle step. The
+Zoo delivery copies that order, specifying its private intent after
+`Enter_Building` and before stopping the captive's active thread.
+
+`DataMX/mx_gpltext.cam` ships indexed `STRT/AITX` records 177 through 199 as
+literal `empty` placeholders. The Zoo assigns placeholder 199 to
+`#intent_waiting_in_zoo` and changes only that reserved record's text to
+“waiting in the zoo.” The stock row supplies “is,” yielding the requested
+“is waiting in the zoo” display without a Zoo branch in the generic painter.
+
 Live inspection confirmed that each delivered monster remains a valid
 `VehicleRec`, appears in the Visitors controller's unit vector, and owns a
 selectable row whose stored agent ID opens the correct monster primary panel.

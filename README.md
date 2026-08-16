@@ -30,6 +30,8 @@ Wizard's Curse Hooligan lifecycle:
   than the stock arrest distance ahead of its selected hero;
 - the Hooligan returns to its selected Zoo, stops its active lifecycle, and is
   stored as a valid hidden agent in the Zoo's stock `Occupants` list;
+- delivered monsters use the stock occupant-intent field so their visitor rows
+  read “is waiting in the zoo” rather than the default “is Thinking”;
 - the abandoned Zoo panel's truncated `Visitors` control is completed with the
   missing bytes from the stock Blacksmith control and displays delivered
   monsters from the generic occupant list;
