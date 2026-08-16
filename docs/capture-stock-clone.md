@@ -12,10 +12,11 @@ game: from the Reward Flag, list `Building` agents with arguments ordered
 Construction sites therefore do not enable the trigger; any completed Zoo
 level does. The first completed Zoo becomes the destination.
 
-With that gate satisfied, placing the Zoo's private Capture Flag on a living agent whose
-current `Type` is `Monster` immediately removes the flag and begins the stock
-controlled-monster transition described below. The trigger does not wait for
-combat, roll capture chance, or intercept death.
+With that gate satisfied, placing the Zoo's private Capture Flag on a living
+agent whose current `Type` is `Monster` begins the stock controlled-monster
+transition described below. The private flag remains attached to that target
+under its cloned stock `attack_flag_poll` and `attack_flag_death` lifecycle.
+The trigger does not wait for combat, roll capture chance, or intercept death.
 
 Without a completed player Zoo, or when placed on a non-monster target, the
 Capture Flag retains its cloned stock Attack Flag lifecycle. Palace Attack
@@ -147,9 +148,10 @@ does not guess per-species movement-rate modifiers.
    whether or not the player owns a Zoo.
 2. Complete any level of Zoo, open its Capture panel, then place a Capture Flag
    on a living monster.
-3. The flag disappears immediately; no bounty is paid. For the stock 3300 ms
-   control delay, the target is Hidden and transferred to the player's
-   allegiance so existing player-minion attacks terminate.
+3. The flag remains attached and visible under the stock Attack Flag overlay
+   lifecycle; conversion itself pays no bounty. For the stock 3300 ms control
+   delay, the target is Hidden and transferred to the player's allegiance so
+   existing player-minion attacks terminate.
 4. After that delay, one selected hero receives the stock arrest intent, target, counter, and
    `Arrest_Hooligan` ActiveScript; every other hero retains normal behavior.
    The Hooligan pauses if it gets more than 50 units ahead of that hero.

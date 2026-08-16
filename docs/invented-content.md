@@ -59,6 +59,28 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   integration. Their scope is only `SMNU/ZC01`; the stock `INBg` resource and
   all other dialogs are untouched. This is presentation-only and does not
   alter reward values, flag placement, callbacks, or cleanup.
+- The Capture Flag's `ZCA2` art family is newly created presentation art; no
+  finished Zoo flag artwork survives in stock resources. Its forest-green
+  cloth, aged-gold paw emblem, dark timber, cream edging, and reuse of the
+  owner's blue/green/orange/magenta trim colors are invented from the surviving
+  Zoo building and panel palette. The 100x100 interface master and transparent
+  world-sprite concept were produced with built-in image generation. The
+  generated frame pipeline uses those concepts for the emblem and palette, but
+  copies stock `ARA2flag attack` geometry and ordering exactly: 12 Special
+  animation frames, four 7x7 Minimap frames, and four 100x100 Interface
+  directions. The private `ZCA2Capture flag` IMAG redirects all twenty frames
+  to appended TILE slots. Its indexed frames carry literal stock base palettes
+  0–793 in the same proven form as other private maindata packages; the Capture
+  CAM loads before the recovered MX Zoo CAM so the latter's palette range stays
+  authoritative for the building. Stock ARA2 Attack and ARA4 Explore resources
+  are not replaced.
+- The Zoo Capture button's `ZCICItem Icons` resource and 25x25 paw-flag TILE
+  are new private presentation art. Stock AP41 paints its Attack icon through
+  `INTCItem Icons` set 1011/TILE 92; ZC01 changes only that control's four-byte
+  resource token to `ZCIC`. The private IMAG retains the complete stock INTC
+  set table and redirects only set 1011 to one appended embedded-palette V1
+  TILE. The stock teal button frame is preserved while its tiny red
+  crossed-blade flag is repainted green with a gold paw.
 - `ZOO1`, `ZOO2`, and `ZOO3` are private unit-description IDs. This avoids the
   existing stock Sewer Entrance ID `ABN1`; recovered `ABn1`–`ABn3` remain art
   references only.
@@ -79,8 +101,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - `ZCF0`, `Restore_Capture_Flag`, its XML description, GPL prototype, placement
   registration, relocated completion callback, private ZC01 vtable, and
   `Restore_Capture_Flag_Birth` are new private integration. The exact private
-  identifiers and the decision to begin with stock `ARA2` Attack Flag art are
-  invented; no finished Capture Flag resource survives in stock data.
+  identifiers are invented; no finished Capture Flag resource survives in
+  stock data. `ZCA2` changes only its private image selection; the placement
+  and reward lifecycle remain the already-tested stock clone.
 - The private placement mode is a literal clone of stock `Fl00`: the same
   registration parameters, target-validation callback, mouse lifecycle,
   reward amount, cancellation, gold accounting, and completion code are used.
@@ -89,10 +112,12 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   `RewardFlag` type, `Flag_Attack` subtype/title, AP46 panel, death callback,
   active poll, payout, hero bookkeeping, cancellation, and cleanup.
 - When its player owns a completed Zoo, placing that private Capture Flag on a
-  living `Monster` immediately removes the flag and begins a stock control
-  transition into the Wizard's Curse Hooligan lifecycle. This is diagnostic
-  glue, not recovered Zoo design. Stock `attack_flag_birth` is no longer
-  overridden, so Palace Attack Flags remain entirely shipped behavior.
+  living `Monster` begins a stock control transition into the Wizard's Curse
+  Hooligan lifecycle. Retaining the private flag on the converted target is a
+  newly chosen presentation behavior; the overlay continues to use stock
+  `attack_flag_poll`, `attack_flag_death`, and the target-death callback rather
+  than a new watcher or cleanup controller. Stock `attack_flag_birth` is no
+  longer overridden, so Palace Attack Flags remain entirely shipped behavior.
 - The enable gate copies the stock completed-building query shape used by the
   Mausoleum and other MX systems: player-owned `Building`, title `Zoo`, and
   `FirstStageBuilt == 1`, called from the flag with the exact argument order

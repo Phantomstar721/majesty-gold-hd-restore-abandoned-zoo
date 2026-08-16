@@ -128,12 +128,59 @@ handler. Palace AP41 retains its stock vtable and all three literal `Fl00`
 paths, so Palace Attack Flags are isolated from Zoo capture.
 
 `Restore_Capture_Flag` clones the stock overlay description and GPL
-`Flag_Attack` prototype. It retains shipped `ARA2` art, `AP46` panel,
+`Flag_Attack` prototype. It retains shipped `AP46`,
 `Attack_flag_death_callback`, `RewardFlag` type, internal `Flag_Attack` title,
 `attack_flag_poll`, and `attack_flag_death`. Keeping the internal title is
 required because shipped hero reward evaluation recognizes attack work by
-testing `flag.title == "flag_attack"`. Only the prototype identity and birth
-function are private. Stock `attack_flag_birth` is no longer overridden.
+testing `flag.title == "flag_attack"`. Only the prototype identity, private
+image selection, and birth function are private. Stock `attack_flag_birth` is
+no longer overridden.
+
+## Private Capture Flag art clone
+
+Base `Data/maindata.cam` contains both complete flag image families:
+
+| Resource | Special | Minimap | Interface |
+| --- | ---: | ---: | ---: |
+| `ARA2flag attack` | 12 frames, TILE 16655–16666 | 4 frames, TILE 16667–16670 | 4 player-color directions, TILE 16671–16674 |
+| `ARA4Flag Explore` | 12 frames, TILE 16675–16686 | 4 frames, TILE 16687–16690 | 4 player-color directions, TILE 16691–16694 |
+
+Both resources use the same three-set overlay topology: animation set 64 for
+the world flag, set 300 for the minimap, and set 1000 for the interface image.
+The world and minimap records are indexed-v3 TILEs; the interface records are
+100x100 RGB565 v1 TILEs. Attack is a red pennant with crossed blades; Explore
+is a pale green banner with an eye.
+
+Private `ZCA2Capture flag` is an exact IMAG-topology clone of ARA2. Every one of
+its twenty referenced TILEs is redirected to appended private slots beginning
+after the complete 17,224-entry retail table. The original positional slots are
+empty fall-through entries, following the same proven private-art pattern used
+by the Alchemist and Haunt packages. The private world frames preserve ARA2's
+canvas, hotspots, frame order, and wave motion while selecting stock palette
+793, which already contains the Explore family's green, gold, and player-blue
+range. The minimap frames preserve their 7x7 canvases; the four interface
+directions preserve ARA2's player-color order: blue, green, orange, magenta.
+Indexed-v3 render art requires its palette table in the emitting maindata
+package. Following the proven Alchemist and Haunt packaging shape, the private
+CAM therefore carries literal base palettes 0–793 and loads before the MX Zoo
+CAM. The later MX package remains the final provider for its own 0–287 palette
+range, while private palette 793 remains available to ZCA2. No `ARA2` or
+`ARA4` IMAG record is emitted by the private CAM.
+
+The AP41 Capture-row icon is not supplied by ARA2's Interface set. Stock
+`SMNU/AP41` command `0x1B59` paints `INTCItem Icons` set 1011, whose sole frame
+is embedded-palette V1 TILE 92 at 25x25. ZC01 changes only that icon control's
+resource token to private `ZCIC`; every other AP41 control remains byte-for-byte
+stock. `ZCICItem Icons` retains the complete stock INTC set table and redirects
+only set 1011 to one appended private TILE. Stock INTC and all its consumers
+remain unchanged.
+
+The private birth originally deleted the Capture Flag immediately after the
+Hooligan conversion. Stock `attack_flag_birth` does not delete its flag; it
+starts `attack_flag_poll`, initializes `gavereward`, and leaves deletion to the
+stock target-death, manual-death, and cleanup lifecycle. Removing that one
+private deletion restores the stock ownership shape and keeps ZCA2 attached to
+the converted target without adding any timer, watcher, or alternate cleanup.
 
 ## Confirmed GPL prototypes
 

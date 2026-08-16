@@ -21,16 +21,21 @@ Wizard's Curse Hooligan lifecycle:
 - only that private clone selects a Zoo-themed `ZOBG` backing, which retains
   the stock Capture controls and removes the baked-in appearance of the hidden
   Explore row without changing controller behavior;
+- its Capture button selects private `ZCIC` set 1011 art, retaining the stock
+  25x25 button frame while replacing the crossed-blade flag with the Zoo paw;
 - its Capture control selects a private `ZCF0` placement-mode clone, whose
   completion callback creates private `Restore_Capture_Flag` reward flags;
-- the private flag retains the stock Attack Flag art, panel, internal
-  `Flag_Attack` title, hero evaluation, poll, target-death callback, payout,
-  cancellation, task reset, and cleanup lifecycle;
+- the private flag retains the stock Attack Flag animation topology but selects
+  private `ZCA2` Zoo art: a forest-green flag with an aged-gold paw emblem,
+  four stock-shaped player-color interface variants, and private minimap art;
+- it retains the stock Attack Flag panel, internal `Flag_Attack` title, hero
+  evaluation, poll, target-death callback, payout, cancellation, task reset,
+  and cleanup lifecycle;
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
 - while its player owns a completed Zoo, placing a private Capture Flag on a
   living monster begins the shipped controlled-monster handoff into Hooligan
-  behavior;
+  behavior while the flag remains attached under its stock poll/death lifecycle;
 - Palace Attack Flags now remain completely stock and cannot trigger Zoo
   capture behavior;
 - the stock 3.3-second `Control_Monster` transition temporarily hides the
@@ -133,3 +138,23 @@ python scripts/generate_zoo_rewards_art.py `
 The generator derives the exact 202x245 geometry and functional chrome from
 stock `INBg` set 1019, composites the Zoo-themed backing, and packs it back into
 Majesty's embedded-palette V1 TILE format.
+
+## Regenerate the Capture Flag art
+
+The ordinary build consumes the checked-in TILEs under
+`assets/generated/capture-flag`. To regenerate them from the two source
+masters, use the workspace Python environment with Pillow installed:
+
+```powershell
+..\.tools\python\Scripts\python.exe scripts\generate_capture_flag_art.py `
+  --game-path "C:\Program Files (x86)\Steam\steamapps\common\Majesty HD"
+```
+
+The generator traces stock `ARA2flag attack` and retains its 12 Special, four
+Minimap, and four player-color Interface frames. It repaints those exact world
+and minimap canvases, packs all twenty frames in their stock TILE formats, and
+produces review previews beside them. It also repaints stock `INTC` set 1011's
+25x25 Attack button as a matching green-and-gold paw flag. The build clones the
+ARA2 IMAG as private `ZCA2Capture flag`, clones the button resource as private
+`ZCICItem Icons`, and redirects their frames to appended private TILE slots,
+leaving stock ARA2 Attack, ARA4 Explore, and INTC item-icon art unchanged.

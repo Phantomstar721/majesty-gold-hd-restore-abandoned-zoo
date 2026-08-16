@@ -276,8 +276,9 @@ end
 function Restore_Capture_Flag_Birth ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Private literal clone of GPLMx attack_flag_birth.  The sole Zoo seam converts
-// a live Monster immediately, before combat or any death callback, then removes
-// this private Capture Flag.  Stock Flag_Attack retains its shipped birth.
+// a live Monster immediately, before combat or any death callback.  The private
+// Capture Flag remains on its target under the cloned stock poll/death lifecycle.
+// Stock Flag_Attack retains its shipped birth.
 declare
 	agent target;
 	integer flagplayer, targetplayer;
@@ -303,6 +304,5 @@ begin
 				if ( $Restore_Has_Completed_Zoo ( thisagent ))
 					begin
 						$Restore_Convert_To_Stock_Hooligan ( target, thisagent );
-						$DeleteGamePiece ( thisagent );
 					end
 end

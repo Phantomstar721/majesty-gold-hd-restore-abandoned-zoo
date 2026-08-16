@@ -82,7 +82,7 @@
 			<Category value="1"/>
 			<CanUse value="HumanPlayer"/>
 			<Menu value="11"/>
-			<ImageIDBase value="ARA2"/>
+			<ImageIDBase value="ZCA2"/>
 			<Script type="0" cProc="0" GPLFunction="Attack_flag_death_callback"/>
 			<DefaultSound value="0"/>
 		</Engine>

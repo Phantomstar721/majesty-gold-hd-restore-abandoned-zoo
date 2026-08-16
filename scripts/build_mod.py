@@ -27,6 +27,22 @@ ZOO_REWARDS_BACKGROUND_SET = 1019
 ZOO_REWARDS_TILE = (
     REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel.tile"
 )
+ZOO_CAPTURE_ICON_SOURCE = b"INTCItem Icons"
+ZOO_CAPTURE_ICON_CUSTOM = b"ZCICItem Icons"
+ZOO_CAPTURE_ICON_TOKEN = b"ZCIC"
+ZOO_CAPTURE_ICON_SET = 1011
+ZOO_CAPTURE_ICON_SOURCE_TILE = 92
+ZOO_CAPTURE_ICON_TILE = (
+    REPO_ROOT / "assets" / "generated" / "capture-flag" / "capture-button-icon-25.tile"
+)
+CAPTURE_FLAG_IMAGE_SOURCE = b"ARA2flag attack"
+CAPTURE_FLAG_IMAGE_CUSTOM = b"ZCA2Capture flag"
+CAPTURE_FLAG_IMAGE_TOKEN = b"ZCA2"
+CAPTURE_FLAG_ART_DIR = REPO_ROOT / "assets" / "generated" / "capture-flag"
+CAPTURE_FLAG_SPECIAL_TILES = tuple(range(16655, 16667))
+CAPTURE_FLAG_MINIMAP_TILES = tuple(range(16667, 16671))
+CAPTURE_FLAG_INTERFACE_TILES = tuple(range(16671, 16675))
+CAPTURE_FLAG_PALETTE = 793
 AP02_VISITORS_RECORD_START = 0x013C
 AP02_VISITORS_RECORD_END = 0x01D4
 MX09_VISITORS_RECORD_START = 0x013C
@@ -41,6 +57,8 @@ AP41_EXPLORE_CONTROLS = (
     (0x0380, 0x03D4, (0x1B5A,)),  # Explore Flag icon.
 )
 STOCK_HIDDEN_CONTROL_COORDINATE = 1500
+AP41_ATTACK_ICON_CONTROL_START = 0x0660
+AP41_ATTACK_ICON_CONTROL_END = 0x06B8
 
 
 @dataclass(frozen=True)
@@ -290,6 +308,8 @@ def privatize_zoo_rewards_menu(palace_rewards_menu: bytes) -> bytes:
         raise ValueError("Stock AP41 no longer contains exactly one INBg background token")
     if ZOO_REWARDS_BACKGROUND_TOKEN in palace_rewards_menu:
         raise ValueError("Stock AP41 unexpectedly already contains the Zoo background token")
+    if ZOO_CAPTURE_ICON_TOKEN in palace_rewards_menu:
+        raise ValueError("Stock AP41 unexpectedly already contains the Zoo Capture icon token")
     patched = bytearray(palace_rewards_menu)
     for start, end, command_ids in AP41_EXPLORE_CONTROLS:
         control = palace_rewards_menu[start:end]
@@ -308,6 +328,17 @@ def privatize_zoo_rewards_menu(palace_rewards_menu: bytes) -> bytes:
             STOCK_HIDDEN_CONTROL_COORDINATE,
         )
     patched = patched.replace(b"INBg", ZOO_REWARDS_BACKGROUND_TOKEN, 1)
+    attack_icon = palace_rewards_menu[
+        AP41_ATTACK_ICON_CONTROL_START:AP41_ATTACK_ICON_CONTROL_END
+    ]
+    if attack_icon.count(struct.pack("<I", 0x1B59)) != 1:
+        raise ValueError("Stock AP41 Attack icon command changed")
+    if attack_icon.count(b"INTC") != 1:
+        raise ValueError("Stock AP41 Attack icon no longer selects one INTC resource")
+    private_attack_icon = attack_icon.replace(b"INTC", ZOO_CAPTURE_ICON_TOKEN, 1)
+    patched[
+        AP41_ATTACK_ICON_CONTROL_START:AP41_ATTACK_ICON_CONTROL_END
+    ] = private_attack_icon
     return bytes(patched)
 
 
@@ -483,6 +514,117 @@ def write_maindata_cam(game_path: Path, data_dir: Path) -> None:
     )
 
 
+def write_capture_flag_maindata_cam(game_path: Path, data_dir: Path) -> None:
+    """Package a private art clone of stock ARA2 for Restore_Capture_Flag.
+
+    The IMAG animation topology remains the literal stock Attack Flag layout:
+    twelve Special frames, four Minimap frames, and four player-color Interface
+    directions.  Every reached TILE is redirected to an appended private slot,
+    so neither ARA2 nor ARA4 can be visually replaced by this mod.
+    """
+    source = game_path / "Data" / "maindata.cam"
+    stock_imag = read_cam_entry(source, b"IMAG", CAPTURE_FLAG_IMAGE_SOURCE).data
+    tiles = read_cam_entries(source, b"TILE")
+    palettes = read_cam_entries(source, b"SPLT")
+    if len(tiles) <= CAPTURE_FLAG_INTERFACE_TILES[-1]:
+        raise ValueError(f"Stock Capture Flag source TILE table is incomplete in {source}")
+    if len(palettes) <= CAPTURE_FLAG_PALETTE:
+        raise ValueError(f"Stock Capture Flag palette table is incomplete in {source}")
+
+    groups = (
+        (CAPTURE_FLAG_SPECIAL_TILES, "special", 3),
+        (CAPTURE_FLAG_MINIMAP_TILES, "minimap", 3),
+        (CAPTURE_FLAG_INTERFACE_TILES, "interface", 1),
+    )
+    overrides: dict[int, bytes] = {}
+    for indices, stem, expected_version in groups:
+        for frame, source_index in enumerate(indices):
+            path = CAPTURE_FLAG_ART_DIR / f"{stem}-{frame:02d}.tile"
+            if not path.is_file():
+                raise FileNotFoundError(f"Generated Capture Flag TILE is missing: {path}")
+            custom_tile = path.read_bytes()
+            if len(custom_tile) < 26 or struct.unpack_from("<H", custom_tile, 0)[0] != expected_version:
+                raise ValueError(
+                    f"Capture Flag {stem} frame {frame} is not TILE v{expected_version}: {path}"
+                )
+            if struct.unpack_from("<HH", custom_tile, 2) != struct.unpack_from(
+                "<HH", tiles[source_index].data, 2
+            ):
+                raise ValueError(
+                    f"Capture Flag {stem} frame {frame} changed stock geometry"
+                )
+            if custom_tile == tiles[source_index].data:
+                raise ValueError(
+                    f"Capture Flag {stem} frame {frame} is still identical to ARA2"
+                )
+            if expected_version == 3:
+                palette_mode = struct.unpack_from("<H", custom_tile, 20)[0]
+                palette_index = struct.unpack_from("<I", custom_tile, 22)[0]
+                if palette_mode != 0 or palette_index != CAPTURE_FLAG_PALETTE:
+                    raise ValueError(
+                        f"Capture Flag {stem} frame {frame} must use stock palette "
+                        f"{CAPTURE_FLAG_PALETTE}, got mode {palette_mode}, index {palette_index}"
+                    )
+            overrides[source_index] = custom_tile
+
+    expected_indices = set(
+        CAPTURE_FLAG_SPECIAL_TILES
+        + CAPTURE_FLAG_MINIMAP_TILES
+        + CAPTURE_FLAG_INTERFACE_TILES
+    )
+    if set(overrides) != expected_indices:
+        raise ValueError("Capture Flag art does not cover every stock ARA2 frame")
+
+    extra: list[CamEntry] = []
+
+    def append(name: bytes, data: bytes) -> int:
+        index = len(tiles) + len(extra)
+        if index > 0xFFFF:
+            raise ValueError("Private Capture Flag TILE index exceeds the IMAG low16 field")
+        extra.append(CamEntry(pad_name(name), data))
+        return index
+
+    custom_imag = privateize_interface_imag_tiles(
+        stock_imag,
+        tiles,
+        append,
+        CAPTURE_FLAG_IMAGE_TOKEN,
+        overrides,
+    )
+    if len(extra) != len(expected_indices):
+        raise ValueError(
+            f"Private Capture Flag IMAG reached {len(extra)} TILEs; expected {len(expected_indices)}"
+        )
+    if custom_imag == stock_imag:
+        raise ValueError("Private Capture Flag IMAG was not redirected to private TILEs")
+
+    blank_stock_slots = tuple(CamEntry(entry.name, b"") for entry in tiles)
+    write_cam(
+        data_dir / "restore_zoo_capture_flag_maindata.cam",
+        (
+            CamSection(
+                b"IMAG",
+                (CamEntry(pad_name(CAPTURE_FLAG_IMAGE_CUSTOM), custom_imag),),
+            ),
+            CamSection(
+                b"TILE",
+                blank_stock_slots + tuple(extra),
+                padding=b"\x01\x00\x00\x00",
+            ),
+            # Indexed-v3 TILEs require their palette table in the emitted
+            # maindata package. Carry the literal base table through the
+            # highest referenced index exactly as the proven Alchemist/Haunt
+            # private art packages do. The manifest loads this CAM before the
+            # MX Zoo CAM, so MX palettes 0-287 remain final for Zoo art.
+            CamSection(
+                b"SPLT",
+                tuple(palettes[: CAPTURE_FLAG_PALETTE + 1]),
+                padding=b"\x01\x00\x00\x00",
+            ),
+        ),
+    )
+
+
 def write_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
     """Expose the literal stock monster-icon atlases in every Zoo dataset.
 
@@ -536,6 +678,41 @@ def interface_imag_set_tile_offset(imag: bytes, set_id: int) -> int:
         if u32(imag, direction_offset) >> 16 != 1:
             raise ValueError(f"Interface IMAG set {set_id} no longer has one frame")
         return direction_offset + 24
+    raise ValueError(f"Interface IMAG has no set {set_id}")
+
+
+def interface_imag_exact_tile_offset(
+    imag: bytes,
+    set_id: int,
+    source_tile_index: int,
+) -> int:
+    """Locate one proven stock TILE field inside a compact interface set.
+
+    INTC item-icon sets use a shorter directional record than the INBg dialog
+    backing. Restrict the search to the selected stock set and require its
+    known source TILE exactly once instead of applying the actor-frame layout.
+    """
+    set_count = u32(imag, 20)
+    if set_count <= 0 or 24 + set_count * 8 > len(imag):
+        raise ValueError("Interface IMAG has an invalid animation-set table")
+    sets = [struct.unpack_from("<II", imag, 24 + index * 8) for index in range(set_count)]
+    for index, (current_id, set_offset) in enumerate(sets):
+        if current_id != set_id:
+            continue
+        next_offset = sets[index + 1][1] if index + 1 < len(sets) else len(imag)
+        if set_offset + 80 > next_offset or next_offset > len(imag):
+            raise ValueError(f"Interface IMAG set {set_id} has invalid boundaries")
+        matches = [
+            offset
+            for offset in range(set_offset + 80, next_offset - 3, 4)
+            if (u32(imag, offset) & 0xFFFF) == source_tile_index
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                f"Interface IMAG set {set_id} references stock TILE "
+                f"{source_tile_index} {len(matches)} times"
+            )
+        return matches[0]
     raise ValueError(f"Interface IMAG has no set {set_id}")
 
 
@@ -598,10 +775,13 @@ def privateize_interface_imag_tiles(
 
 
 def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
-    """Package a private Zoo-themed clone of stock INBg for ZC01 only."""
+    """Package private ZC01 backing and Capture icon clones."""
     source = game_path / "Data" / "interfacedata.cam"
     stock_imag = read_cam_entry(
         source, b"IMAG", ZOO_REWARDS_BACKGROUND_SOURCE
+    ).data
+    stock_icon_imag = read_cam_entry(
+        source, b"IMAG", ZOO_CAPTURE_ICON_SOURCE
     ).data
     tiles = read_cam_entries(source, b"TILE")
     if not tiles:
@@ -623,6 +803,22 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         raise ValueError("Zoo rewards art must retain stock 202x245 geometry")
     if custom_tile == tiles[source_index].data:
         raise ValueError("Zoo rewards art is still identical to the stock AP41 backing")
+    icon_offset = interface_imag_exact_tile_offset(
+        stock_icon_imag,
+        ZOO_CAPTURE_ICON_SET,
+        ZOO_CAPTURE_ICON_SOURCE_TILE,
+    )
+    if not ZOO_CAPTURE_ICON_TILE.is_file():
+        raise FileNotFoundError(
+            f"Generated Zoo Capture icon TILE is missing: {ZOO_CAPTURE_ICON_TILE}"
+        )
+    custom_icon_tile = ZOO_CAPTURE_ICON_TILE.read_bytes()
+    if len(custom_icon_tile) < 26 or struct.unpack_from("<H", custom_icon_tile, 0)[0] != 1:
+        raise ValueError("Zoo Capture button art is not an indexed V1 TILE")
+    if struct.unpack_from("<HH", custom_icon_tile, 2) != (25, 25):
+        raise ValueError("Zoo Capture button art must retain stock 25x25 geometry")
+    if custom_icon_tile == tiles[ZOO_CAPTURE_ICON_SOURCE_TILE].data:
+        raise ValueError("Zoo Capture button art is still identical to stock Attack")
 
     extra: list[CamEntry] = []
 
@@ -641,6 +837,15 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
     private_source_index = u32(custom_imag, source_offset) & 0xFFFF
     if private_source_index < len(tiles):
         raise ValueError("Private Zoo rewards backing was not moved to an appended TILE")
+    private_icon_index = append(ZOO_CAPTURE_ICON_TOKEN + b"Button", custom_icon_tile)
+    custom_icon_imag = bytearray(stock_icon_imag)
+    encoded_icon = u32(stock_icon_imag, icon_offset)
+    struct.pack_into(
+        "<I",
+        custom_icon_imag,
+        icon_offset,
+        (encoded_icon & 0xFFFF0000) | private_icon_index,
+    )
 
     blank_stock_slots = tuple(CamEntry(entry.name, b"") for entry in tiles)
     write_cam(
@@ -648,7 +853,10 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         (
             CamSection(
                 b"IMAG",
-                (CamEntry(pad_name(ZOO_REWARDS_BACKGROUND_CUSTOM), custom_imag),),
+                (
+                    CamEntry(pad_name(ZOO_REWARDS_BACKGROUND_CUSTOM), custom_imag),
+                    CamEntry(pad_name(ZOO_CAPTURE_ICON_CUSTOM), bytes(custom_icon_imag)),
+                ),
             ),
             CamSection(
                 b"TILE",
@@ -697,6 +905,7 @@ def build(game_path: Path, output_root: Path) -> None:
     )
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo.gplproj", gpl_dir)
     write_maindata_cam(game_path, data_dir)
+    write_capture_flag_maindata_cam(game_path, data_dir)
     write_interfacedata_cam(game_path, data_dir)
     write_zoo_rewards_interfacedata_cam(game_path, data_dir)
     write_miscdata_cam(game_path, data_dir)

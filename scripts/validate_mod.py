@@ -84,6 +84,48 @@ def interface_imag_set_tile_index(imag: bytes, set_id: int) -> int:
     raise ValueError(f"Interface IMAG has no set {set_id}")
 
 
+def compact_interface_imag_set_tile_index(imag: bytes, set_id: int) -> int:
+    """Return the sole TILE in stock INTC's compact one-frame set layout."""
+    set_count = struct.unpack_from("<I", imag, 20)[0]
+    for set_index in range(set_count):
+        current_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+        if current_id != set_id:
+            continue
+        relative = struct.unpack_from("<i", imag, set_offset + 64)[0]
+        direction_offset = set_offset + relative + 4
+        if struct.unpack_from("<I", imag, direction_offset)[0] >> 16 != 1:
+            raise ValueError(f"Compact interface IMAG set {set_id} is not one frame")
+        return struct.unpack_from("<I", imag, direction_offset + 16)[0] & 0xFFFF
+    raise ValueError(f"Compact interface IMAG has no set {set_id}")
+
+
+def single_direction_imag_tile_indices(imag: bytes) -> list[int]:
+    """Return every TILE reached by the stock one-direction overlay layout."""
+    if len(imag) < 24:
+        raise ValueError("Overlay IMAG is truncated")
+    set_count = struct.unpack_from("<I", imag, 20)[0]
+    if set_count <= 0 or 24 + set_count * 8 > len(imag):
+        raise ValueError("Overlay IMAG has an invalid set table")
+    result: list[int] = []
+    for set_index in range(set_count):
+        _set_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+        direction_count = struct.unpack_from("<I", imag, set_offset)[0]
+        if direction_count <= 0 or direction_count > 32:
+            raise ValueError("Overlay IMAG has an invalid direction count")
+        for direction in range(direction_count):
+            relative = struct.unpack_from("<i", imag, set_offset + 64 + direction * 4)[0]
+            direction_offset = set_offset + relative + 4
+            frame_count = struct.unpack_from("<I", imag, direction_offset)[0] >> 16
+            if frame_count <= 0 or frame_count > 64:
+                raise ValueError("Overlay IMAG has an invalid frame count")
+            for frame in range(frame_count):
+                encoded = struct.unpack_from(
+                    "<I", imag, direction_offset + 24 + frame * 8
+                )[0]
+                result.append(encoded & 0xFFFF)
+    return result
+
+
 def indexed_strt_record(data: bytes, index: int) -> tuple[int, str]:
     count = struct.unpack_from("<H", data, 0)[0]
     if index >= count:
@@ -100,6 +142,7 @@ def validate(root: Path) -> list[str]:
         "RestoreAbandonedZoo.mmxml",
         "Data/restore_zoo_units.xml",
         "Data/restore_zoo_maindata.cam",
+        "Data/restore_zoo_capture_flag_maindata.cam",
         "Data/restore_zoo_interfacedata.cam",
         "Data/restore_zoo_rewards_interfacedata.cam",
         "Data/restore_zoo_miscdata.cam",
@@ -134,8 +177,8 @@ def validate(root: Path) -> list[str]:
     if description_ids != ["ZOO1", "ZOO2", "ZOO3", "ZCF0"]:
         errors.append(f"Unexpected private Zoo description IDs: {description_ids}")
     image_ids = [item.find("./Engine/ImageIDBase").get("value") for item in descriptions]
-    if image_ids != ["ABn1", "ABn2", "ABn3", "ARA2"]:
-        errors.append(f"Unexpected stock Zoo image IDs: {image_ids}")
+    if image_ids != ["ABn1", "ABn2", "ABn3", "ZCA2"]:
+        errors.append(f"Unexpected Zoo image IDs: {image_ids}")
     if any(item.find("./Game/DialogID").get("value") != "MX09" for item in descriptions[:3]):
         errors.append("Every Zoo level must use the stock MX09 panel controller")
     if len(descriptions) == 4:
@@ -159,6 +202,7 @@ def validate(root: Path) -> list[str]:
         ]:
             errors.append("Manifest must load only the Zoo building descriptions")
         if [item.text for item in load.findall("CAM")] != [
+            "Data\\restore_zoo_capture_flag_maindata.cam",
             "Data\\restore_zoo_maindata.cam",
             "Data\\restore_zoo_interfacedata.cam",
             "Data\\restore_zoo_rewards_interfacedata.cam",
@@ -202,6 +246,9 @@ def validate(root: Path) -> list[str]:
     )
     if zoo_rewards_menu.count(b"ZOBG") != 1 or b"INBg" in zoo_rewards_menu:
         errors.append("Private Zoo rewards panel must select only private ZOBG art")
+    attack_icon_control = zoo_rewards_menu[0x0660:0x06B8]
+    if attack_icon_control.count(b"ZCIC") != 1 or b"INTC" in attack_icon_control:
+        errors.append("Private Zoo Capture control must select only private ZCIC art")
     hidden_controls = {
         0x00A0: 0x1388,
         0x0118: 0x1389,
@@ -259,6 +306,55 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo main-data CAM lacks the positional stock TILE table")
     if not any(extension == b"SPLT" for extension, _ in art_names):
         errors.append("Zoo main-data CAM lacks the stock palette table")
+    capture_art_path = root / "Data" / "restore_zoo_capture_flag_maindata.cam"
+    capture_art_names = cam_names(capture_art_path)
+    capture_images = {
+        name for extension, name in capture_art_names if extension == b"IMAG"
+    }
+    if capture_images != {b"ZCA2Capture flag"}:
+        errors.append(
+            f"Private Capture Flag CAM has unexpected IMAG records: {sorted(capture_images)}"
+        )
+    capture_imag = cam_entry_data(
+        capture_art_path,
+        b"IMAG",
+        b"ZCA2Capture flag",
+    )
+    capture_tiles = cam_section_entries(capture_art_path, b"TILE")
+    capture_palettes = cam_section_entries(capture_art_path, b"SPLT")
+    private_start = 17224
+    if len(capture_tiles) != private_start + 20:
+        errors.append(
+            f"Private Capture Flag CAM has {len(capture_tiles)} TILE slots; expected {private_start + 20}"
+        )
+    else:
+        if any(data for _name, data in capture_tiles[:private_start]):
+            errors.append("Private Capture Flag CAM replaces a stock TILE slot")
+        private_tiles = capture_tiles[private_start:]
+        if any(not data for _name, data in private_tiles):
+            errors.append("Private Capture Flag CAM has an empty private TILE")
+        versions = [struct.unpack_from("<H", data, 0)[0] for _name, data in private_tiles]
+        if versions != [3] * 16 + [1] * 4:
+            errors.append(f"Private Capture Flag TILE versions are unexpected: {versions}")
+        indexed_palettes = [
+            struct.unpack_from("<I", data, 22)[0]
+            for _name, data in private_tiles[:16]
+        ]
+        if indexed_palettes != [793] * 16:
+            errors.append(
+                f"Private Capture Flag indexed TILE palettes are unexpected: {indexed_palettes}"
+            )
+    if len(capture_palettes) != 794 or any(
+        not data for _name, data in capture_palettes
+    ):
+        errors.append(
+            "Private Capture Flag CAM must carry complete stock palettes 0-793"
+        )
+    capture_indices = single_direction_imag_tile_indices(capture_imag)
+    if capture_indices != list(range(private_start, private_start + 20)):
+        errors.append(
+            f"Private ZCA2 IMAG does not retain the stock 20-frame order: {capture_indices}"
+        )
     interface_names = cam_names(root / "Data" / "restore_zoo_interfacedata.cam")
     interface_images = {
         name for extension, name in interface_names if extension == b"IMAG"
@@ -272,8 +368,13 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo interface-data CAM lacks the positional stock TILE table")
     rewards_interface = root / "Data" / "restore_zoo_rewards_interfacedata.cam"
     rewards_interface_names = cam_names(rewards_interface)
-    if (b"IMAG", b"ZOBGbuilding dialog") not in rewards_interface_names:
-        errors.append("Zoo rewards interface CAM lacks its private ZOBG IMAG")
+    rewards_interface_images = {
+        name for extension, name in rewards_interface_names if extension == b"IMAG"
+    }
+    if rewards_interface_images != {b"ZOBGbuilding dialog", b"ZCICItem Icons"}:
+        errors.append(
+            f"Zoo rewards interface CAM has unexpected IMAG records: {sorted(rewards_interface_images)}"
+        )
     if not any(extension == b"TILE" for extension, _ in rewards_interface_names):
         errors.append("Zoo rewards interface CAM lacks its private positional TILE table")
     else:
@@ -290,6 +391,24 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo rewards backing is not a V1 TILE")
             elif struct.unpack_from("<HH", rewards_tile, 2) != (245, 202):
                 errors.append("Private Zoo rewards backing is not stock 202x245 geometry")
+        capture_icon_imag = cam_entry_data(
+            rewards_interface, b"IMAG", b"ZCICItem Icons"
+        )
+        capture_icon_index = compact_interface_imag_set_tile_index(
+            capture_icon_imag, 1011
+        )
+        if capture_icon_index >= len(rewards_tiles):
+            errors.append("Private ZCIC set 1011 references a missing TILE")
+        else:
+            capture_icon_tile = rewards_tiles[capture_icon_index][1]
+            if len(capture_icon_tile) < 26 or struct.unpack_from(
+                "<H", capture_icon_tile, 0
+            )[0] != 1:
+                errors.append("Private Zoo Capture button icon is not a V1 TILE")
+            elif struct.unpack_from("<HH", capture_icon_tile, 2) != (25, 25):
+                errors.append("Private Zoo Capture button icon is not stock 25x25 geometry")
+            elif struct.unpack_from("<H", capture_icon_tile, 20)[0] != 1:
+                errors.append("Private Zoo Capture button icon lacks its embedded palette")
     help_names = cam_names(root / "Data" / "restore_zoo_gpltext.cam")
     if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
         errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")
@@ -402,7 +521,6 @@ def validate(root: Path) -> list[str]:
         '$SetThreadInterval ( thisagent\'s "ActiveScript", #Henchmen_Cycle )',
         'target\'s "Type" == "Monster"',
         'target, thisagent',
-        "$DeleteGamePiece ( thisagent )",
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -436,8 +554,8 @@ def validate(root: Path) -> list[str]:
     for snippet in forbidden_capture_contract:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
-    if capture.count("$DeleteGamePiece ( thisagent )") != 1:
-        errors.append("Only the consumed Capture Flag may retain DeleteGamePiece")
+    if "$DeleteGamePiece ( thisagent )" in capture:
+        errors.append("Private Capture Flag must remain under the stock poll/death lifecycle")
     storage_enter = capture.index("$Enter_Building ( thisagent, zoo )")
     storage_intent = capture.index(
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )"
