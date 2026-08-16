@@ -90,7 +90,8 @@ radius query, Player 1 restriction, target check, message, and
 `Restore_Hooligan_Goto_Zoo` preserves the shipped destination and arrival
 shape, with the adaptations required by private single-owner arrests:
 
-- query the first completed Zoo when delivery starts;
+- use the first completed player Zoo admitted by the stock Mausoleum-shaped
+  occupancy check;
 - call `Hide` only while the Hooligan is not moving and its assigned hero is
   within the stock arrest distance;
 - stop the Hooligan when it gets farther than that distance from its owner;
@@ -100,15 +101,30 @@ shape, with the adaptations required by private single-owner arrests:
 - call stock `Enter_Building` only after `Hide` has completed, then stop the
   hidden Hooligan's active thread so it remains in the Zoo's `Occupants` list.
 
-The flag-side completed-building query gates conversion using the Capture Flag's
-player ownership. The Hooligan-side destination query independently selects the
-first completed Zoo after conversion. Stock resets all arresting heroes only when the globally
-last quest Hooligan arrives. The private one-owner system instead uses the same
-`Reset_Tasks` cleanup on the delivered Hooligan's `leader` before storing the
-target.
+The flag-side query uses the Capture Flag's player ownership and copies stock
+`Check_Mausoleum`: list completed buildings, inspect each generic `Occupants`
+list, and take the first one below its limit. The limit comes from the stock
+building `Level` field and is 4 / 6 / 8 for Zoo levels 1 / 2 / 3. Because Zoo
+delivery is delayed while Mausoleum interment is immediate, an admitted
+Hooligan keeps its selected Zoo in the ordinary Monster `Target` field. That
+reservation is counted until `Enter_Building` creates the occupant entry, then
+cleared. This prevents simultaneous escorts from overbooking a Zoo without a
+new thread, timer, building counter, or per-monster definition.
 
-There is no visitor capacity, income, breakout, or Zoo-destruction-specific
-cleanup in this storage test.
+The Zoo refreshes the shipped `ATTRIB_Zoo_Legal_Target` attribute after stock
+construction, through the stock `building_upgraded` -> `upgradescript` seam,
+and whenever reservations or occupants change.
+The private Capture placement validator and its independent completion check
+both read that capacity bit before applying their existing monster-only test.
+If the selected Zoo is full or fully reserved, clicking a Monster is rejected
+by exactly the same private gate that rejects a Hero or building; no flag is
+created and no gold is spent.
+Stock resets all arresting heroes only when the globally last quest Hooligan
+arrives. The private one-owner system instead uses the same `Reset_Tasks`
+cleanup on the delivered Hooligan's `leader` before storing the target.
+
+There is no visitor income, breakout, or Zoo-destruction-specific cleanup in
+this storage test.
 
 ## Hero handoff
 

@@ -55,6 +55,11 @@ Wizard's Curse Hooligan lifecycle:
   than the stock arrest distance ahead of its selected hero;
 - the Hooligan returns to its selected Zoo, stops its active lifecycle, and is
   stored as a valid hidden agent in the Zoo's stock `Occupants` list;
+- Zoo admission uses the stock Mausoleum capacity pattern, with requested
+  visitor limits of 4 at level 1, 6 at level 2, and 8 at level 3; admitted
+  captives reserve a slot during escort so simultaneous captures cannot exceed
+  the limit, and the private Capture Flag target gate rejects all placement
+  once the selected Zoo has no unreserved slot;
 - delivered monsters use the stock occupant-intent field so their visitor rows
   read “is waiting in the zoo” rather than the default “is Thinking”;
 - the abandoned Zoo panel's truncated `Visitors` control is completed with the
@@ -70,9 +75,8 @@ Wizard's Curse Hooligan lifecycle:
   reset cleanly;
 - if combat or fleeing changes that hero's target, the stock Zoo flag
   abandonment test releases the Hooligan and assigns one different hero;
-- there is currently no capacity, capture roll, combat/death hook,
-  resurrection, visitor income, Zoo-destruction-specific handling, or breakout
-  behavior.
+- there is currently no capture roll, combat/death hook, resurrection, visitor
+  income, Zoo-destruction-specific handling, or breakout behavior.
 
 See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
 contract](docs/capture-stock-clone.md), the [visitor stock trace](docs/visitor-stock-trace.md),
@@ -104,15 +108,17 @@ powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1
 The installed package is
 `Documents\My Games\MajestyHD\Mods\RestoreAbandonedZoo`. Re-running the command
 replaces only that exact package and verifies every deployed file by SHA-256.
-The same command also installs one private `.mzoo` executable section. Two
+The same command also installs a private read/execute `.mzoo` code section and
+a four-byte, non-executable read/write `.mzdt` state section. Two
 guarded redirects let only `MX09` open `ZC01` and let only `ZC01` use Majesty's
 literal AP41 controller constructor. A third stock-boundary redirect appends
 private `ZCF0` beside the shipped flag-placement modes; ZC01 alone receives a
 private vtable selecting it. Its private validator calls the full stock Fl00
-validator before applying the stock monster-class intersection. The stock
+validator before applying the selected Zoo's capacity bit and the stock
+monster-class intersection. The stock
 Palace `AP41`/`Fl00`, the existing
 `CGxx` custom-guild route, and unrelated QOL patches remain untouched. Restore
-only the Zoo redirects, mode registration, and section with:
+only the Zoo redirects, mode registration, and private sections with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\Restore-ZooRewardDispatcher.ps1

@@ -15,18 +15,144 @@ expression #intent_waiting_in_zoo 199
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Has_Completed_Zoo ( agent thisagent ) is boolean
+function Restore_Zoo_Visitor_Limit ( agent zoo ) is integer
 ///////////////////////////////////////////////////////////////////////////////
-// Literal stock completed-building query shape from Mausoleum and other MX
-// building checks: player ownership, title, and FirstStageBuilt attribute.
+// The building's shipped Level field is the stock source for upgrade state.
+// Capacity values are the requested Zoo design: 4 / 6 / 8.
 declare
-	list zoos;
 begin
-	if ( $ListObjects ( thisagent, "building", -1, zoos,
-		#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 ) > 0 )
-		return TRUE;
+	if ( zoo's "Level" >= 3 )
+		return 8;
+	else if ( zoo's "Level" == 2 )
+		return 6;
 
-	return FALSE;
+	return 4;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Pending_Reservations ( agent zoo ) is integer
+///////////////////////////////////////////////////////////////////////////////
+// A Mausoleum stores immediately after its stock capacity check. Zoo captives
+// must travel, so count only already-admitted Hooligans whose ordinary Target
+// field names this Zoo until Enter_Building replaces the reservation with an
+// Occupants entry. This prevents simultaneous captures exceeding the limit.
+declare
+	list hidden_hooligans, hooligans;
+	agent hooligan;
+	integer reservations;
+begin
+	reservations = 0;
+
+	$ListObjects ( zoo, "Hidden", -1, hidden_hooligans,
+		#MyPlayer, #CheckSubtypes, "Hooligan", #NoHiddenMap );
+	foreach hooligan in hidden_hooligans do
+		begin
+			if ( hooligan's "Target" == zoo )
+				reservations ++;
+		end
+
+	$ListObjects ( zoo, "Hooligan", -1, hooligans,
+		#MyPlayer, #NoHiddenMap );
+	foreach hooligan in hooligans do
+		begin
+			if ( hooligan's "Target" == zoo )
+				reservations ++;
+		end
+
+	return reservations;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Refresh_Zoo_Capacity ( agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// Preserve the stock Zoo-specific legality attribute as the native placement
+// gate's capacity bit.  The private ZCF0 validator reads this same bit before
+// accepting an otherwise legal Monster target.
+declare
+	list visitors;
+	integer occupied, limit;
+begin
+	if ( $IsValidGamePiece ( zoo ) == FALSE )
+		return;
+
+	visitors = zoo's "Occupants";
+	occupied = $ListSize ( visitors ) +
+		$Restore_Zoo_Pending_Reservations ( zoo );
+	limit = $Restore_Zoo_Visitor_Limit ( zoo );
+
+	if ( occupied < limit )
+		$SetAttribute ( zoo, #ATTRIB_Zoo_Legal_Target, 1 );
+	else
+		$SetAttribute ( zoo, #ATTRIB_Zoo_Legal_Target, 0 );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Building_Birth ( agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// Building_Birth is the stock completion callback for both initial building
+// construction and completed upgrades. Run it first, then refresh capacity
+// from the now-current stock Level and Occupants fields.
+declare
+begin
+	$Building_Birth ( zoo );
+	$Restore_Refresh_Zoo_Capacity ( zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Upgrade ( agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// building_upgraded is the stock engine callback and dispatches the building's
+// upgradescript after its upgraded prototype/Level is active. Preserve
+// basic_upgrade's palace queue first, then refresh the capacity bit from that
+// new stock Level.
+declare
+begin
+	$basic_upgrade ( zoo );
+	$Restore_Refresh_Zoo_Capacity ( zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Captive_Hooligan_Death ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Keep the complete stock Hooligan death lifecycle. Once it removes the dead
+// captive from the pending Hooligan types, release that Zoo reservation.
+declare
+	agent zoo;
+begin
+	zoo = thisagent's "Target";
+	$Hooligan_Death ( thisagent );
+
+	if ( $IsValidGamePiece ( zoo ))
+		$Restore_Refresh_Zoo_Capacity ( zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Find_Available_Zoo ( agent thisagent ) is agent
+///////////////////////////////////////////////////////////////////////////////
+// Literal stock Check_Mausoleum admission shape: query completed player-owned
+// buildings, compare each Occupants list with its limit, and use the first
+// legal building. Pending travel reservations fill the timing gap that the
+// Mausoleum does not have because it hides and stores immediately.
+declare
+	list zoos, visitors;
+	agent zoo;
+	integer occupied, limit;
+begin
+	$ListObjects ( thisagent, "building", -1, zoos,
+		#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 );
+
+	foreach zoo in zoos do
+		begin
+			visitors = zoo's "Occupants";
+			occupied = $ListSize ( visitors ) +
+				$Restore_Zoo_Pending_Reservations ( zoo );
+			limit = $Restore_Zoo_Visitor_Limit ( zoo );
+
+			if ( occupied < limit )
+				return zoo;
+		end
+
+	return $NullAgent ();
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,7 +191,8 @@ begin
 	thisagent's "BasicScript" = thisagent's "BackScript";
 	thisagent's "StartingScript" = thisagent's "BackScript";
 
-	thisagent's "Target" == $NullAgent ();
+	// Target retains the Zoo selected by the stock-shaped admission check. It
+	// is the captive's reservation until arrival adds the Occupants entry.
 	$ClearList ( thisagent's "Hostiles" );
 	$SetThreadInterval ( thisagent's "ActiveScript", #Henchmen_Cycle );
 
@@ -173,12 +300,17 @@ function Restore_Hooligan_Goto_Zoo ( agent thisagent )
 // and stores the valid hidden Hooligan through the stock Mausoleum occupant
 // handoff instead of deleting it.
 declare
-	list zoos, hooligans;
+	list hooligans;
 	agent zoo, AIRootAgent, owner;
 begin
-	$ListObjects ( thisagent, "Building", -1, zoos,
-		#CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 );
-	zoo = $ListMember ( zoos, 1 );
+	zoo = thisagent's "Target";
+	if ( $IsValidGamePiece ( zoo ) == FALSE )
+		begin
+			zoo = $Restore_Find_Available_Zoo ( thisagent );
+			if ( $IsValidGamePiece ( zoo ) == FALSE )
+				return;
+			thisagent's "Target" = zoo;
+		end
 
 	AIRootAgent = $RetrieveAgent ( "GPLAiRoot" );
 
@@ -233,14 +365,16 @@ begin
 			// the same Enter_Building -> SpecifyIntent ordering as stock Lived_In,
 			// then stop its permanent stored lifecycle.
 			$Enter_Building ( thisagent, zoo );
+			thisagent's "Target" = $NullAgent ();
 			$SpecifyIntent ( thisagent, #intent_waiting_in_zoo );
+			$Restore_Refresh_Zoo_Capacity ( zoo );
 			$KillThread ( thisagent's "ActiveScript" );
 		end
 end
 
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Convert_To_Stock_Hooligan (
-	agent thisagent, agent flag )
+	agent thisagent, agent flag, agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
 // Apply the literal Hooligan data fields through Control_Monster's stock
 // Hidden/ownership-transfer lifecycle.  Existing player minions therefore
@@ -256,6 +390,7 @@ begin
 	thisagent's "Guardian_Mod" = 3;
 	thisagent's "coord_home" = $LocationOf ( thisagent );
 	thisagent's "Special_Boolean" = FALSE;
+	thisagent's "Target" = zoo;
 
 	// Stock Control_Monster uses this temporary Hidden state specifically so
 	// other units stop attacking the target, then transfers it to the
@@ -264,12 +399,13 @@ begin
 	thisagent's "Type" = "Hidden";
 	thisagent's "Counter" = 0;
 	thisagent's "BackScript" = $Restore_Hooligan_Basic;
-	thisagent's "IGDeathScript" = $Hooligan_Death;
+	thisagent's "IGDeathScript" = $Restore_Captive_Hooligan_Death;
 	$SetUnitPlayerNumber (
 		thisagent, $GetUnitPlayerNumber ( flag ));
 
 	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
+	$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -280,7 +416,7 @@ function Restore_Capture_Flag_Birth ( agent thisagent )
 // Capture Flag remains on its target under the cloned stock poll/death lifecycle.
 // Stock Flag_Attack retains its shipped birth.
 declare
-	agent target;
+	agent target, zoo;
 	integer flagplayer, targetplayer;
 begin
 	$NewThread ( thisagent's "ActiveScript", #flag_Cycle, thisagent );
@@ -301,8 +437,12 @@ begin
 	if ( $isvalidgamepiece ( target ))
 		if ( $isdead ( target ) == FALSE )
 			if ( target's "Type" == "Monster" )
-				if ( $Restore_Has_Completed_Zoo ( thisagent ))
+				begin
+					zoo = $Restore_Find_Available_Zoo ( thisagent );
+					if ( $IsValidGamePiece ( zoo ))
 					begin
-						$Restore_Convert_To_Stock_Hooligan ( target, thisagent );
+						$Restore_Convert_To_Stock_Hooligan (
+							target, thisagent, zoo );
 					end
+				end
 end

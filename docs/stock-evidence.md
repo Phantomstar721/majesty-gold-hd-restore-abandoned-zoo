@@ -362,8 +362,34 @@ specific hero may otherwise retain a delivered target while unrelated
 Hooligans remain. The Zoo arrival therefore applies stock `Reset_Tasks` to its
 exact owner on every delivery before the occupant-storage step.
 
-The prior invented `Occupants` capacity remains removed. The generic
-Visitors-menu control is restored independently: MX09 already
+Stock expansion `Check_Mausoleum` queries completed player-owned Mausoleums,
+copies each building's generic `Occupants` list, compares `$ListSize` with
+`#Mausoleum_Limit`, and uses the first legal building. Zoo admission now copies
+that exact query/list/first-legal shape. The requested Zoo values replace the
+fixed Mausoleum constant: the stock building `Level` field selects 4, 6, or 8
+visitors at levels 1, 2, or 3.
+
+Mausoleum interment hides and stores synchronously, but a Zoo captive travels
+with a hero. To preserve the capacity invariant during that stock lifecycle,
+an admitted captive uses its already-declared Monster `Target` field for the
+selected Zoo. Pending Hidden/Hooligan agents naming that Zoo count with its
+`Occupants`; after `Enter_Building` appends the captive, the target reservation
+is cleared. This travel reservation is Zoo integration, not recovered stock
+functionality, but adds no watcher, thread, counter, or prototype field.
+
+Stock monster birth assigns `ATTRIB_Zoo_Legal_Target`, documenting it as the
+Zoo flag interface's legality channel. The private `ZCF0` gate reuses that
+stock attribute on the selected Zoo as its current capacity bit. Stock
+`Building_Birth` remains first in the completion callback; the mod refreshes
+the bit afterward. Stock `building_upgraded` dispatches the upgraded
+prototype's `upgradescript`; the Zoo wrapper preserves `basic_upgrade` first
+and refreshes from the now-current `Level`. Reservation, delivery, and captive
+death refresh the same bit.
+Both native target-authorization passes require this bit before the already
+proven category-4 Character test, so a full Zoo rejects clicks before flag
+creation while Palace `Fl00` remains untouched.
+
+The generic Visitors-menu control is restored independently: MX09 already
 contains the Visitors strings, rectangle, command ID `0x1F55`, and the first
 0x84 bytes of AP02's stock control, but its record ends 16 bytes early. The mod
 replaces only that truncated record with AP02's complete 0x98-byte control.

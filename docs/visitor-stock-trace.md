@@ -65,7 +65,12 @@ and their complete positional TILE table. Live Deal with a Demon testing then
 displayed the correct Harpy and Troll icons through that resolver. The generic
 patch contains no monster-type or Zoo-specific icon table.
 
-There is deliberately no capacity, income, breakout, release command, or
-Zoo-destruction-specific behavior in this test. Generic `building_death` will
-call stock `release_occupants`; whether that produces a sensible released
-Hooligan remains deferred.
+Admission now follows stock `Check_Mausoleum`: it compares the Zoo's generic
+`Occupants` list with a limit before accepting another captive. The requested
+limits are 4 / 6 / 8 at Zoo levels 1 / 2 / 3. The selected Zoo exposes whether
+that comparison has room through the stock Zoo legality attribute, allowing
+the private Capture target gate to reject placement before a flag exists.
+Income, breakout, a release
+command, and Zoo-destruction-specific behavior remain absent. Generic
+`building_death` will call stock `release_occupants`; whether that produces a
+sensible released Hooligan remains deferred.

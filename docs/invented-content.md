@@ -210,8 +210,21 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Visitor registration calls stock `Enter_Building` only after the existing
   `Hide` arrival and paired-owner reset, then kills the stored agent's active
   thread. Applying the ordinary visitor callback to a living Hooligan is new
-  integration behavior. There is intentionally no capacity; the prior invented
-  4/8/12 limits remain removed.
+  integration behavior.
+- Visitor capacity is requested invented design: 4 at Zoo level 1, 6 at level
+  2, and 8 at level 3. Admission copies stock `Check_Mausoleum`'s completed
+  player-building query, `Occupants` size comparison, and first-legal choice.
+  Unlike immediate Mausoleum interment, Zoo escort adds travel time, so an
+  admitted Hooligan temporarily records its selected Zoo in the stock Monster
+  `Target` field. Pending reservations count with stored occupants and are
+  cleared only after `Enter_Building`; this prevents concurrent overbooking
+  without adding a new field, counter, timer, or watcher.
+- The private Capture placement gate uses the otherwise Zoo-specific stock
+  `ATTRIB_Zoo_Legal_Target` attribute on the selected Zoo as its refreshed
+  has-capacity bit. Repurposing that attribute on a building and retaining the
+  originating Zoo pointer in a four-byte, non-executable private data section
+  are new integration seams. They change no Palace Attack Flag code or global
+  Monster flaggability.
 - The visitor-row wording “waiting in the zoo” is invented. Its mechanism is
   stock: after `Enter_Building`, delivery calls `SpecifyIntent`, matching stock
   `Lived_In` occupant ordering. Private `#intent_waiting_in_zoo` uses expansion

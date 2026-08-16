@@ -5,8 +5,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $SectionName = ".mzoo"
-$PatchVirtualSize = 0x450
+$PatchVirtualSize = 0x574
 $PatchRawSize = 0x600
+$DataSectionName = ".mzdt"
+$DataSectionCharacteristics = [uint32]0xC0000040L
+$DataSectionVirtualSize = 0x04
+$DataSectionRawSize = 0x200
 $LegacyPatchVirtualSize = 0xA0
 $LegacyPatchRawSize = 0x200
 $PrivateFactoryOffset = 0x40
@@ -121,6 +125,13 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Could not fi
 [byte[]]$bytes = [IO.File]::ReadAllBytes($exePath)
 $pe = Get-PeInfo $bytes
 $section = $pe.Sections | Where-Object Name -eq $SectionName | Select-Object -First 1
+$dataSection = $pe.Sections | Where-Object Name -eq $DataSectionName | Select-Object -First 1
+$dataSectionIsCompatible = -not $dataSection -or
+    ($dataSection.Characteristics -eq $DataSectionCharacteristics -and
+     $dataSection.VirtualSize -ge $DataSectionVirtualSize -and
+     $dataSection.RawSize -ge $DataSectionRawSize -and
+     ($dataSection.RawOffset + $dataSection.RawSize) -le $bytes.Length)
+if (-not $dataSectionIsCompatible) { throw "MajestyHD.exe contains an incompatible .mzdt section." }
 $factoryIsStock = Test-BytesEqual $bytes $FactoryHookOffset $StockFactoryHook
 $dispatchIsStock = Test-BytesEqual $bytes $DispatchSlotOffset $StockDispatchSlot
 $dispatchIsLegacy = Test-BytesEqual $bytes $DispatchSlotOffset $LegacyPalaceDispatchSlot
@@ -167,15 +178,21 @@ elseif (-not ($factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -
     throw "MajestyHD.exe does not contain a recognized Zoo reward-dispatch state."
 }
 
-$sectionIsLast = $section -and $section.Index -eq ($pe.SectionCount - 1) -and ($section.RawOffset + $section.RawSize) -eq $bytes.Length
+$sectionIsLast = $section -and -not $dataSection -and $section.Index -eq ($pe.SectionCount - 1) -and ($section.RawOffset + $section.RawSize) -eq $bytes.Length
+$sectionPairIsLast = $section -and $dataSection -and
+    $section.Index -eq ($pe.SectionCount - 2) -and
+    $dataSection.Index -eq ($pe.SectionCount - 1) -and
+    ($section.RawOffset + $section.RawSize) -eq $dataSection.RawOffset -and
+    ($dataSection.RawOffset + $dataSection.RawSize) -eq $bytes.Length
+$trailingPrivateSections = $sectionIsLast -or $sectionPairIsLast
 $needsLegacyRestore = -not $section -and $dispatchIsLegacy
-$needsWork = $installed -or $legacyInstalled -or $needsLegacyRestore -or ($inert -and $sectionIsLast)
+$needsWork = $installed -or $legacyInstalled -or $needsLegacyRestore -or ($inert -and $trailingPrivateSections)
 Write-Host "Majesty Gold HD Restore Abandoned Zoo private Capture Flag restore"
 if (-not $needsWork) {
     Write-Host "MajestyHD.exe: the stock MX09/factory routes are already restored."
 }
 elseif ($DryRun) {
-    Write-Host ("MajestyHD.exe: would restore the stock routes and {0}." -f $(if ($sectionIsLast) { "remove trailing .mzoo" } else { "leave an inert .mzoo section" }))
+    Write-Host ("MajestyHD.exe: would restore the stock routes and {0}." -f $(if ($sectionPairIsLast) { "remove trailing .mzoo/.mzdt" } elseif ($sectionIsLast) { "remove trailing .mzoo" } else { "leave inert private sections" }))
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before restoring the Zoo rewards panel." }
@@ -184,7 +201,17 @@ else {
         Write-Bytes $bytes $DispatchSlotOffset $StockDispatchSlot
         if ($installed) { Write-Bytes $bytes $ModeRegistryHookOffset $StockModeRegistryHook }
     }
-    if ($sectionIsLast) {
+    if ($sectionPairIsLast) {
+        [byte[]]$restored = New-Object byte[] $section.RawOffset
+        [Array]::Copy($bytes, 0, $restored, 0, $restored.Length)
+        Write-Bytes $restored $section.HeaderOffset (New-Object byte[] 40)
+        Write-Bytes $restored $dataSection.HeaderOffset (New-Object byte[] 40)
+        [BitConverter]::GetBytes([uint16]($pe.SectionCount - 2)).CopyTo($restored, $pe.SectionCountOffset)
+        $previous = $pe.Sections | Where-Object { $_.Index -ne $section.Index -and $_.Index -ne $dataSection.Index } | Sort-Object { $_.Rva + [Math]::Max($_.VirtualSize, $_.RawSize) } | Select-Object -Last 1
+        $sizeOfImage = Align-Value ([uint32]($previous.Rva + [Math]::Max($previous.VirtualSize, $previous.RawSize))) $pe.SectionAlignment
+        [BitConverter]::GetBytes([uint32]$sizeOfImage).CopyTo($restored, $pe.SizeOfImageOffset)
+    }
+    elseif ($sectionIsLast) {
         [byte[]]$restored = New-Object byte[] $section.RawOffset
         [Array]::Copy($bytes, 0, $restored, 0, $restored.Length)
         Write-Bytes $restored $section.HeaderOffset (New-Object byte[] 40)
@@ -196,6 +223,7 @@ else {
     else {
         $restored = $bytes
         if ($section) { Write-Bytes $restored $section.RawOffset (New-Object byte[] $section.RawSize) }
+        if ($dataSection) { Write-Bytes $restored $dataSection.RawOffset (New-Object byte[] $dataSection.RawSize) }
     }
     try { [IO.File]::WriteAllBytes($exePath, $restored) }
     catch { throw "Cannot modify MajestyHD.exe. Close Majesty and try again. If needed, run PowerShell as administrator." }

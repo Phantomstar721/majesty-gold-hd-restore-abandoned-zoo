@@ -548,6 +548,10 @@ def validate(root: Path) -> list[str]:
     for duplicate in ("[Zoo1]", "[Zoo2]", "[Zoo3]"):
         if duplicate in gpl:
             errors.append(f"GPL duplicates shipped prototype {duplicate}")
+    if gpl.count("(birthScript2 Restore_Zoo_Building_Birth)") != 3:
+        errors.append("Every Zoo level must refresh capacity after stock Building_Birth")
+    if gpl.count("(upgradescript Restore_Zoo_Upgrade)") != 3:
+        errors.append("Every Zoo level must refresh capacity through the stock upgrade callback")
 
     flag_gpl = (root / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat").read_text(
         encoding="utf-8"
@@ -573,13 +577,30 @@ def validate(root: Path) -> list[str]:
     )
     required_capture_contract = (
         "function Restore_Capture_Flag_Birth",
-        "function Restore_Has_Completed_Zoo",
+        "function Restore_Zoo_Visitor_Limit",
+        'zoo\'s "Level" >= 3',
+        "return 8",
+        'zoo\'s "Level" == 2',
+        "return 6",
+        "return 4",
+        "function Restore_Zoo_Pending_Reservations",
+        'hooligan\'s "Target" == zoo',
+        "function Restore_Refresh_Zoo_Capacity",
+        "#ATTRIB_Zoo_Legal_Target, 1",
+        "#ATTRIB_Zoo_Legal_Target, 0",
+        "function Restore_Zoo_Building_Birth",
+        "$Building_Birth ( zoo )",
+        "function Restore_Zoo_Upgrade",
+        "$basic_upgrade ( zoo )",
+        "function Restore_Captive_Hooligan_Death",
+        "$Hooligan_Death ( thisagent )",
+        "function Restore_Find_Available_Zoo",
         '$ListObjects ( thisagent, "building", -1, zoos,',
-        '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 ) > 0',
-        '$Restore_Has_Completed_Zoo ( thisagent )',
-        '$ListObjects ( thisagent, "Building", -1, zoos,',
-        '#CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
-        'zoo = $ListMember ( zoos, 1 )',
+        '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
+        'visitors = zoo\'s "Occupants"',
+        '$Restore_Zoo_Pending_Reservations ( zoo )',
+        'if ( occupied < limit )',
+        'zoo = thisagent\'s "Target"',
         "function Restore_Convert_To_Stock_Hooligan",
         "function Restore_Hooligan_Control_Delay",
         "expression #intent_waiting_in_zoo 199",
@@ -618,12 +639,13 @@ def validate(root: Path) -> list[str]:
         '$KillThread ( thisagent\'s "ActiveScript" )',
         "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
         "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
-        'thisagent\'s "IGDeathScript" = $Hooligan_Death',
+        'thisagent\'s "IGDeathScript" = $Restore_Captive_Hooligan_Death',
         "#ATTRIB_NotFlaggable, 1",
         "#ATTRIB_NotSpellTarget, 1",
         '$SetThreadInterval ( thisagent\'s "ActiveScript", #Henchmen_Cycle )',
         'target\'s "Type" == "Monster"',
-        'target, thisagent',
+        '$Restore_Find_Available_Zoo ( thisagent )',
+        'target, thisagent, zoo',
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -631,8 +653,6 @@ def validate(root: Path) -> list[str]:
     forbidden_capture_contract = (
         "function monster_birth",
         "function monster_gravestone",
-        "function Restore_Zoo_Capacity",
-        "function Restore_Get_Available_Zoo",
         "Restore_Zoo_Get_Completed_Zoo",
         "ClearEngineDeathFlags",
         "CreateEffector",
