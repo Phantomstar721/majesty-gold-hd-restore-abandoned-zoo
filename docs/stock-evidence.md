@@ -44,14 +44,42 @@ but not `0x2293`; this is why the surviving button has no action.
 The stock Palace `AP39` REWARDS control sends command `0x1389`. The Palace
 controller handler at `0x004A5440` intercepts exactly that command and opens
 the stock `AP41` Palace Rewards panel. Unrecognized commands tail-call the same
-base handler used by `MX09`. The restoration therefore copies AP39's literal
-four-byte command into the existing MX09 control and changes only MX09's
-controller-dispatch vtable entry at `0x0073EBA8` from `0x004BD280` to the
-literal Palace handler `0x004A5440`. Visitors, upgrade, destroy, help, tracking,
-and navigation remain on their existing fallback path.
+base handler used by `MX09`. The restoration copies AP39's literal four-byte
+command into the existing MX09 control. A private dispatcher at MX09's
+controller-dispatch vtable entry intercepts only `0x1389`, substitutes private
+dialog ID `ZC01`, and otherwise jumps to the literal Palace handler. Visitors,
+upgrade, destroy, help, tracking, and navigation consequently retain their
+existing fallback path.
 
-`AP41` owns the rest of the lifecycle. On entry it validates each stored reward
-amount against the player's available gold. An unset value is initialized from
+Majesty's dialog factory normally returns no controller for an unknown ID.
+The private factory hook runs immediately after the stock function prologue
+and compares only `ZC01`; matching calls enter the unchanged allocation and
+constructor block used by `AP41` at `0x0050AF8F`, while every other ID resumes
+the stock binary-search dispatcher at `0x0050AC26`. This hook is separate from
+the established unknown-`CGxx` fallback, so the custom-guild route remains
+byte-identical and install order does not couple the two patches.
+
+`SMNU/ZC01` is a complete AP41 clone. Shipped panels such as `AP50` provide the
+stock static hiding mechanism: they preserve complete control records but place
+intentionally hidden controls at `(1500,1500)`, outside the dialog. ZC01 copies
+that stock form for Explore reward +/- (`0x1388`/`0x1389`), Explore placement
+(`0x138B`), Explore amount (`0x138C`), and its icon (`0x1B5A`). The controller
+can still resolve and update every expected control, but those five records
+cannot paint or receive clicks onscreen. The Attack placement, dynamic amount,
++/- controls, gold display, Attack icon, and back control are otherwise
+byte-identical to AP41.
+
+The first offscreen build used `0x0234` as the Explore-placement record start.
+A live trace at the stock `CYDialogStream` rejection path recorded invalid
+opcode `0x5DC` at ZC01 stream offset `0x023C`: that boundary included the prior
+record's terminating `-1`, so adding eight bytes overwrote the placement
+record's stock opcode `2` rather than its x coordinate. The corrected stock
+record begins at `0x0238`; its coordinates are the dwords at `0x0240` and
+`0x0244`. The trace hook was removed immediately after capture.
+
+The literal AP41 controller owns the rest of the lifecycle. On entry it
+validates each stored reward amount against the player's available gold. An
+unset value is initialized from
 the stock `#RewardDelta`, which is 100 gold. Its ATTACK control (`0x138A`)
 passes the selected amount and stock Attack descriptor `Fl00` to the engine's
 existing reward-placement mode. The engine retains target validation, cursor

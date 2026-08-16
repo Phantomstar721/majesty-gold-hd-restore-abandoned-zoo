@@ -31,11 +31,18 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 
 - The restored building uses the literal stock dialog/controller payload
   `MX09`. Its orphaned Place Reward command is replaced with the literal stock
-  AP39 REWARDS command, and MX09's native dispatch slot is routed through the
-  literal Palace dispatcher so that command can open AP41. Reusing the Palace
-  reward interface for the unfinished Zoo control is new integration glue;
-  the dispatcher, 100-gold initial increment, placement state, cancellation,
+  AP39 REWARDS command. Private dialog ID `ZC01`, the `.mzoo` executable-section
+  name, its two guarded redirects, and substituting ZC01 for AP41 only on an
+  MX09 reward click are new integration glue. ZC01 uses the literal AP41
+  constructor; the 100-gold initial increment, placement state, cancellation,
   flag construction, callbacks, and cleanup are stock.
+- The private ZC01 resource moves AP41's five Explore controls to the shipped
+  hidden-control position `(1500,1500)` demonstrated by AP50. The earlier
+  experimental layouts are not retained; the live parser trace used to correct
+  the Explore-placement record boundary was diagnostic only. “Capture Flag,”
+  its related Capture tooltips, “ZOO REWARDS,” and the Zoo return tooltip are
+  newly written presentation text. All control records and internal Attack Flag
+  IDs remain stock, so this step changes no placement behavior or flag type.
 - `ZOO1`, `ZOO2`, and `ZOO3` are private unit-description IDs. This avoids the
   existing stock Sewer Entrance ID `ABN1`; recovered `ABn1`–`ABn3` remain art
   references only.

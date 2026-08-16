@@ -19,12 +19,21 @@ DEFAULT_OUTPUT = REPO_ROOT / "dist" / "RestoreAbandonedZoo"
 VISITORS_CONTROL_ID = 0x1F55
 ZOO_PLACE_REWARD_CONTROL_ID = 0x2293
 PALACE_REWARDS_CONTROL_ID = 0x1389
+ZOO_REWARDS_DIALOG_ID = b"ZC01"
 AP02_VISITORS_RECORD_START = 0x013C
 AP02_VISITORS_RECORD_END = 0x01D4
 MX09_VISITORS_RECORD_START = 0x013C
 MX09_VISITORS_RECORD_END = 0x01C4
 MX09_PLACE_REWARD_COMMAND_OFFSET = 0x0898
 AP39_REWARDS_COMMAND_OFFSET = 0x0130
+AP41_EXPLORE_CONTROLS = (
+    (0x00A0, 0x0118, (0x1388,)),  # Increase Explore reward.
+    (0x0118, 0x0190, (0x1389,)),  # Decrease Explore reward.
+    (0x0238, 0x02E0, (0x138B,)),  # Place Explore Flag.
+    (0x02E0, 0x0380, (0x138C,)),  # Explore reward amount.
+    (0x0380, 0x03D4, (0x1B5A,)),  # Explore Flag icon.
+)
+STOCK_HIDDEN_CONTROL_COORDINATE = 1500
 
 
 @dataclass(frozen=True)
@@ -268,6 +277,28 @@ def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
     return bytes(patched)
 
 
+def privatize_zoo_rewards_menu(palace_rewards_menu: bytes) -> bytes:
+    """Clone AP41 and move its Explore controls to stock's hidden position."""
+    patched = bytearray(palace_rewards_menu)
+    for start, end, command_ids in AP41_EXPLORE_CONTROLS:
+        control = palace_rewards_menu[start:end]
+        if not control.endswith(b"\xff" * 4):
+            raise ValueError(f"Stock AP41 control boundary changed at {start:#x}")
+        for command_id in command_ids:
+            if control.count(struct.pack("<I", command_id)) != 1:
+                raise ValueError(
+                    f"Stock AP41 command {command_id:#x} changed at {start:#x}"
+                )
+        struct.pack_into(
+            "<II",
+            patched,
+            start + 8,
+            STOCK_HIDDEN_CONTROL_COORDINATE,
+            STOCK_HIDDEN_CONTROL_COORDINATE,
+        )
+    return bytes(patched)
+
+
 def write_text_cams(game_path: Path, data_dir: Path) -> None:
     base_textdata = game_path / "Data" / "textdata.cam"
     expansion_textdata = game_path / "DataMX" / "mx_textdata.cam"
@@ -275,6 +306,8 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     stock_menu = read_cam_entry(expansion_textdata, b"SMNU", b"MX09")
     stock_blacksmith_menu = read_cam_entry(base_textdata, b"SMNU", b"AP02")
     stock_palace_menu = read_cam_entry(base_textdata, b"SMNU", b"AP39")
+    stock_palace_rewards_menu = read_cam_entry(base_textdata, b"SMNU", b"AP41")
+    stock_palace_rewards_strings = read_cam_entry(base_textdata, b"STRT", b"AP41")
     stock_strings = read_cam_entry(expansion_textdata, b"STRT", b"MX09")
     unit_names = read_cam_entry(base_textdata, b"STRT", b"UNTN")
     advisor_text = read_cam_entry(gpltext, b"STRT", b"AITX")
@@ -285,6 +318,18 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
         {
             0: "A completed Zoo makes Attack Flags on living monsters trigger the stock Hooligan return lifecycle.",
             4: "Destroy this Zoo.",
+        },
+    )
+    zoo_rewards_strings = patch_indexed_strt(
+        stock_palace_rewards_strings.data,
+        {
+            2: "Capture Flag",
+            3: "Place a Capture Flag.",
+            9: "Current Capture Flag default reward amount in gold",
+            10: "ZOO REWARDS",
+            11: "Decrease Capture Flag reward amount.",
+            12: "Increase Capture Flag reward amount.",
+            13: "Return to the Zoo's Main Window.",
         },
     )
     patched_names = patch_keyed_strt(
@@ -338,6 +383,10 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                             stock_blacksmith_menu.data,
                         ),
                     ),
+                    CamEntry(
+                        pad_name(ZOO_REWARDS_DIALOG_ID),
+                        privatize_zoo_rewards_menu(stock_palace_rewards_menu.data),
+                    ),
                 ),
             ),
             CamSection(
@@ -345,6 +394,9 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                 (
                     CamEntry(pad_name(b"UNTN"), patched_names),
                     CamEntry(pad_name(b"MX09"), patched_strings),
+                    CamEntry(
+                        pad_name(ZOO_REWARDS_DIALOG_ID), zoo_rewards_strings
+                    ),
                 ),
             ),
         ),

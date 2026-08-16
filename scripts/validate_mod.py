@@ -116,7 +116,13 @@ def validate(root: Path) -> list[str]:
             errors.append("Manifest GPL sources are missing the Deal Demon test fixture")
 
     text_names = cam_names(root / "Data" / "restore_zoo_textdata.cam")
-    if not {(b"SMNU", b"MX09"), (b"STRT", b"MX09"), (b"STRT", b"UNTN")} <= text_names:
+    if not {
+        (b"SMNU", b"MX09"),
+        (b"SMNU", b"ZC01"),
+        (b"STRT", b"MX09"),
+        (b"STRT", b"ZC01"),
+        (b"STRT", b"UNTN"),
+    } <= text_names:
         errors.append(f"Zoo text CAM has unexpected entries: {sorted(text_names)}")
     zoo_menu = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"MX09"
@@ -131,6 +137,57 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo Place Reward control must dispatch the stock Palace REWARDS command")
     if len(zoo_menu) != 2504:
         errors.append("Zoo panel must restore AP02's complete Visitors control")
+    zoo_rewards_menu = cam_entry_data(
+        root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"ZC01"
+    )
+    hidden_controls = {
+        0x00A0: 0x1388,
+        0x0118: 0x1389,
+        0x0238: 0x138B,
+        0x02E0: 0x138C,
+        0x0380: 0x1B5A,
+    }
+    for offset, hidden_command in hidden_controls.items():
+        if zoo_rewards_menu.count(struct.pack("<I", hidden_command)) != 1:
+            errors.append(
+                f"Private Zoo rewards panel lacks stock Explore control {hidden_command:#x}"
+            )
+        if struct.unpack_from("<II", zoo_rewards_menu, offset + 8) != (1500, 1500):
+            errors.append(
+                f"Private Zoo rewards panel does not hide Explore control {hidden_command:#x} at stock off-panel coordinates"
+            )
+    capture_controls = {
+        0x0204: 0x138A,
+        0x0448: 0x08,
+        0x0550: 0x0A,
+        0x05C8: 0x0B,
+        0x0640: 0x1F4D,
+        0x06A4: 0x1B59,
+    }
+    for offset, capture_command in capture_controls.items():
+        if zoo_rewards_menu[offset : offset + 4] != struct.pack(
+            "<I", capture_command
+        ):
+            errors.append(
+                f"Private Zoo rewards panel lacks stock Capture-path control {capture_command:#x} at {offset:#x}"
+            )
+    if len(zoo_rewards_menu) != 1720:
+        errors.append("Private Zoo rewards panel must retain AP41's complete dialog stream")
+    zoo_rewards_strings = cam_entry_data(
+        root / "Data" / "restore_zoo_textdata.cam", b"STRT", b"ZC01"
+    )
+    expected_zoo_reward_strings = {
+        2: "Capture Flag",
+        3: "Place a Capture Flag.",
+        9: "Current Capture Flag default reward amount in gold",
+        10: "ZOO REWARDS",
+        11: "Decrease Capture Flag reward amount.",
+        12: "Increase Capture Flag reward amount.",
+        13: "Return to the Zoo's Main Window.",
+    }
+    for index, expected_text in expected_zoo_reward_strings.items():
+        if indexed_strt_record(zoo_rewards_strings, index)[1] != expected_text:
+            errors.append(f"Private Zoo rewards string {index} is not {expected_text!r}")
     art_names = cam_names(root / "Data" / "restore_zoo_maindata.cam")
     image_names = {name for extension, name in art_names if extension == b"IMAG"}
     for prefix in (b"ABn1", b"ABn2", b"ABn3"):
