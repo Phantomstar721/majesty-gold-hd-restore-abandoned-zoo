@@ -107,6 +107,7 @@ def validate(root: Path) -> list[str]:
         "Data/restore_zoo_gpltext.cam",
         "Data/RestoreAbandonedZoo.bcd",
         "GPL/RestoreAbandonedZoo_Building_Data.dat",
+        "GPL/RestoreAbandonedZoo_Flag_Data.dat",
         "GPL/RestoreAbandonedZoo_Capture.gpl",
         "GPL/RestoreAbandonedZoo_DealDemon_Test.gpl",
         "GPL/RestoreAbandonedZoo.gplproj",
@@ -122,16 +123,30 @@ def validate(root: Path) -> list[str]:
     manifest = ET.parse(root / "RestoreAbandonedZoo.mmxml").getroot()
     units = ET.parse(root / "Data" / "restore_zoo_units.xml").getroot()
     descriptions = units.findall("Description")
-    if [item.get("Name") for item in descriptions] != ["Restore_Zoo1", "Restore_Zoo2", "Restore_Zoo3"]:
-        errors.append("Unit XML must define the three private Zoo prototypes in order")
+    if [item.get("Name") for item in descriptions] != [
+        "Restore_Zoo1",
+        "Restore_Zoo2",
+        "Restore_Zoo3",
+        "Restore_Capture_Flag",
+    ]:
+        errors.append("Unit XML must define the three Zoos and private Capture Flag in order")
     description_ids = [item.get("ID") for item in descriptions]
-    if description_ids != ["ZOO1", "ZOO2", "ZOO3"]:
+    if description_ids != ["ZOO1", "ZOO2", "ZOO3", "ZCF0"]:
         errors.append(f"Unexpected private Zoo description IDs: {description_ids}")
     image_ids = [item.find("./Engine/ImageIDBase").get("value") for item in descriptions]
-    if image_ids != ["ABn1", "ABn2", "ABn3"]:
+    if image_ids != ["ABn1", "ABn2", "ABn3", "ARA2"]:
         errors.append(f"Unexpected stock Zoo image IDs: {image_ids}")
-    if any(item.find("./Game/DialogID").get("value") != "MX09" for item in descriptions):
+    if any(item.find("./Game/DialogID").get("value") != "MX09" for item in descriptions[:3]):
         errors.append("Every Zoo level must use the stock MX09 panel controller")
+    if len(descriptions) == 4:
+        capture_flag = descriptions[3]
+        if capture_flag.get("subType") != "Overlay":
+            errors.append("Private ZCF0 must retain the stock Overlay description type")
+        if capture_flag.find("./Game/DialogID").get("value") != "AP46":
+            errors.append("Private ZCF0 must use the stock Attack Flag AP46 panel")
+        callback = capture_flag.find("./Engine/Script")
+        if callback is None or callback.get("GPLFunction") != "Attack_flag_death_callback":
+            errors.append("Private ZCF0 must retain the stock Attack Flag death callback")
 
     load = manifest.find("./Mod/DataConfiguration/Dataset/Load")
     if load is None:
@@ -154,6 +169,7 @@ def validate(root: Path) -> list[str]:
             errors.append("Manifest CAM load order does not match the Zoo package contract")
         if [item.text for item in load.find("GPL").findall("Source")] != [
             "GPL\\RestoreAbandonedZoo_Building_Data.dat",
+            "GPL\\RestoreAbandonedZoo_Flag_Data.dat",
             "GPL\\RestoreAbandonedZoo_Capture.gpl",
             "GPL\\RestoreAbandonedZoo_DealDemon_Test.gpl",
         ]:
@@ -311,11 +327,30 @@ def validate(root: Path) -> list[str]:
         if duplicate in gpl:
             errors.append(f"GPL duplicates shipped prototype {duplicate}")
 
+    flag_gpl = (root / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat").read_text(
+        encoding="utf-8"
+    )
+    required_flag_contract = (
+        "[Restore_Capture_Flag]",
+        "{RewardFlag",
+        "(type RewardFlag)",
+        "(subtype Flag_Attack)",
+        "(title Flag_Attack)",
+        "(birthscript Restore_Capture_Flag_Birth)",
+        "(activescript attack_flag_poll)",
+        "(deathscript attack_flag_death)",
+    )
+    for snippet in required_flag_contract:
+        if snippet not in flag_gpl:
+            errors.append(f"Private Capture Flag stock clone is missing: {snippet}")
+    if "[Flag_Attack]" in flag_gpl:
+        errors.append("Private Capture Flag data must not replace stock [Flag_Attack]")
+
     capture = (root / "GPL" / "RestoreAbandonedZoo_Capture.gpl").read_text(
         encoding="utf-8"
     )
     required_capture_contract = (
-        "function attack_flag_birth",
+        "function Restore_Capture_Flag_Birth",
         "function Restore_Has_Completed_Zoo",
         '$ListObjects ( thisagent, "building", -1, zoos,',
         '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 ) > 0',
@@ -396,12 +431,13 @@ def validate(root: Path) -> list[str]:
         'thisagent\'s "BasicScript" = thisagent\'s "QuestScript"',
         'thisagent\'s "ActiveScript" = thisagent\'s "QuestScript"',
         'thisagent\'s "BackScript" = thisagent\'s "QuestScript"',
+        "function attack_flag_birth",
     )
     for snippet in forbidden_capture_contract:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
     if capture.count("$DeleteGamePiece ( thisagent )") != 1:
-        errors.append("Only the consumed Attack Flag may retain DeleteGamePiece")
+        errors.append("Only the consumed Capture Flag may retain DeleteGamePiece")
     storage_enter = capture.index("$Enter_Building ( thisagent, zoo )")
     storage_intent = capture.index(
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )"
@@ -418,6 +454,8 @@ def validate(root: Path) -> list[str]:
     )
     if 'source="RestoreAbandonedZoo_Capture.gpl"' not in project:
         errors.append("GPL project does not compile the Zoo capture bridge")
+    if 'data="RestoreAbandonedZoo_Flag_Data.dat"' not in project:
+        errors.append("GPL project does not compile the private Capture Flag")
     if 'source="RestoreAbandonedZoo_DealDemon_Test.gpl"' not in project:
         errors.append("GPL project does not compile the Deal Demon test fixture")
     if gpl.count("(IGdeathscript building_death)") != 3:

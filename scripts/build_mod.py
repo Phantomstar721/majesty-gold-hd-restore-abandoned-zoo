@@ -690,6 +690,7 @@ def build(game_path: Path, output_root: Path) -> None:
     shutil.copy2(SOURCE_ROOT / "RestoreAbandonedZoo.mmxml", output_root / "RestoreAbandonedZoo.mmxml")
     shutil.copy2(SOURCE_ROOT / "Data" / "restore_zoo_units.xml", data_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Building_Data.dat", gpl_dir)
+    shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat", gpl_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Capture.gpl", gpl_dir)
     shutil.copy2(
         SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_DealDemon_Test.gpl", gpl_dir

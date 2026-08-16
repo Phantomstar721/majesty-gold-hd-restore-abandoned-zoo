@@ -75,4 +75,20 @@
 			<HelpID value="hZ03"/>
 		</Game>
 	</Description>
+	<Description type="Unit" subType="Overlay" ID="ZCF0" Name="Restore_Capture_Flag" Description="Capture Flag">
+		<Engine version="1">
+			<Info value="Directionless"/>
+			<Info value="DontBlock"/>
+			<Category value="1"/>
+			<CanUse value="HumanPlayer"/>
+			<Menu value="11"/>
+			<ImageIDBase value="ARA2"/>
+			<Script type="0" cProc="0" GPLFunction="Attack_flag_death_callback"/>
+			<DefaultSound value="0"/>
+		</Engine>
+		<Game version="1">
+			<DialogID value="AP46"/>
+			<StackPriority value="2"/>
+		</Game>
+	</Description>
 </Majesty>

@@ -273,12 +273,11 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
-function attack_flag_birth ( agent thisagent )
+function Restore_Capture_Flag_Birth ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
-// Literal GPLMx attack_flag_birth.  The sole diagnostic seam converts a live
-// Monster immediately, before combat or any death callback, then removes the
-// flag, but only while its player owns a completed Zoo.  Without that stock
-// building gate, and for every non-Monster target, the flag remains stock.
+// Private literal clone of GPLMx attack_flag_birth.  The sole Zoo seam converts
+// a live Monster immediately, before combat or any death callback, then removes
+// this private Capture Flag.  Stock Flag_Attack retains its shipped birth.
 declare
 	agent target;
 	integer flagplayer, targetplayer;

@@ -5,9 +5,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 $SectionName = ".mzoo"
-$PatchVirtualSize = 0xA0
-$PatchRawSize = 0x200
+$PatchVirtualSize = 0x450
+$PatchRawSize = 0x600
+$LegacyPatchVirtualSize = 0xA0
+$LegacyPatchRawSize = 0x200
 $PrivateFactoryOffset = 0x40
+$PrivateHandlerOffset = 0xE0
+$PrivateVtableOffset = 0x160
+$ModeRegistrationOffset = 0x1C0
+$CaptureCallbackOffset = 0x240
+$CapturePrototypeNameOffset = 0x420
 $FactoryHookOffset = 0x10A020
 $FactoryHookVa = 0x0050AC20
 $FactoryResumeVa = 0x0050AC26
@@ -15,7 +22,12 @@ $Ap41FactoryVa = 0x0050AF8F
 $OpenDialogVa = 0x004B03F0
 $PalaceDispatchVa = 0x004A5440
 $DispatchSlotOffset = 0x33DFA8
+$ModeRegistryHookOffset = 0x5D8E4
+$ModeRegistryHookVa = 0x0045E4E4
 [byte[]]$StockFactoryHook = @(0x8B, 0x4C, 0x24, 0x14, 0x33, 0xC0)
+[byte[]]$StockModeRegistryHook = @(
+    0x8B,0x4C,0x24,0x10,0x64,0x89,0x0D,0x00,0x00,0x00,0x00
+)
 [byte[]]$StockDispatchSlot = @(0x80, 0xD2, 0x4B, 0x00) # 0x004BD280
 [byte[]]$LegacyPalaceDispatchSlot = @(0x40, 0x54, 0x4A, 0x00) # checkpoint aaa9753
 
@@ -80,9 +92,9 @@ function New-RelativeInstruction {
     [BitConverter]::GetBytes($relative).CopyTo($result, 1)
     $result
 }
-function New-PatchBlob {
+function New-LegacyPatchBlob {
     param([uint32]$PatchVa)
-    [byte[]]$blob = New-Object byte[] $PatchRawSize
+    [byte[]]$blob = New-Object byte[] $LegacyPatchRawSize
     [byte[]]$dispatch = @(
         0x8B,0x44,0x24,0x04,0x3D,0x89,0x13,0x00,0x00,0x75,0x0F,
         0x6A,0x00,0x68,0x5A,0x43,0x30,0x31,0xE8,0,0,0,0,
@@ -112,32 +124,53 @@ $section = $pe.Sections | Where-Object Name -eq $SectionName | Select-Object -Fi
 $factoryIsStock = Test-BytesEqual $bytes $FactoryHookOffset $StockFactoryHook
 $dispatchIsStock = Test-BytesEqual $bytes $DispatchSlotOffset $StockDispatchSlot
 $dispatchIsLegacy = Test-BytesEqual $bytes $DispatchSlotOffset $LegacyPalaceDispatchSlot
+$modeRegistryIsStock = Test-BytesEqual $bytes $ModeRegistryHookOffset $StockModeRegistryHook
 
 $installed = $false
+$legacyInstalled = $false
 $inert = $false
 if ($section) {
-    if ($section.VirtualSize -lt $PatchVirtualSize -or $section.RawSize -lt $PatchRawSize -or ($section.RawOffset + $PatchRawSize) -gt $bytes.Length) {
+    if ($section.RawSize -lt $LegacyPatchRawSize -or ($section.RawOffset + $section.RawSize) -gt $bytes.Length) {
         throw "MajestyHD.exe contains an incompatible .mzoo section."
     }
     $patchVa = [uint32]($pe.ImageBase + $section.Rva)
-    [byte[]]$payload = New-PatchBlob $patchVa
+    [byte[]]$legacyPayload = New-LegacyPatchBlob $patchVa
     [byte[]]$factoryHook = New-RelativeInstruction 0xE9 $FactoryHookVa ([uint32]($patchVa + $PrivateFactoryOffset))
     $factoryHook += [byte[]]@(0x90)
+    [byte[]]$modeRegistryHook = New-RelativeInstruction 0xE9 $ModeRegistryHookVa ([uint32]($patchVa + $ModeRegistrationOffset))
+    $modeRegistryHook += [byte[]]@(0x90,0x90,0x90,0x90,0x90,0x90)
     [byte[]]$privateDispatchSlot = [BitConverter]::GetBytes($patchVa)
-    $installed = (Test-BytesEqual $bytes $FactoryHookOffset $factoryHook) -and
+    $legacyInstalled = (Test-BytesEqual $bytes $FactoryHookOffset $factoryHook) -and
         (Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatchSlot) -and
-        (Test-BytesEqual $bytes $section.RawOffset $payload)
-    $inert = $factoryIsStock -and $dispatchIsStock -and (Test-ZeroRange $bytes $section.RawOffset $PatchRawSize)
-    if (-not ($installed -or $inert)) { throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch." }
+        $modeRegistryIsStock -and
+        (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
+
+    if ($section.RawSize -ge $PatchRawSize -and $section.VirtualSize -ge $PatchVirtualSize) {
+        [byte[]]$signature = [Text.Encoding]::ASCII.GetBytes("RestoreAbandonedZoo.ZC01.ZCF0")
+        [byte[]]$prototypeName = [Text.Encoding]::ASCII.GetBytes("Restore_Capture_Flag`0")
+        $privateHandlerVa = [uint32]($patchVa + $PrivateHandlerOffset)
+        $privateCallbackVa = [uint32]($patchVa + $CaptureCallbackOffset)
+        $privateNameVa = [uint32]($patchVa + $CapturePrototypeNameOffset)
+        $installed = (Test-BytesEqual $bytes $FactoryHookOffset $factoryHook) -and
+            (Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatchSlot) -and
+            (Test-BytesEqual $bytes $ModeRegistryHookOffset $modeRegistryHook) -and
+            (Test-BytesEqual $bytes ($section.RawOffset + 0x190) $signature) -and
+            (Test-BytesEqual $bytes ($section.RawOffset + $CapturePrototypeNameOffset) $prototypeName) -and
+            ((Read-U32 $bytes ($section.RawOffset + $PrivateVtableOffset + 0x0C)) -eq $privateHandlerVa) -and
+            ((Read-U32 $bytes ($section.RawOffset + $ModeRegistrationOffset + 0x21)) -eq $privateCallbackVa) -and
+            ((Read-U32 $bytes ($section.RawOffset + $CaptureCallbackOffset + 0xD1)) -eq $privateNameVa)
+    }
+    $inert = $factoryIsStock -and $dispatchIsStock -and $modeRegistryIsStock -and (Test-ZeroRange $bytes $section.RawOffset $section.RawSize)
+    if (-not ($installed -or $legacyInstalled -or $inert)) { throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch." }
 }
-elseif (-not ($factoryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy))) {
+elseif (-not ($factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy))) {
     throw "MajestyHD.exe does not contain a recognized Zoo reward-dispatch state."
 }
 
 $sectionIsLast = $section -and $section.Index -eq ($pe.SectionCount - 1) -and ($section.RawOffset + $section.RawSize) -eq $bytes.Length
 $needsLegacyRestore = -not $section -and $dispatchIsLegacy
-$needsWork = $installed -or $needsLegacyRestore -or ($inert -and $sectionIsLast)
-Write-Host "Majesty Gold HD Restore Abandoned Zoo private-panel restore"
+$needsWork = $installed -or $legacyInstalled -or $needsLegacyRestore -or ($inert -and $sectionIsLast)
+Write-Host "Majesty Gold HD Restore Abandoned Zoo private Capture Flag restore"
 if (-not $needsWork) {
     Write-Host "MajestyHD.exe: the stock MX09/factory routes are already restored."
 }
@@ -146,9 +179,10 @@ elseif ($DryRun) {
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before restoring the Zoo rewards panel." }
-    if ($installed -or $needsLegacyRestore) {
+    if ($installed -or $legacyInstalled -or $needsLegacyRestore) {
         Write-Bytes $bytes $FactoryHookOffset $StockFactoryHook
         Write-Bytes $bytes $DispatchSlotOffset $StockDispatchSlot
+        if ($installed) { Write-Bytes $bytes $ModeRegistryHookOffset $StockModeRegistryHook }
     }
     if ($sectionIsLast) {
         [byte[]]$restored = New-Object byte[] $section.RawOffset
@@ -161,9 +195,9 @@ else {
     }
     else {
         $restored = $bytes
-        if ($section) { Write-Bytes $restored $section.RawOffset (New-Object byte[] $PatchRawSize) }
+        if ($section) { Write-Bytes $restored $section.RawOffset (New-Object byte[] $section.RawSize) }
     }
     try { [IO.File]::WriteAllBytes($exePath, $restored) }
     catch { throw "Cannot modify MajestyHD.exe. Close Majesty and try again. If needed, run PowerShell as administrator." }
-    Write-Host "MajestyHD.exe: restored stock MX09/factory routing; unrelated CG and QOL patches were left untouched."
+    Write-Host "MajestyHD.exe: restored stock MX09/factory/flag-mode routing; unrelated CG and QOL patches were left untouched."
 }

@@ -1,0 +1,10 @@
+[Restore_Capture_Flag]
+	{RewardFlag
+		(type RewardFlag)
+		(subtype Flag_Attack)
+		(title Flag_Attack)
+		(birthscript Restore_Capture_Flag_Birth)
+		(activescript attack_flag_poll)
+		(deathscript attack_flag_death)
+	}
+[end]

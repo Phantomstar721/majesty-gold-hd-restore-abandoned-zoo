@@ -21,12 +21,18 @@ Wizard's Curse Hooligan lifecycle:
 - only that private clone selects a Zoo-themed `ZOBG` backing, which retains
   the stock Capture controls and removes the baked-in appearance of the hidden
   Explore row without changing controller behavior;
+- its Capture control selects a private `ZCF0` placement-mode clone, whose
+  completion callback creates private `Restore_Capture_Flag` reward flags;
+- the private flag retains the stock Attack Flag art, panel, internal
+  `Flag_Attack` title, hero evaluation, poll, target-death callback, payout,
+  cancellation, task reset, and cleanup lifecycle;
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
-- while the player owns a completed Zoo, placing an ordinary Attack Flag on a
+- while its player owns a completed Zoo, placing a private Capture Flag on a
   living monster begins the shipped controlled-monster handoff into Hooligan
   behavior;
-- without a completed Zoo, Attack Flags and monsters remain stock;
+- Palace Attack Flags now remain completely stock and cannot trigger Zoo
+  capture behavior;
 - the stock 3.3-second `Control_Monster` transition temporarily hides the
   target and transfers it to the flag player's allegiance, forcing Priestess
   skeletons and charmed monsters to drop existing attacks before arrest begins;
@@ -88,9 +94,11 @@ The installed package is
 replaces only that exact package and verifies every deployed file by SHA-256.
 The same command also installs one private `.mzoo` executable section. Two
 guarded redirects let only `MX09` open `ZC01` and let only `ZC01` use Majesty's
-literal AP41 controller constructor. The stock Palace `AP41`, the existing
+literal AP41 controller constructor. A third stock-boundary redirect appends
+private `ZCF0` beside the shipped flag-placement modes; ZC01 alone receives a
+private vtable selecting it. The stock Palace `AP41`/`Fl00`, the existing
 `CGxx` custom-guild route, and unrelated QOL patches remain untouched. Restore
-only the Zoo redirects and section with:
+only the Zoo redirects, mode registration, and section with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\Restore-ZooRewardDispatcher.ps1

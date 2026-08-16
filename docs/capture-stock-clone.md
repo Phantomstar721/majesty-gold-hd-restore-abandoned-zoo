@@ -12,13 +12,15 @@ game: from the Reward Flag, list `Building` agents with arguments ordered
 Construction sites therefore do not enable the trigger; any completed Zoo
 level does. The first completed Zoo becomes the destination.
 
-With that gate satisfied, placing a normal Attack Flag on a living agent whose
+With that gate satisfied, placing the Zoo's private Capture Flag on a living agent whose
 current `Type` is `Monster` immediately removes the flag and begins the stock
 controlled-monster transition described below. The trigger does not wait for
 combat, roll capture chance, or intercept death.
 
-Without a completed player Zoo, or when placed on a non-monster target, Attack
-Flags retain the literal stock `attack_flag_birth` lifecycle.
+Without a completed player Zoo, or when placed on a non-monster target, the
+Capture Flag retains its cloned stock Attack Flag lifecycle. Palace Attack
+Flags always retain the literal shipped `attack_flag_birth` lifecycle and no
+longer enter this file's conversion seam.
 
 ## Monster handoff
 
@@ -29,7 +31,7 @@ Hooligan behavior:
 1. stop the target and clear its Hostiles;
 2. make its active script the private stock `fake_wander` clone;
 3. temporarily set `Type` to `Hidden` so attackers treat the target as invalid;
-4. transfer the target to the Attack Flag's player with
+4. transfer the target to the Capture Flag's player with
    `SetUnitPlayerNumber`, matching stock control/charm;
 5. wait the shipped `Charm_Delay_Time` of 3300 ms;
 6. change `Type` to `Hooligan`, clear Hostiles again, and activate the proven
@@ -75,7 +77,7 @@ shape, with the adaptations required by private single-owner arrests:
 - call stock `Enter_Building` only after `Hide` has completed, then stop the
   hidden Hooligan's active thread so it remains in the Zoo's `Occupants` list.
 
-The flag-side completed-building query gates conversion using the Attack Flag's
+The flag-side completed-building query gates conversion using the Capture Flag's
 player ownership. The Hooligan-side destination query independently selects the
 first completed Zoo after conversion. Stock resets all arresting heroes only when the globally
 last quest Hooligan arrives. The private one-owner system instead uses the same
@@ -141,9 +143,10 @@ does not guess per-species movement-rate modifiers.
 
 ## Expected stock result
 
-1. Before completing a Zoo, place an Attack Flag on a monster. It remains an
-   ordinary bounty and the monster remains unchanged.
-2. Complete any level of Zoo, then place an Attack Flag on a living monster.
+1. Place a Palace Attack Flag on a monster. It remains an ordinary stock bounty
+   whether or not the player owns a Zoo.
+2. Complete any level of Zoo, open its Capture panel, then place a Capture Flag
+   on a living monster.
 3. The flag disappears immediately; no bounty is paid. For the stock 3300 ms
    control delay, the target is Hidden and transferred to the player's
    allegiance so existing player-minion attacks terminate.

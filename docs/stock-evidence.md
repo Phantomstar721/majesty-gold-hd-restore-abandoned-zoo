@@ -104,10 +104,36 @@ birth, poll, target-death callback, manual flag-death cleanup, hero-task reset,
 and UI refresh remain unchanged. This milestone adds no Zoo flag prototype,
 placement state, timer, callback, cancellation branch, or reward accounting.
 
-The current diagnostic `attack_flag_birth` override is deliberately unchanged
-in this step. Consequently both Palace-placed and Zoo-button-placed ordinary
-Attack Flags still reach the same completed-Zoo Hooligan conversion until a
-later tested step moves capture behavior onto a private Zoo flag.
+## Private Capture Flag placement clone
+
+`Fl00` is the stock Attack Flag placement-mode token, not the flag's unit ID.
+The AP41 handler sends that token and the current reward to `0x00454E70`. The
+engine registers `Fl00` during its normal placement-mode initialization with
+the stock validation callback at `0x0045D360` and completion callback at
+`0x0045D400`. The completion callback eventually passes the literal prototype
+name `Flag_Attack` to the stock creation path at `0x0045CC90`.
+
+The private clone preserves both halves of that lifecycle. At the same stock
+registration boundary, it appends mode `ZCF0` with the same parameters and
+validation callback plus a relocated byte-for-byte completion callback. The
+sole callback substitution is its prototype-name pointer:
+`Flag_Attack` becomes `Restore_Capture_Flag`. Target validation, mouse state,
+gold checks, successful placement, cancellation, and panel return remain in
+stock order.
+
+Only the private ZC01 AP41 object receives a cloned primary vtable whose command
+handler substitutes `ZCF0` for `Fl00` on Capture placement and on the two live
+reward-adjustment paths. All unmodified commands tail-call the stock AP41
+handler. Palace AP41 retains its stock vtable and all three literal `Fl00`
+paths, so Palace Attack Flags are isolated from Zoo capture.
+
+`Restore_Capture_Flag` clones the stock overlay description and GPL
+`Flag_Attack` prototype. It retains shipped `ARA2` art, `AP46` panel,
+`Attack_flag_death_callback`, `RewardFlag` type, internal `Flag_Attack` title,
+`attack_flag_poll`, and `attack_flag_death`. Keeping the internal title is
+required because shipped hero reward evaluation recognizes attack work by
+testing `flag.title == "flag_attack"`. Only the prototype identity and birth
+function are private. Stock `attack_flag_birth` is no longer overridden.
 
 ## Confirmed GPL prototypes
 
@@ -143,16 +169,18 @@ capture lifecycle:
 - cancellation and polling clean pursuing heroes' tasks.
 
 That module does not provide a working player-facing dispatcher, flag unit
-description, private placement wiring, or completed UI control. The current milestone does not
-attempt to restore its death interception or charm lifecycle. An ordinary
-Attack Flag is used solely as an immediate trigger for an isolated stock
-Hooligan test, enabled by the standard stock completed-building query for a
+description, private placement wiring, or completed UI control. The current
+milestone does not attempt to restore its death interception or charm
+lifecycle. The private Capture Flag instead supplies the isolated stock
+Hooligan test, enabled by the standard completed-building query for a
 player-owned Zoo.
 
-The Reward Flag binding probe proved the mod's `attack_flag_birth` override was
-active. The rollback restores the exact gate that had already passed live
+The earlier Reward Flag binding probe proved the conversion seam when it was
+temporarily attached to `attack_flag_birth`. The private
+`Restore_Capture_Flag_Birth` now carries the exact gate that passed live
 testing: `$ListObjects` from the flag, type `Building`, followed by
 `#MyPlayer`, title `Zoo`, and `FirstStageBuilt == 1` in stock Mausoleum order.
+The shipped `attack_flag_birth` binding is no longer replaced.
 
 `mx_Monster_Births.gpl` and `mx_Monster_Deaths.gpl` are not overridden in this
 milestone. Monster spawning and all ordinary lethal events therefore remain

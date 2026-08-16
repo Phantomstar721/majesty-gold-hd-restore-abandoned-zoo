@@ -76,19 +76,29 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 
 ## Isolated Hooligan diagnostic choices
 
-- A normal Attack Flag is used only as a convenient player-facing trigger.
-  When its player owns a completed Zoo, placing it on a living `Monster`
-  immediately removes the flag and begins a stock control transition into the
-  Wizard's Curse Hooligan lifecycle. This is diagnostic glue, not recovered
-  Zoo design.
+- `ZCF0`, `Restore_Capture_Flag`, its XML description, GPL prototype, placement
+  registration, relocated completion callback, private ZC01 vtable, and
+  `Restore_Capture_Flag_Birth` are new private integration. The exact private
+  identifiers and the decision to begin with stock `ARA2` Attack Flag art are
+  invented; no finished Capture Flag resource survives in stock data.
+- The private placement mode is a literal clone of stock `Fl00`: the same
+  registration parameters, target-validation callback, mouse lifecycle,
+  reward amount, cancellation, gold accounting, and completion code are used.
+  The completion callback changes only the created prototype-name pointer from
+  `Flag_Attack` to `Restore_Capture_Flag`. The private flag then retains stock
+  `RewardFlag` type, `Flag_Attack` subtype/title, AP46 panel, death callback,
+  active poll, payout, hero bookkeeping, cancellation, and cleanup.
+- When its player owns a completed Zoo, placing that private Capture Flag on a
+  living `Monster` immediately removes the flag and begins a stock control
+  transition into the Wizard's Curse Hooligan lifecycle. This is diagnostic
+  glue, not recovered Zoo design. Stock `attack_flag_birth` is no longer
+  overridden, so Palace Attack Flags remain entirely shipped behavior.
 - The enable gate copies the stock completed-building query shape used by the
   Mausoleum and other MX systems: player-owned `Building`, title `Zoo`, and
   `FirstStageBuilt == 1`, called from the flag with the exact argument order
   that passed the earlier live test. Any completed Zoo level qualifies.
-  Without one, the original Attack Flag remains untouched.
-- The Zoo button now creates those same ordinary Attack Flags through the stock
-  Palace Rewards panel. This does not yet privatize capture to Zoo-placed flags,
-  and ordinary Palace Attack Flags retain the current diagnostic conversion.
+  Without one, the private Capture Flag retains the cloned Attack Flag
+  lifecycle and its target remains unchanged.
 - The target receives the behavior-relevant fields from stock `[Hooligan]` and
   shipped `Hooligan_Death`. It retains its original monster art because no
   unit-description transformation is made.
@@ -97,7 +107,7 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   retains the stock `Hide`, last-Hooligan detection, message, and quest flag,
   but changes the destination and privatizes escort pacing and reset ownership
   as detailed below.
-- The Attack Flag owns only the proven player-Zoo gate. The converted Hooligan
+- The Capture Flag owns only the proven player-Zoo gate. The converted Hooligan
   later uses the private stock destination clone to select the first completed
   Zoo.
 - Minion protection copies stock `Control_Monster`, whose source explicitly
