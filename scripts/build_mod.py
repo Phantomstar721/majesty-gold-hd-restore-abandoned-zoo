@@ -35,6 +35,15 @@ ZOO_CAPTURE_ICON_SOURCE_TILE = 92
 ZOO_CAPTURE_ICON_TILE = (
     REPO_ROOT / "assets" / "generated" / "capture-flag" / "capture-button-icon-25.tile"
 )
+TACTICAL_CURSOR_IMAGE = b"CUR1Tactical Cursor"
+STOCK_ATTACK_CURSOR_SET = 1005
+STOCK_EXPLORE_CURSOR_SET = 1006
+PRIVATE_CAPTURE_CURSOR_SET = 1032
+STOCK_ATTACK_CURSOR_TILE = 27
+STOCK_EXPLORE_CURSOR_TILE = 26
+ZOO_CAPTURE_CURSOR_TILE = (
+    REPO_ROOT / "assets" / "generated" / "capture-flag" / "capture-cursor-40.tile"
+)
 CAPTURE_FLAG_IMAGE_SOURCE = b"ARA2flag attack"
 CAPTURE_FLAG_IMAGE_CUSTOM = b"ZCA2Capture flag"
 CAPTURE_FLAG_IMAGE_TOKEN = b"ZCA2"
@@ -716,6 +725,104 @@ def interface_imag_exact_tile_offset(
     raise ValueError(f"Interface IMAG has no set {set_id}")
 
 
+def append_tactical_cursor_set(
+    imag: bytes,
+) -> bytes:
+    """Append selector 32 by cloning stock Attack cursor set 1005 literally."""
+    set_count = u32(imag, 20)
+    if set_count <= 0 or 24 + set_count * 8 > len(imag):
+        raise ValueError("CUR1 has an invalid animation-set table")
+    sets = [struct.unpack_from("<II", imag, 24 + index * 8) for index in range(set_count)]
+    if any(set_id == PRIVATE_CAPTURE_CURSOR_SET for set_id, _offset in sets):
+        raise ValueError("Stock CUR1 unexpectedly already contains set 1032")
+    source_matches = [
+        (index, offset)
+        for index, (set_id, offset) in enumerate(sets)
+        if set_id == STOCK_ATTACK_CURSOR_SET
+    ]
+    if len(source_matches) != 1:
+        raise ValueError("Stock CUR1 no longer contains exactly one Attack cursor set 1005")
+    source_index, source_offset = source_matches[0]
+    source_end = sets[source_index + 1][1] if source_index + 1 < len(sets) else len(imag)
+    if source_offset + 76 > source_end or source_end > len(imag):
+        raise ValueError("Stock CUR1 Attack cursor set has invalid boundaries")
+    clone = bytearray(imag[source_offset:source_end])
+    direction_count = u32(clone, 0)
+    if direction_count != 3:
+        raise ValueError("Stock CUR1 Attack cursor no longer has three states")
+    for direction in range(direction_count):
+        relative = struct.unpack_from("<i", clone, 64 + direction * 4)[0]
+        direction_offset = relative + 4
+        tile_offset = direction_offset + 40
+        if tile_offset + 4 > len(clone):
+            raise ValueError("Stock CUR1 Attack cursor state is truncated")
+        encoded = u32(clone, tile_offset)
+        if encoded & 0xFFFF != STOCK_ATTACK_CURSOR_TILE:
+            raise ValueError(
+                "Stock CUR1 Attack cursor state no longer references TILE 27"
+            )
+
+    old_table_end = 24 + set_count * 8
+    private_offset = len(imag) + 8
+    output = bytearray(imag[:24])
+    struct.pack_into("<I", output, 20, set_count + 1)
+    for set_id, set_offset in sets:
+        output += struct.pack("<II", set_id, set_offset + 8)
+    output += struct.pack("<II", PRIVATE_CAPTURE_CURSOR_SET, private_offset)
+    output += imag[old_table_end:]
+    output += clone
+    return bytes(output)
+
+
+def privateize_tactical_cursor_tiles(
+    imag: bytes,
+    tiles: list[CamEntry],
+    append,
+    custom_capture_tile: bytes,
+) -> tuple[bytes, set[int]]:
+    """Keep stock CUR1 TILE numbers; append art only for private set 1032."""
+    patched = bytearray(imag)
+    set_count = u32(imag, 20)
+    stock_indices: set[int] = set()
+    capture_replacement: int | None = None
+    for set_index in range(set_count):
+        set_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+        direction_count = u32(imag, set_offset)
+        if direction_count <= 0 or direction_count > 32:
+            raise ValueError(f"CUR1 set {set_id} has invalid directions")
+        for direction in range(direction_count):
+            relative = struct.unpack_from(
+                "<i", imag, set_offset + 64 + direction * 4
+            )[0]
+            direction_offset = set_offset + relative + 4
+            tile_offset = direction_offset + 40
+            if tile_offset + 4 > len(imag):
+                raise ValueError(f"CUR1 set {set_id} has a truncated state")
+            encoded = u32(imag, tile_offset)
+            source_index = encoded & 0xFFFF
+            if source_index >= len(tiles):
+                raise ValueError(f"CUR1 references missing TILE {source_index}")
+            if set_id == PRIVATE_CAPTURE_CURSOR_SET:
+                if source_index != STOCK_ATTACK_CURSOR_TILE:
+                    raise ValueError("Private CUR1 set 1032 is no longer an Attack clone")
+                if capture_replacement is None:
+                    capture_replacement = append(b"ZCCUCursor", custom_capture_tile)
+                replacement = capture_replacement
+            else:
+                stock_indices.add(source_index)
+                replacement = source_index
+            if replacement != source_index:
+                struct.pack_into(
+                    "<I",
+                    patched,
+                    tile_offset,
+                    (encoded & 0xFFFF0000) | replacement,
+                )
+    if capture_replacement is None:
+        raise ValueError("Extended CUR1 did not emit a private Capture cursor TILE")
+    return bytes(patched), stock_indices
+
+
 def privateize_interface_imag_tiles(
     imag: bytes,
     tiles: list[CamEntry],
@@ -775,7 +882,7 @@ def privateize_interface_imag_tiles(
 
 
 def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
-    """Package private ZC01 backing and Capture icon clones."""
+    """Package ZC01 art plus a stock-shaped private Capture cursor set."""
     source = game_path / "Data" / "interfacedata.cam"
     stock_imag = read_cam_entry(
         source, b"IMAG", ZOO_REWARDS_BACKGROUND_SOURCE
@@ -783,9 +890,13 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
     stock_icon_imag = read_cam_entry(
         source, b"IMAG", ZOO_CAPTURE_ICON_SOURCE
     ).data
+    stock_cursor_imag = read_cam_entry(source, b"IMAG", TACTICAL_CURSOR_IMAGE).data
     tiles = read_cam_entries(source, b"TILE")
+    palettes = read_cam_entries(source, b"PALT")
     if not tiles:
         raise ValueError(f"Stock interface TILE table is incomplete in {source}")
+    if len(palettes) != 7 or any(not entry.data for entry in palettes):
+        raise ValueError(f"Stock interface PALT table is incomplete in {source}")
     source_offset = interface_imag_set_tile_offset(
         stock_imag, ZOO_REWARDS_BACKGROUND_SET
     )
@@ -819,6 +930,22 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         raise ValueError("Zoo Capture button art must retain stock 25x25 geometry")
     if custom_icon_tile == tiles[ZOO_CAPTURE_ICON_SOURCE_TILE].data:
         raise ValueError("Zoo Capture button art is still identical to stock Attack")
+    if not ZOO_CAPTURE_CURSOR_TILE.is_file():
+        raise FileNotFoundError(
+            f"Generated Zoo Capture cursor TILE is missing: {ZOO_CAPTURE_CURSOR_TILE}"
+        )
+    custom_cursor_tile = ZOO_CAPTURE_CURSOR_TILE.read_bytes()
+    stock_cursor_tile = tiles[STOCK_ATTACK_CURSOR_TILE].data
+    if len(custom_cursor_tile) < 26 or struct.unpack_from(
+        "<H", custom_cursor_tile, 0
+    )[0] != 3:
+        raise ValueError("Zoo Capture cursor art is not a stock-format V3 TILE")
+    if struct.unpack_from("<HH", custom_cursor_tile, 2) != struct.unpack_from(
+        "<HH", stock_cursor_tile, 2
+    ):
+        raise ValueError("Zoo Capture cursor art changed the stock Attack cursor geometry")
+    if custom_cursor_tile == stock_cursor_tile:
+        raise ValueError("Zoo Capture cursor art is still identical to stock Attack")
 
     extra: list[CamEntry] = []
 
@@ -846,21 +973,35 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         icon_offset,
         (encoded_icon & 0xFFFF0000) | private_icon_index,
     )
+    extended_cursor_imag = append_tactical_cursor_set(
+        stock_cursor_imag,
+    )
+    custom_cursor_imag, stock_cursor_indices = privateize_tactical_cursor_tiles(
+        extended_cursor_imag,
+        tiles,
+        append,
+        custom_cursor_tile,
+    )
 
-    blank_stock_slots = tuple(CamEntry(entry.name, b"") for entry in tiles)
+    stock_slots = tuple(
+        entry if index in stock_cursor_indices else CamEntry(entry.name, b"")
+        for index, entry in enumerate(tiles)
+    )
     write_cam(
         data_dir / "restore_zoo_rewards_interfacedata.cam",
         (
+            CamSection(b"PALT", tuple(palettes)),
             CamSection(
                 b"IMAG",
                 (
                     CamEntry(pad_name(ZOO_REWARDS_BACKGROUND_CUSTOM), custom_imag),
                     CamEntry(pad_name(ZOO_CAPTURE_ICON_CUSTOM), bytes(custom_icon_imag)),
+                    CamEntry(pad_name(TACTICAL_CURSOR_IMAGE), custom_cursor_imag),
                 ),
             ),
             CamSection(
                 b"TILE",
-                blank_stock_slots + tuple(extra),
+                stock_slots + tuple(extra),
                 padding=b"\x01\x00\x00\x00",
             ),
         ),

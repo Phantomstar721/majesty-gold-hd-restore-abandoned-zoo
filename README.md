@@ -25,6 +25,8 @@ Wizard's Curse Hooligan lifecycle:
   25x25 button frame while replacing the crossed-blade flag with the Zoo paw;
 - its Capture control selects a private `ZCF0` placement-mode clone, whose
   completion callback creates private `Restore_Capture_Flag` reward flags;
+- that placement clone selects private tactical-cursor selector 32, backed by
+  an appended `CUR1` set 1032 repaint of stock Attack cursor set 1005;
 - the private flag retains the stock Attack Flag animation topology but selects
   private `ZCA2` Zoo art: a forest-green flag with an aged-gold paw emblem,
   four stock-shaped player-color interface variants, and private minimap art;
@@ -154,7 +156,8 @@ The generator traces stock `ARA2flag attack` and retains its 12 Special, four
 Minimap, and four player-color Interface frames. It repaints those exact world
 and minimap canvases, packs all twenty frames in their stock TILE formats, and
 produces review previews beside them. It also repaints stock `INTC` set 1011's
-25x25 Attack button as a matching green-and-gold paw flag. The build clones the
-ARA2 IMAG as private `ZCA2Capture flag`, clones the button resource as private
-`ZCICItem Icons`, and redirects their frames to appended private TILE slots,
-leaving stock ARA2 Attack, ARA4 Explore, and INTC item-icon art unchanged.
+25x25 Attack button and `CUR1` set 1005's 39x40 tactical cursor as matching
+green-and-gold paw flags. The build clones the ARA2 IMAG as private
+`ZCA2Capture flag`, clones the button resource as private `ZCICItem Icons`, and
+appends CUR1 set 1032. Existing ARA2 Attack, ARA4 Explore, INTC, and CUR1 sets
+remain visually and behaviorally unchanged.

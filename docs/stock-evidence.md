@@ -127,6 +127,22 @@ reward-adjustment paths. All unmodified commands tail-call the stock AP41
 handler. Palace AP41 retains its stock vtable and all three literal `Fl00`
 paths, so Palace Attack Flags are isolated from Zoo capture.
 
+The stock Fl00 registration constructor receives eight arguments. Its second
+argument is cursor selector 5; adjacent Fl01 passes selector 6 with otherwise
+the same cursor-selection shape. `CUR1Tactical Cursor` maps those selectors to
+animation sets 1005 and 1006, which reference Attack TILE 27 and Explore TILE
+26 respectively in all three cursor states. CUR1 already contains selectors
+through 31. The private registration therefore changes only its cloned second
+argument to selector 32, while a literal CUR1 clone appends set 1032 by copying
+set 1005's three-state record and redirecting its TILE reference to the private
+Capture cursor. All 28 original sets retain their original TILE numbers; the
+package populates those exact positional entries with byte-for-byte stock TILEs
+rather than relocating cursor art to appended indices. CUR1 TILEs mix embedded
+palettes with references into `interfacedata.cam`'s seven-entry `PALT` section,
+so the private interface CAM carries that literal table as well. This preserves
+the index-sensitive cursor mask path used when flag placement returns control
+to interface or window chrome; only set 1032 uses an appended TILE.
+
 `Restore_Capture_Flag` clones the stock overlay description and GPL
 `Flag_Attack` prototype. It retains shipped `AP46`,
 `Attack_flag_death_callback`, `RewardFlag` type, internal `Flag_Attack` title,

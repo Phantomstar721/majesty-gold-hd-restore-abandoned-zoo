@@ -23,6 +23,12 @@ Capture Flag retains its cloned stock Attack Flag lifecycle. Palace Attack
 Flags always retain the literal shipped `attack_flag_birth` lifecycle and no
 longer enter this file's conversion seam.
 
+While placing the private flag, ZCF0 uses tactical-cursor selector 32. The
+loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set
+1032, derived from Attack cursor set 1005 but repainted with the Zoo paw flag.
+Stock selectors 5/1005 and 6/1006 remain unchanged for Palace Attack and
+Explore placement.
+
 ## Monster handoff
 
 The bridge copies the complete target-protection lifecycle from stock

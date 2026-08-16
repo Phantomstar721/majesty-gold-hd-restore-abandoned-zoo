@@ -99,6 +99,29 @@ def compact_interface_imag_set_tile_index(imag: bytes, set_id: int) -> int:
     raise ValueError(f"Compact interface IMAG has no set {set_id}")
 
 
+def tactical_cursor_set_tile_indices(imag: bytes, set_id: int) -> list[int]:
+    """Return every state TILE from one stock CUR1 cursor set."""
+    set_count = struct.unpack_from("<I", imag, 20)[0]
+    for set_index in range(set_count):
+        current_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+        if current_id != set_id:
+            continue
+        direction_count = struct.unpack_from("<I", imag, set_offset)[0]
+        if direction_count <= 0 or direction_count > 32:
+            raise ValueError(f"Tactical cursor set {set_id} has invalid states")
+        result: list[int] = []
+        for direction in range(direction_count):
+            relative = struct.unpack_from(
+                "<i", imag, set_offset + 64 + direction * 4
+            )[0]
+            direction_offset = set_offset + relative + 4
+            result.append(
+                struct.unpack_from("<I", imag, direction_offset + 40)[0] & 0xFFFF
+            )
+        return result
+    raise ValueError(f"Tactical cursor IMAG has no set {set_id}")
+
+
 def single_direction_imag_tile_indices(imag: bytes) -> list[int]:
     """Return every TILE reached by the stock one-direction overlay layout."""
     if len(imag) < 24:
@@ -371,7 +394,16 @@ def validate(root: Path) -> list[str]:
     rewards_interface_images = {
         name for extension, name in rewards_interface_names if extension == b"IMAG"
     }
-    if rewards_interface_images != {b"ZOBGbuilding dialog", b"ZCICItem Icons"}:
+    rewards_palettes = cam_section_entries(rewards_interface, b"PALT")
+    if len(rewards_palettes) != 7 or any(
+        not data for _name, data in rewards_palettes
+    ):
+        errors.append("Zoo rewards interface CAM must carry all seven stock PALT entries")
+    if rewards_interface_images != {
+        b"ZOBGbuilding dialog",
+        b"ZCICItem Icons",
+        b"CUR1Tactical Cursor",
+    }:
         errors.append(
             f"Zoo rewards interface CAM has unexpected IMAG records: {sorted(rewards_interface_images)}"
         )
@@ -409,6 +441,77 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo Capture button icon is not stock 25x25 geometry")
             elif struct.unpack_from("<H", capture_icon_tile, 20)[0] != 1:
                 errors.append("Private Zoo Capture button icon lacks its embedded palette")
+        cursor_imag = cam_entry_data(
+            rewards_interface, b"IMAG", b"CUR1Tactical Cursor"
+        )
+        cursor_set_count = struct.unpack_from("<I", cursor_imag, 20)[0]
+        cursor_set_ids = [
+            struct.unpack_from("<I", cursor_imag, 24 + index * 8)[0]
+            for index in range(cursor_set_count)
+        ]
+        if cursor_set_count != 29 or len(set(cursor_set_ids)) != 29:
+            errors.append("Extended CUR1 must contain 29 unique stock-shaped cursor sets")
+        stock_cursor_indices = [
+            tile_index
+            for set_id in cursor_set_ids
+            if set_id != 1032
+            for tile_index in tactical_cursor_set_tile_indices(cursor_imag, set_id)
+        ]
+        capture_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1032)
+        all_cursor_indices = stock_cursor_indices + capture_cursor_indices
+        if any(
+            tile_index >= 2624
+            or not rewards_tiles[tile_index][1]
+            for tile_index in stock_cursor_indices
+        ):
+            errors.append("Every stock CUR1 state must retain a populated original TILE")
+        elif any(
+            tile_index < 2624
+            or tile_index >= len(rewards_tiles)
+            or not rewards_tiles[tile_index][1]
+            for tile_index in capture_cursor_indices
+        ):
+            errors.append("Private CUR1 set 1032 must reference a nonempty appended TILE")
+        else:
+            for tile_index in set(all_cursor_indices):
+                cursor_tile = rewards_tiles[tile_index][1]
+                if len(cursor_tile) < 26:
+                    errors.append("Extended CUR1 contains a truncated TILE")
+                    break
+                palette_mode = struct.unpack_from("<H", cursor_tile, 20)[0]
+                palette_value = struct.unpack_from("<I", cursor_tile, 22)[0]
+                if palette_mode == 0 and palette_value >= len(rewards_palettes):
+                    errors.append("Extended CUR1 references a missing PALT entry")
+                    break
+                if palette_mode == 1 and palette_value >= len(cursor_tile):
+                    errors.append("Extended CUR1 contains an invalid embedded palette")
+                    break
+        attack_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1005)
+        explore_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1006)
+        if any(len(indices) != 3 or len(set(indices)) != 1 for indices in (
+            attack_cursor_indices,
+            explore_cursor_indices,
+            capture_cursor_indices,
+        )):
+            errors.append("CUR1 cursor states do not share one TILE per cursor set")
+        elif attack_cursor_indices != [27, 27, 27]:
+            errors.append("Extended CUR1 changed stock Attack cursor TILE 27")
+        elif explore_cursor_indices != [26, 26, 26]:
+            errors.append("Extended CUR1 changed stock Explore cursor TILE 26")
+        elif capture_cursor_indices[0] in {
+            attack_cursor_indices[0],
+            explore_cursor_indices[0],
+        }:
+            errors.append("Private Capture cursor reuses a stock cursor TILE")
+        else:
+            capture_cursor_index = capture_cursor_indices[0]
+            capture_cursor_tile = rewards_tiles[capture_cursor_index][1]
+            if len(capture_cursor_tile) < 26 or struct.unpack_from(
+                "<H", capture_cursor_tile, 0
+            )[0] != 3:
+                errors.append("Private Zoo Capture cursor is not a V3 TILE")
+            elif struct.unpack_from("<HH", capture_cursor_tile, 2) != (40, 39):
+                errors.append("Private Zoo Capture cursor changed stock 39x40 geometry")
     help_names = cam_names(root / "Data" / "restore_zoo_gpltext.cam")
     if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
         errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")

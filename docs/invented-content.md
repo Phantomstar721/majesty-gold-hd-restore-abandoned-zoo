@@ -81,6 +81,20 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   set table and redirects only set 1011 to one appended embedded-palette V1
   TILE. The stock teal button frame is preserved while its tiny red
   crossed-blade flag is repainted green with a gold paw.
+- The Capture placement cursor's selector 32, `CUR1` set 1032, and 39x40
+  green-and-gold paw-flag TILE are new private presentation content. Stock
+  `Fl00` passes selector 5, which maps to CUR1 set 1005/TILE 27; stock `Fl01`
+  passes selector 6, mapping to set 1006/TILE 26. Because the tactical cursor
+  renderer fixes the resource token to `CUR1`, the mod emits a complete literal
+  CUR1 clone with only set 1032 appended and changes only ZCF0's cloned cursor
+  argument from 5 to 32. Because a CAM-local IMAG cannot safely refer through
+  empty positional TILE slots, every stock TILE referenced by CUR1 is populated
+  at its original index with literal stock bytes; all 28 original CUR1 sets
+  retain their original TILE numbers. Only set 1032 points to appended new art.
+  The same CAM carries the literal seven stock `PALT` entries required by
+  non-embedded CUR1 TILEs. Palace selectors and their rendered art remain
+  unchanged. This is the narrow stock-shaped extension necessary for a Zoo-only
+  cursor rather than a recovered Zoo design.
 - `ZOO1`, `ZOO2`, and `ZOO3` are private unit-description IDs. This avoids the
   existing stock Sewer Entrance ID `ABN1`; recovered `ABn1`–`ABn3` remain art
   references only.

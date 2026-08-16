@@ -17,6 +17,7 @@ $PrivateVtableOffset = 0x160
 $ModeRegistrationOffset = 0x1C0
 $CaptureCallbackOffset = 0x240
 $CapturePrototypeNameOffset = 0x420
+$CaptureCursorSelector = 0x20
 
 $FactoryHookOffset = 0x10A020
 $FactoryHookVa = 0x0050AC20
@@ -260,9 +261,15 @@ function New-CaptureCallback {
 }
 
 function New-CaptureModeRegistration {
-    param([byte[]]$Bytes, [uint32]$RegistrationVa, [uint32]$CallbackVa)
+    param(
+        [byte[]]$Bytes,
+        [uint32]$RegistrationVa,
+        [uint32]$CallbackVa,
+        [byte]$CursorSelector
+    )
     [byte[]]$registration = $Bytes[$Fl00RegistrationOffset..($Fl00RegistrationOffset + $Fl00RegistrationLength - 1)]
     if ($registration[0x20] -ne 0x68 -or (Read-U32 $registration 0x21) -ne $StockCaptureCallbackVa -or
+        $registration[0x2E] -ne 0x6A -or $registration[0x2F] -ne 0x05 -or
         $registration[0x30] -ne 0x68 -or (Read-U32 $registration 0x31) -ne 0x30306C46) {
         throw "Stock Fl00 placement-mode registration changed."
     }
@@ -270,6 +277,7 @@ function New-CaptureModeRegistration {
     [BitConverter]::GetBytes($CallbackVa).CopyTo($registration, 0x21)
     [byte[]]$captureMode = @(0x5A,0x43,0x46,0x30) # ZCF0
     $captureMode.CopyTo($registration, 0x31)
+    $registration[0x2F] = $CursorSelector
     Write-Bytes $registration 0x02 (New-RelativeInstruction 0xE8 ([uint32]($RegistrationVa + 0x02)) $OperatorNewVa)
     Write-Bytes $registration 0x37 (New-RelativeInstruction 0xE8 ([uint32]($RegistrationVa + 0x37)) 0x0059D1E0)
     Write-Bytes $registration 0x44 (New-RelativeInstruction 0xE8 ([uint32]($RegistrationVa + 0x44)) 0x0059EF30)
@@ -283,7 +291,7 @@ function New-CaptureModeRegistration {
 }
 
 function New-PatchBlob {
-    param([byte[]]$Bytes, [uint32]$PatchVa)
+    param([byte[]]$Bytes, [uint32]$PatchVa, [byte]$CursorSelector)
     [byte[]]$blob = New-Object byte[] $PatchRawSize
     [byte[]]$dispatch = @(
         0x8B,0x44,0x24,0x04,             # mov eax,[esp+4]
@@ -326,7 +334,7 @@ function New-PatchBlob {
     $registrationVa = [uint32]($PatchVa + $ModeRegistrationOffset)
     $callbackVa = [uint32]($PatchVa + $CaptureCallbackOffset)
     $prototypeNameVa = [uint32]($PatchVa + $CapturePrototypeNameOffset)
-    Write-Bytes $blob $ModeRegistrationOffset (New-CaptureModeRegistration $Bytes $registrationVa $callbackVa)
+    Write-Bytes $blob $ModeRegistrationOffset (New-CaptureModeRegistration $Bytes $registrationVa $callbackVa $CursorSelector)
     Write-Bytes $blob $CaptureCallbackOffset (New-CaptureCallback $Bytes $callbackVa $prototypeNameVa)
     [Text.Encoding]::ASCII.GetBytes("Restore_Capture_Flag`0").CopyTo($blob, $CapturePrototypeNameOffset)
     [Text.Encoding]::ASCII.GetBytes("RestoreAbandonedZoo.ZC01.ZCF0").CopyTo($blob, 0x190)
@@ -367,7 +375,8 @@ elseif ($section.Characteristics -ne $SectionCharacteristics -or
 }
 
 $patchVa = [uint32]($pe.ImageBase + $section.Rva)
-[byte[]]$payload = New-PatchBlob $bytes $patchVa
+[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector
+[byte[]]$previousPayload = New-PatchBlob $bytes $patchVa 0x05
 [byte[]]$legacyPayload = New-LegacyPatchBlob $patchVa
 [byte[]]$factoryHook = New-RelativeInstruction 0xE9 $FactoryHookVa ([uint32]($patchVa + $PrivateFactoryHookOffset))
 $factoryHook += [byte[]]@(0x90)
@@ -383,13 +392,15 @@ $dispatchIsPatched = Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatch
 $modeRegistryIsStock = Test-BytesEqual $bytes $ModeRegistryHookOffset $StockModeRegistryHook
 $modeRegistryIsPatched = Test-BytesEqual $bytes $ModeRegistryHookOffset $modeRegistryHook
 $payloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $payload)
+$previousPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $previousPayload)
 $legacyPayloadMatches = -not $sectionIsNew -and (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
 $payloadIsZero = -not $sectionIsNew -and (Test-ZeroRange $bytes $section.RawOffset $section.RawSize)
 $installed = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $payloadMatches
+$cursorUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $previousPayloadMatches
 $legacyInstalled = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsStock -and $legacyPayloadMatches
 $installable = $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy)
 $reactivatable = -not $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy) -and $payloadIsZero
-if (-not ($installed -or $legacyInstalled -or $installable -or $reactivatable)) {
+if (-not ($installed -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
     throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch; refusing to overwrite it."
 }
 
@@ -402,7 +413,7 @@ if ($installed) {
     Write-Host "MajestyHD.exe: the private ZC01/ZCF0 placement lifecycle is already installed."
 }
 elseif ($DryRun) {
-    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through private ZCF0 placement." -f $(if ($legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
+    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through private ZCF0 placement." -f $(if ($cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before installing the Zoo Capture Flag." }

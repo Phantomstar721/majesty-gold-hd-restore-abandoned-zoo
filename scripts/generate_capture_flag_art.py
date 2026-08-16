@@ -30,6 +30,9 @@ OUTPUT_DIR = REPO_ROOT / "assets" / "generated" / "capture-flag"
 STOCK_IMAGE = b"ARA2flag attack"
 STOCK_BUTTON_IMAGE = b"INTCItem Icons"
 STOCK_BUTTON_TILE = 92
+STOCK_CURSOR_IMAGE = b"CUR1Tactical Cursor"
+STOCK_ATTACK_CURSOR_SET = 1005
+STOCK_ATTACK_CURSOR_TILE = 27
 STOCK_SPECIAL_TILES = tuple(range(16655, 16667))
 STOCK_MINIMAP_TILES = tuple(range(16667, 16671))
 STOCK_INTERFACE_TILES = tuple(range(16671, 16675))
@@ -333,6 +336,15 @@ def capture_button_icon(
     return result
 
 
+def capture_cursor_icon(
+    source: Image.Image,
+    green: tuple[int, int, int],
+    gold: tuple[int, int, int],
+) -> Image.Image:
+    """Repaint stock CUR1 set 1005 while retaining its cursor silhouette."""
+    return capture_world_frame(source, green, gold)
+
+
 def interface_master() -> Image.Image:
     source = Image.open(SOURCE_INTERFACE).convert("RGB")
     fitted = ImageOps.fit(source, (100, 100), method=Image.Resampling.LANCZOS)
@@ -374,13 +386,15 @@ def generate(game_path: Path) -> None:
     interface_cam = game_path / "Data" / "interfacedata.cam"
     stock.read_cam_entry(source_cam, b"IMAG", STOCK_IMAGE)
     stock.read_cam_entry(interface_cam, b"IMAG", STOCK_BUTTON_IMAGE)
+    stock.read_cam_entry(interface_cam, b"IMAG", STOCK_CURSOR_IMAGE)
     tiles = stock.read_cam_entries(source_cam, b"TILE")
     palettes = stock.read_cam_entries(source_cam, b"SPLT")
     interface_tiles = stock.read_cam_entries(interface_cam, b"TILE")
+    interface_palettes = stock.read_cam_entries(interface_cam, b"PALT")
     if len(tiles) <= STOCK_INTERFACE_TILES[-1] or len(palettes) <= CAPTURE_WORLD_PALETTE:
         raise ValueError(f"Stock flag art tables are incomplete in {source_cam}")
-    if len(interface_tiles) <= STOCK_BUTTON_TILE:
-        raise ValueError(f"Stock Capture button art is missing from {interface_cam}")
+    if len(interface_tiles) <= max(STOCK_BUTTON_TILE, STOCK_ATTACK_CURSOR_TILE):
+        raise ValueError(f"Stock Capture UI art is missing from {interface_cam}")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     green, gold = master_palette()
@@ -434,6 +448,19 @@ def generate(game_path: Path) -> None:
         embedded_v1_from_rgba(button_template, button),
     )
 
+    cursor_template = interface_tiles[STOCK_ATTACK_CURSOR_TILE].data
+    cursor = capture_cursor_icon(
+        render_indexed_v3(stock, cursor_template, interface_palettes),
+        green,
+        gold,
+    )
+    cursor_path = OUTPUT_DIR / "capture-cursor-40.png"
+    cursor.save(cursor_path)
+    write_tile(
+        OUTPUT_DIR / "capture-cursor-40.tile",
+        stock.tile_from_png_native_size(cursor_template, interface_palettes, cursor_path),
+    )
+
     preview = Image.new("RGB", (400, 100), (22, 22, 22))
     for frame, image in enumerate(variants):
         preview.paste(image, (frame * 100, 0))
@@ -453,7 +480,7 @@ def generate(game_path: Path) -> None:
         )
     world_preview.save(OUTPUT_DIR / "capture-flag-world-preview.png")
     print(
-        "Generated 12 world, 4 minimap, 4 interface, and 1 button "
+        "Generated 12 world, 4 minimap, 4 interface, 1 button, and 1 cursor "
         f"Capture Flag frames in {OUTPUT_DIR}"
     )
 
