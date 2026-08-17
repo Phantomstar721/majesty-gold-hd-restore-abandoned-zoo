@@ -59,7 +59,10 @@ statement order at the lethal callback boundary:
 7. set the abandoned HealingRateModifier value of 1;
 8. on success, replace only the stock controlled monster's eventual
    `BackScript` with the private Hooligan-to-Zoo handoff;
-9. delete the Capture Flag after the attempt.
+9. resume the engine-paused active thread using the literal operation from the
+   stock `monster_gravestone` corpse tail, now that `Control_Monster` has
+   redirected it to `fake_wander`;
+10. delete the Capture Flag after the attempt.
 
 The abandoned source writes `subdue_percentage` but reads the expansion-only
 `charm_percentage` field, and Original `RewardFlag` declares neither. A focused
@@ -90,9 +93,11 @@ the real stock `Control_Monster`, `fake_wander`, and `Become_Controlled`:
    death callback, and transfers player ownership;
 2. the private bridge normalizes Original's temporary `Dead` value to GPLMx's
    corrected `Hidden` value;
-3. stock waits the shipped `Charm_Delay_Time` of 3300 ms and runs
+3. the bridge uses stock `ResumeThread(ActiveScript)` at the lethal boundary,
+   allowing the redirected `fake_wander` lifecycle to advance;
+4. stock waits the shipped `Charm_Delay_Time` of 3300 ms and runs
    `Become_Controlled`;
-4. the target's private BackScript then removes `Charm_icon`, releases the
+5. the target's private BackScript then removes `Charm_icon`, releases the
    temporary follower count, changes Controlled to Hooligan, and activates the
    proven delivery lifecycle.
 

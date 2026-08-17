@@ -489,6 +489,13 @@ begin
 	thisagent's "Target" = zoo;
 	thisagent's "BackScript" = $Restore_Controlled_To_Hooligan;
 
+	// monster_gravestone is entered at the engine's lethal boundary. Its stock
+	// corpse tail explicitly resumes the unit's paused ActiveScript before
+	// redirecting it; successful Zoo control must do the same after
+	// Control_Monster redirects that script to fake_wander, or the shipped
+	// charm delay cannot advance into Become_Controlled and BackScript.
+	$ResumeThread ( thisagent's "ActiveScript" );
+
 	// The flag's stock death cleanup resets its seekers. Delete it before
 	// latching the one Control_Monster hero to the arrest task.
 	$DeleteGamePiece ( flag );

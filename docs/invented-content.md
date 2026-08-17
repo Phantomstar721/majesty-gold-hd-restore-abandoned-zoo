@@ -147,6 +147,13 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   touch those fields. After the recovered Zoo check succeeds, the existing
   private `Control_Monster` BackScript seam activates the proven
   Hooligan-to-Zoo delivery. No watcher or deferred controller is active.
+- The abandoned success branch calls `Control_Monster` from the lethal boundary
+  but omits the `ResumeThread(ActiveScript)` operation present in the same
+  stock `monster_gravestone` corpse tail. Without it, live testing reached the
+  allied charm state but did not advance into the delayed BackScript handoff.
+  The private bridge now applies that exact stock resume operation after
+  `Control_Monster` redirects ActiveScript to `fake_wander`; it adds no new
+  lifecycle, timer, or polling state.
 - Original declares neither `Monster.zoo_agent` nor
   `RewardFlag.charm_percentage`. A focused saved-state trace proved that the
   first missing-field write aborted private flag Birth. A second focused trace
