@@ -83,7 +83,7 @@
 			<CanUse value="HumanPlayer"/>
 			<Menu value="11"/>
 			<ImageIDBase value="ZCA2"/>
-			<Script type="0" cProc="0" GPLFunction="Attack_flag_death_callback"/>
+			<Script type="0" cProc="0" GPLFunction="Restore_Capture_Flag_Death_Callback"/>
 			<DefaultSound value="0"/>
 		</Engine>
 		<Game version="1">

@@ -12,6 +12,7 @@ function DEAL_DEMON()
 declare
 	agent AIRootAgent,palace,guild,lair;
 	list guilds,palaces,lairs;
+	integer treasury_gold;
 
 begin
 	AIRootAgent = $RetrieveAgent ("GplAIRoot");
@@ -19,6 +20,11 @@ begin
 
 	palaces = $ListPalaces();
 	palace = $listmember(palaces,1);
+
+	// Focused capture test fixture: use the stock player-data adjustment shape
+	// to set player one's treasury to exactly 90,000 gold.
+	treasury_gold = $GetPlayerData ( palace, "gold" );
+	$AdjustPlayerData ( palace, "gold", 90000 - treasury_gold );
 
 	// Stock Dead Heroes event completed-building spawn shape, using Zoo 1.
 	$SpawnUnit (Palace, "Restore_Zoo1", "MaxHP", $RandomCoord (Palace, 200) );

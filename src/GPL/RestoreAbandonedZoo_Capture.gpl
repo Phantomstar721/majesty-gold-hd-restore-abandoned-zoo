@@ -1,16 +1,20 @@
 ///////////////////////////////////////////////////////////////////////////////
-// Restore Abandoned Zoo: isolated stock Hooligan diagnostic
+// Restore Abandoned Zoo: stock Zoo capture front half plus Hooligan delivery
 //
-// A completed player Zoo enables the stock Attack Flag trigger which hands a
-// living Monster to the Wizard's Curse Hooligan lifecycle.  The stock arrest
-// handoff is applied directly to one hero; no persistent hero wrapper remains
-// after the Hooligan target is stored or abandoned.
+// The private Capture Flag preserves its target's own death callback.  Lethal
+// damage runs the abandoned expansion Zoo roll and actual Control_Monster
+// lifecycle; a successful control then enters the already-proven Wizard's
+// Curse Hooligan return and Mausoleum-shaped Zoo storage lifecycle.
 ///////////////////////////////////////////////////////////////////////////////
 
 // DataMX/mx_gpltext.cam reserves slots 177-199 as "empty".  Use one of those
 // shipped placeholders for the Zoo occupant intent without replacing a live
 // stock intent or quest message.
 expression #intent_waiting_in_zoo 199
+
+// GPLMx/mx_Globals.gpl ships this exact value only in the expansion rules.
+// Keep a private name so this base="Any" package compiles for Original too.
+expression #restore_zoo_flag_radius 300
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -179,47 +183,89 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Hooligan_Control_Delay ( agent thisagent )
+function Restore_Latch_Hooligan_To_Hero (
+	agent thisagent, agent hero ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
-// Literal fake_wander timing from stock Control_Monster.  Its Hidden type and
-// transferred player ownership make existing friendly attackers drop it before
-// the Hooligan arrest lifecycle becomes visible.
+// Apply the literal successful Hooligan_Check -> Be_Dumb writes to the one hero
+// selected by stock zoo_flag_check/Control_Monster.
 declare
+	agent zoo;
 begin
-	thisagent's "Counter" ++;
+	zoo = thisagent's "Target";
+	if ( $IsValidGamePiece ( hero ))
+		if ( $IsDead ( hero ) == FALSE )
+			if ( hero's "SubType" == "Hero" )
+				if ( hero's "ActiveScript" != $Arrest_Hooligan )
+					if ( hero's "BackScript" != $Arrest_Hooligan )
+						begin
+							thisagent's "leader" = hero;
+							$SpecifyIntent ( hero, #intent_arresting_hooligan );
+							hero's "Target" = thisagent;
+							hero's "Counter" = 0;
+							hero's "ActiveScript" = $Arrest_Hooligan;
+							if ( $IsValidGamePiece ( zoo ))
+								$Restore_Refresh_Zoo_Capacity ( zoo );
+							return TRUE;
+						end
 
-	if ( thisagent's "Counter" * #Normal_Cycle >= #Charm_Delay_Time )
-		begin
-			thisagent's "ActiveScript" = $Restore_Become_Hooligan;
-		end
-	else
-		begin
-			if ( $IsMoving ( thisagent ) == FALSE )
-				$Move ( thisagent, $RandomCoord ( thisagent, 300 ));
-		end
+	return FALSE;
 end
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Become_Hooligan ( agent thisagent )
+function Restore_Controlled_To_Hooligan ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
-// Literal Become_Controlled completion shape, with Hooligan replacing
-// Controlled and the already-proven single-hero arrest handoff appended.
+// Control_Monster has now completed its literal fake_wander ->
+// Become_Controlled lifecycle and invoked this function through BackScript.
+// Release the temporary controlled-follower bookkeeping, then apply the proven
+// Hooligan delivery data without replacing the stock control delay.
 declare
+	agent hero, zoo;
 begin
 	if ( $IsDead ( thisagent ))
 		return;
 
-	thisagent's "Type" = "Hooligan";
-	thisagent's "ActiveScript" = thisagent's "BackScript";
-	thisagent's "BasicScript" = thisagent's "BackScript";
-	thisagent's "StartingScript" = thisagent's "BackScript";
+	hero = thisagent's "leader";
+	zoo = thisagent's "Target";
 
-	// Target retains the Zoo selected by the stock-shaped admission check. It
-	// is the captive's reservation until arrival adds the Occupants entry.
+	if ( $IsValidGamePiece ( hero ))
+		if ( hero's "Num_Followers" > 0 )
+			( hero's "Num_Followers" ) --;
+
+	$DeleteEffector ( thisagent, "Charm_icon" );
+	$StopMoving ( thisagent );
 	$ClearList ( thisagent's "Hostiles" );
+
+	thisagent's "Type" = "Hooligan";
+	thisagent's "Original_Type" = "Monster";
+	thisagent's "SubType" = "Hooligan";
+	thisagent's "EnemyType" = "hero";
+	thisagent's "Idle_action" = "basic_idle";
+	thisagent's "attack_action" = "do_nothing";
+	thisagent's "Guardian_Mod" = 3;
+	thisagent's "coord_home" = $LocationOf ( thisagent );
+	thisagent's "Special_Boolean" = FALSE;
+	thisagent's "Target" = zoo;
+	thisagent's "StartingScript" = $Restore_Hooligan_Basic;
+	thisagent's "BasicScript" = $Restore_Hooligan_Basic;
+	thisagent's "BackScript" = $Restore_Hooligan_Basic;
+	thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
+	thisagent's "IGDeathScript" = $Restore_Captive_Hooligan_Death;
+
+	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
+	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
 	$SetThreadInterval ( thisagent's "ActiveScript", #Henchmen_Cycle );
 
-	$Restore_Assign_Hooligan ( thisagent, $NullAgent ());
+	if ( $Restore_Is_Latched_Capture ( thisagent ) == FALSE )
+		begin
+			if ( $Restore_Assign_Hooligan ( thisagent, hero ) == FALSE )
+				// The stock-selected controller may already own an arrest.
+				// Clear it only after releasing Num_Followers so Basic can
+				// retry every free hero, including this one once it is free.
+				thisagent's "leader" = $NullAgent ();
+		end
+
+	if ( $IsValidGamePiece ( zoo ))
+		$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -423,50 +469,97 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Convert_To_Stock_Hooligan (
-	agent thisagent, agent flag, agent zoo )
+function Restore_Begin_Stock_Zoo_Control (
+	agent thisagent, agent flag, agent zoo, agent hero )
 ///////////////////////////////////////////////////////////////////////////////
-// Apply the literal Hooligan data fields through Control_Monster's stock
-// Hidden/ownership-transfer lifecycle.  Existing player minions therefore
-// stop attacking before the private Hooligan_Basic clone becomes active.
+// Preserve the complete surviving Zoo success branch: one-third HP followed
+// by the selected ruleset's actual Control_Monster.  BackScript is the private
+// seam that runs only after stock fake_wander -> Become_Controlled completes.
 declare
 begin
-	$StopMoving ( thisagent );
-	$ClearList ( thisagent's "Hostiles" );
-	thisagent's "SubType" = "Hooligan";
-	thisagent's "EnemyType" = "hero";
-	thisagent's "Idle_action" = "basic_idle";
-	thisagent's "attack_action" = "do_nothing";
-	thisagent's "Guardian_Mod" = 3;
-	thisagent's "coord_home" = $LocationOf ( thisagent );
-	thisagent's "Special_Boolean" = FALSE;
-	thisagent's "Target" = zoo;
+	$SetAttribute ( thisagent, #ATTRIB_HP,
+		$GetAttribute ( thisagent, #ATTRIB_MaxHP ) / 3 );
+	$Control_Monster ( hero, thisagent );
 
-	// Stock Control_Monster uses this temporary Hidden state specifically so
-	// other units stop attacking the target, then transfers it to the
-	// controller's player before the delayed controlled state becomes active.
-	thisagent's "ActiveScript" = $Restore_Hooligan_Control_Delay;
+	// Original Control_Monster temporarily used Dead; GPLMx corrected that to
+	// Hidden. Use the corrected stock state in both selected rulesets so the
+	// engine does not treat a successful capture as a corpse during the delay.
 	thisagent's "Type" = "Hidden";
-	thisagent's "Counter" = 0;
-	thisagent's "BackScript" = $Restore_Hooligan_Basic;
-	thisagent's "IGDeathScript" = $Restore_Captive_Hooligan_Death;
-	$SetUnitPlayerNumber (
-		thisagent, $GetUnitPlayerNumber ( flag ));
+	thisagent's "SubType" = "Hooligan";
+	thisagent's "Target" = zoo;
+	thisagent's "BackScript" = $Restore_Controlled_To_Hooligan;
 
+	// The flag's stock death cleanup resets its seekers. Delete it before
+	// latching the one Control_Monster hero to the arrest task.
+	$DeleteGamePiece ( flag );
+	$Restore_Latch_Hooligan_To_Hero ( thisagent, hero );
 	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
 	$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Get_Attached_Capture_Flag ( agent thisagent ) is agent
+///////////////////////////////////////////////////////////////////////////////
+// GPLMx stored the Zoo flag directly in Monster.zoo_agent. Original does not
+// declare that expansion-only field. At the same monster_gravestone boundary,
+// use the stock reward enumeration and TargetID relation to recover only the
+// private flag that is still attached to this monster.
+declare
+	list flags;
+	agent flag;
+begin
+	$ListObjects ( thisagent, "RewardFlag", -1, flags, #RewardFlags );
+	foreach flag in flags do
+		begin
+			if ( flag's "SubType" == "Capture_Flag" )
+				if ( $AgentNumber (
+						$GetAttribute ( flag, #ATTRIB_TargetID )) == thisagent )
+					return flag;
+		end
+
+	return $NullAgent ();
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function monster_gravestone ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal GPLMx monster_gravestone Zoo interception and stock failure tail.
+// The sole Original compatibility seam replaces Monster.zoo_agent with the
+// private attached-flag lookup above.
+declare
+	boolean deadflag;
+	agent zoo_agent;
+begin
+	deadflag = TRUE;
+	$StopMoving ( thisagent );
+
+	zoo_agent = $Restore_Get_Attached_Capture_Flag ( thisagent );
+	if ( $IsValidGamePiece ( zoo_agent ))
+		if ( $Restore_Stock_Zoo_Flag_Check (
+			thisagent, zoo_agent ) == TRUE )
+			deadflag = FALSE;
+
+	if ( deadflag == TRUE )
+		begin
+			$DropGoldInRadius (
+				thisagent, $GetAttribute ( thisagent, #ATTRIB_Gold ));
+			thisagent's "Type" = "Dead";
+			$ResumeThread ( thisagent's "ActiveScript" );
+			thisagent's "ActiveScript" = $be_dead_2;
+			$SetThreadInterval (
+				thisagent's "ActiveScript", #gravestone_lifespan );
+			$PerformAction ( thisagent, "basic_death", thisagent );
+		end
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Capture_Flag_Birth ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
-// Private literal clone of GPLMx attack_flag_birth.  The sole Zoo seam converts
-// a live Monster immediately, before combat or any death callback.  The private
-// Capture Flag remains on its target under the cloned stock poll/death lifecycle.
-// Stock Flag_Attack retains its shipped birth.
+// Literal stock attack_flag_birth. Capture begins only from the stock GPLMx
+// monster_gravestone interception above, leaving target callbacks untouched.
 declare
-	agent target, zoo;
+	agent target;
 	integer flagplayer, targetplayer;
 begin
 	$NewThread ( thisagent's "ActiveScript", #flag_Cycle, thisagent );
@@ -483,16 +576,135 @@ begin
 				begin
 					$setplayerteamnumber ( thisagent, $newteamnumber () );
 				end
+end
 
-	if ( $isvalidgamepiece ( target ))
-		if ( $isdead ( target ) == FALSE )
-			if ( target's "Type" == "Monster" )
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Capture_Flag_Poll ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal abandoned zoo_flag_poll. Unlike attack_flag_poll it does not pay or
+// delete on target death; the target's scoped death callback owns the attempt.
+declare
+	list new_heroes;
+	agent hero;
+begin
+	if ( $IsValidGamePiece ( thisagent ) == FALSE )
+		return;
+
+	if ( $ListSize ( thisagent's "heroes" ) > 0 )
+		begin
+			foreach hero in thisagent's "heroes" do
 				begin
-					zoo = $Restore_Find_Available_Zoo ( thisagent );
-					if ( $IsValidGamePiece ( zoo ))
-					begin
-						$Restore_Convert_To_Stock_Hooligan (
-							target, thisagent, zoo );
-					end
+					if ( $IsDead ( hero ) == FALSE )
+						if ( hero's "Target" == $AgentNumber (
+							$GetAttribute ( thisagent, #ATTRIB_TargetID )))
+							new_heroes << hero;
+						else
+							$ClearFlag ( hero );
 				end
+		end
+
+	thisagent's "heroes" = new_heroes;
+	$SetAttribute (
+		thisagent, #ATTRIB_FlagSeekers, $ListSize ( new_heroes ));
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Capture_Flag_Death_Callback ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal abandoned zoo_flag_death_callback. Capture is called manually from
+// monster_gravestone; automatic parent cleanup or player cancellation only
+// deletes the private overlay.
+declare
+begin
+	$DeleteGamePiece ( thisagent );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Capture_Flag_Death ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal abandoned Zoo flag seeker cleanup.
+declare
+	agent hero, target;
+begin
+	target = $AgentNumber (
+		$GetAttribute ( thisagent, #ATTRIB_TargetID ));
+
+	if ( $ListSize ( thisagent's "heroes" ) > 0 )
+		begin
+			foreach hero in thisagent's "heroes" do
+				begin
+					if ( $IsDead ( hero ) == FALSE )
+						if ( hero's "Target" == target )
+							$Reset_Tasks ( hero );
+				end
+		end
+end
+
+///////////////////////////////////////////////////////////////////////////////
+// Literal abandoned GPLMx Zoo capture deployment
+//
+// These functions preserve the statement order in:
+//   GPLMx/TaskModules/Buildings/Zoo.gpl
+//   GPLMx/mx_Monster_Deaths.gpl
+//
+// Original rules lack both expansion-only fields used by the abandoned source.
+// The private overlay death callback supplies its exact flag directly and the
+// check computes the unchanged formula locally. No global or target state is
+// added.
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Stock_Zoo_Flag_Check (
+	agent thisagent, agent zoo_agent ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+declare
+	agent hero, zoo;
+	boolean valid_hero, subdueflag;
+	integer cash, target_strength, charm_percentage;
+	list heroes, valid_heroes;
+begin
+	subdueflag = FALSE;
+
+	if ( $IsValidGamePiece ( zoo_agent ))
+		begin
+			cash = $GetAttribute ( zoo_agent, #ATTRIB_RewardCost );
+			target_strength = $GetAttribute ( thisagent, #ATTRIB_MaxHP );
+			charm_percentage = 50 * (
+				$Sqrt (( cash / 20.0 ) / target_strength ));
+			if ( charm_percentage > 95 )
+				charm_percentage = 95;
+			if (( $RandomNumber ( 100 ) + 1 ) < charm_percentage )
+				begin
+					heroes = $ListSubtypesInRadius (
+						thisagent, "hero", "hero", #restore_zoo_flag_radius );
+					foreach hero in heroes do
+						begin
+							if ( $IsDead ( hero ) == FALSE )
+								begin
+									valid_heroes << hero;
+									valid_hero = TRUE;
+								end
+						end
+
+					if ( valid_hero == TRUE )
+						begin
+							hero = $ListMember ( valid_heroes, 1 );
+							zoo = $Restore_Find_Available_Zoo ( zoo_agent );
+							if ( $IsValidGamePiece ( zoo ))
+								begin
+									$Restore_Begin_Stock_Zoo_Control (
+										thisagent, zoo_agent, zoo, hero );
+									$SetAttribute (
+										thisagent,
+										#ATTRIB_HealingRateModifier, 1 );
+									subdueflag = TRUE;
+								end
+						end
+				end
+
+			// The overlay callback owns failure cleanup. The success bridge
+			// consumes the flag before latching the selected hero.
+		end
+
+	return subdueflag;
 end

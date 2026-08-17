@@ -187,12 +187,13 @@ to interface or window chrome; only set 1032 uses an appended TILE.
 
 `Restore_Capture_Flag` clones the stock overlay description and GPL
 `Flag_Attack` prototype. It retains shipped `AP46`,
-`Attack_flag_death_callback`, `RewardFlag` type, internal `Flag_Attack` title,
-`attack_flag_poll`, and `attack_flag_death`. Keeping the internal title is
-required because shipped hero reward evaluation recognizes attack work by
-testing `flag.title == "flag_attack"`. Only the prototype identity, private
-image selection, and birth function are private. Stock `attack_flag_birth` is
-no longer overridden.
+`RewardFlag` type, internal `Flag_Attack` title, and hero bookkeeping fields.
+Keeping the internal title is required because shipped hero reward evaluation
+recognizes attack work by testing `flag.title == "flag_attack"`. Its birth,
+poll, target-death callback, and manual-death functions are private clones of
+the abandoned Zoo lifecycle so a lethal event attempts capture rather than
+paying the ordinary Attack Flag bounty. Stock `Flag_Attack` and
+`attack_flag_birth` are not overridden.
 
 ## Private Capture Flag art clone
 
@@ -233,12 +234,11 @@ stock. `ZCICItem Icons` retains the complete stock INTC set table and redirects
 only set 1011 to one appended private TILE. Stock INTC and all its consumers
 remain unchanged.
 
-The private birth originally deleted the Capture Flag immediately after the
-Hooligan conversion. Stock `attack_flag_birth` does not delete its flag; it
-starts `attack_flag_poll`, initializes `gavereward`, and leaves deletion to the
-stock target-death, manual-death, and cleanup lifecycle. Removing that one
-private deletion restores the stock ownership shape and keeps ZCA2 attached to
-the converted target without adding any timer, watcher, or alternate cleanup.
+The private birth originally converted the monster immediately. The restored
+front half instead keeps ZCA2 attached while the monster remains hostile and
+uses the abandoned `zoo_flag_poll` seeker cleanup. The target's death callback
+remains untouched; the private overlay's stock-native engine callback owns the
+capture attempt and flag cleanup.
 
 ## Confirmed GPL prototypes
 
@@ -274,11 +274,9 @@ capture lifecycle:
 - cancellation and polling clean pursuing heroes' tasks.
 
 That module does not provide a working player-facing dispatcher, flag unit
-description, private placement wiring, or completed UI control. The current
-milestone does not attempt to restore its death interception or charm
-lifecycle. The private Capture Flag instead supplies the isolated stock
-Hooligan test, enabled by the standard completed-building query for a
-player-owned Zoo.
+description, private placement wiring, or completed UI control. The private
+Capture Flag now supplies those missing front-end pieces and scopes lethal
+interception to only its current target.
 
 The earlier Reward Flag binding probe proved the conversion seam when it was
 temporarily attached to `attack_flag_birth`. The private
@@ -287,28 +285,51 @@ testing: `$ListObjects` from the flag, type `Building`, followed by
 `#MyPlayer`, title `Zoo`, and `FirstStageBuilt == 1` in stock Mausoleum order.
 The shipped `attack_flag_birth` binding is no longer replaced.
 
-`mx_Monster_Births.gpl` and `mx_Monster_Deaths.gpl` are not overridden in this
-milestone. Monster spawning and all ordinary lethal events therefore remain
-owned by the selected stock ruleset.
+The active trigger restores GPLMx's `monster_gravestone` interception at the
+same point as the abandoned source. Its failure branch is the literal stock
+gold, Dead-type, thread-resume, `be_dead_2`, interval, and `basic_death` tail.
+An earlier global attempt entered missing expansion-only fields and aborted,
+leaving monsters half-dead; the current gate never reads those fields.
+
+The direct `zoo_agent` read is recovered, not inferred, but it cannot be used
+under Original rules: `Monster` there declares no such field. The compatibility
+clone instead performs stock RewardFlag enumeration at the earlier
+`monster_gravestone` boundary and selects only subtype `Capture_Flag` whose
+engine-owned `TargetID` resolves to the dying monster. This adds no persistent
+state. Its `Flag_Attack` title remains unchanged because stock hero evaluation
+checks that title. The later overlay callback is the literal abandoned
+`zoo_flag_death_callback` and only deletes the flag.
 
 The surviving `Set_Subdue_Chance` contains a definite field-name mismatch: it
 writes `subdue_percentage`, while `zoo_flag_check` reads
 `charm_percentage` and `mx_prototype.gpl` declares only the latter on
-`RewardFlag`. That probability path is not active in this milestone.
+`RewardFlag`. Original declares neither field. The focused `ZooTrace.GMP` save
+contained the private flag and its Birth/Death functions but neither missing
+field nor the target callback, proving that the first expansion-only write
+aborted Birth. The active clone now computes the unchanged RewardCost/MaxHP
+formula and 95% cap directly at the lethal event. The one-shot attached-flag
+lookup is the required Original-rules compatibility repair around the recovered
+check.
 
-The abandoned success branch sets HP without complete engine-death and task
-ownership. Earlier experiments around that gap have been removed. This
-milestone transforms only a still-living agent and contains no resurrection or
-death-state manipulation.
+The abandoned success branch sets one-third HP before calling the actual stock
+`Control_Monster`. It does not call `ClearEngineDeathFlags`, Agrela, Phoenix, or
+any resurrection path. Failure runs the literal stock gravestone tail; success
+suppresses it exactly as GPLMx `monster_gravestone` intended.
+The private seam
+then changes only the controlled target's eventual BackScript so the completed
+stock delayed-control transition enters the already-proven Hooligan-to-Zoo
+delivery lifecycle.
 
 `TaskModules/Subtasks/mx_Control_Monster.gpl` supplies the stock protection
-lifecycle for a living creature changing sides. `Control_Monster` comments that
-its temporary setup exists so other units stop attacking the target, assigns
-`Type = Hidden`, transfers the target to the controller's player, and leaves
-the target's existing active thread running `fake_wander`. After the shipped
-3300 ms `Charm_Delay_Time`, `Become_Controlled` exposes the allied Hero type and
-clears the target and Hostiles. The Zoo bridge copies that sequence, changing
-only the final exposed type and script from Controlled to Hooligan arrest.
+lifecycle for a creature changing sides. `Control_Monster` comments that its
+temporary setup exists so other units stop attacking the target, assigns
+`Type = Hidden`, transfers the target to the controller's player, and runs
+`fake_wander`. After the shipped 3300 ms `Charm_Delay_Time`,
+`Become_Controlled` exposes the allied Hero type and clears Hostiles. The Zoo
+now calls that actual stock function. Its private BackScript runs only after
+stock completion, deletes the infinite `Charm_icon`, releases the temporary
+`Num_Followers` increment using stock controlled-monster death cleanup, and
+changes the final Controlled state to Hooligan arrest.
 
 This also matches the target-selection path used by Priestess familiars and
 charmed monsters: `list_enemies_seen` lists only Hero and Monster agents on

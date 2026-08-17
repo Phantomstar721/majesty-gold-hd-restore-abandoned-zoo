@@ -3,8 +3,8 @@
 Restores the abandoned three-level Zoo using the artwork, dialog layout, and
 GPL building lifecycle left in *Majesty Gold HD*.
 
-The current local-test milestone restores the building and isolates the stock
-Wizard's Curse Hooligan lifecycle:
+The current local-test milestone restores the building, the abandoned stock
+Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 
 - the Zoo appears in the stock service-building construction menu;
 - it carries private `Restore_Zoo1`–`Restore_Zoo3` clones of the stock Zoo GPL
@@ -35,19 +35,24 @@ Wizard's Curse Hooligan lifecycle:
 - the private flag retains the stock Attack Flag animation topology but selects
   private `ZCA2` Zoo art: a forest-green flag with an aged-gold paw emblem,
   four stock-shaped player-color interface variants, and private minimap art;
-- it retains the stock Attack Flag panel, internal `Flag_Attack` title, hero
-  evaluation, poll, target-death callback, payout, cancellation, task reset,
-  and cleanup lifecycle;
+- it retains the stock Attack Flag panel, internal `Flag_Attack` title, and hero
+  reward evaluation, while private Zoo poll/death callbacks preserve the
+  abandoned capture attempt instead of paying an ordinary attack bounty;
 - it uses the nearest evidenced stock configuration for missing economy and
   durability values;
-- while its player owns a completed Zoo, placing a private Capture Flag on a
-  living monster begins the shipped controlled-monster handoff into Hooligan
-  behavior while the flag remains attached under its stock poll/death lifecycle;
+- the capture trigger runs at the literal GPLMx `monster_gravestone` boundary,
+  before the stock corpse transition; Original's missing `Monster.zoo_agent`
+  field is replaced by a one-shot stock RewardFlag/TargetID lookup for the
+  still-attached private Capture Flag;
+- the abandoned reward formula is active: `50 * sqrt((reward / 20) / MaxHP)`,
+  capped at 95%, and is evaluated directly at capture time so it works without
+  GPLMx-only flag fields under Original rules;
 - Palace Attack Flags now remain completely stock and cannot trigger Zoo
   capture behavior;
-- the stock 3.3-second `Control_Monster` transition temporarily hides the
-  target and transfers it to the flag player's allegiance, forcing Priestess
-  skeletons and charmed monsters to drop existing attacks before arrest begins;
+- success restores one-third HP and calls stock `Control_Monster`, then its
+  delayed `fake_wander -> Become_Controlled` lifecycle enters the proven
+  Hooligan-to-Zoo delivery/storage handoff; failure follows the rest of the
+  target's saved stock or quest-specific death callback;
 - shipped `Arrest_Hooligan` and `Hooligan_Death` remain unchanged; private
   Hooligan clones change the destination and enforce one arresting hero per
   Hooligan;
@@ -75,8 +80,10 @@ Wizard's Curse Hooligan lifecycle:
   reset cleanly;
 - if combat or fleeing changes that hero's target, the stock Zoo flag
   abandonment test releases the Hooligan and assigns one different hero;
-- there is currently no capture roll, combat/death hook, resurrection, visitor
-  income, Zoo-destruction-specific handling, or breakout behavior.
+- there is currently no visitor income, Zoo-destruction-specific handling, or
+  breakout behavior. Successfully capturing a quest-critical monster suppresses
+  that monster's stock death callback, exactly like the abandoned expansion
+  hook, and may therefore prevent a quest's expected death event.
 
 See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
 contract](docs/capture-stock-clone.md), the [visitor stock trace](docs/visitor-stock-trace.md),

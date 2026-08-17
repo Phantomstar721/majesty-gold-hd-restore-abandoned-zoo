@@ -211,8 +211,8 @@ def validate(root: Path) -> list[str]:
         if capture_flag.find("./Game/DialogID").get("value") != "AP46":
             errors.append("Private ZCF0 must use the stock Attack Flag AP46 panel")
         callback = capture_flag.find("./Engine/Script")
-        if callback is None or callback.get("GPLFunction") != "Attack_flag_death_callback":
-            errors.append("Private ZCF0 must retain the stock Attack Flag death callback")
+        if callback is None or callback.get("GPLFunction") != "Restore_Capture_Flag_Death_Callback":
+            errors.append("Private ZCF0 must use the scoped Zoo flag callback")
 
     load = manifest.find("./Mod/DataConfiguration/Dataset/Load")
     if load is None:
@@ -560,18 +560,17 @@ def validate(root: Path) -> list[str]:
         "[Restore_Capture_Flag]",
         "{RewardFlag",
         "(type RewardFlag)",
-        "(subtype Flag_Attack)",
+        "(subtype Capture_Flag)",
         "(title Flag_Attack)",
         "(birthscript Restore_Capture_Flag_Birth)",
-        "(activescript attack_flag_poll)",
-        "(deathscript attack_flag_death)",
+        "(activescript Restore_Capture_Flag_Poll)",
+        "(deathscript Restore_Capture_Flag_Death)",
     )
     for snippet in required_flag_contract:
         if snippet not in flag_gpl:
             errors.append(f"Private Capture Flag stock clone is missing: {snippet}")
     if "[Flag_Attack]" in flag_gpl:
         errors.append("Private Capture Flag data must not replace stock [Flag_Attack]")
-
     capture = (root / "GPL" / "RestoreAbandonedZoo_Capture.gpl").read_text(
         encoding="utf-8"
     )
@@ -606,15 +605,18 @@ def validate(root: Path) -> list[str]:
         '$Restore_Zoo_Pending_Reservations ( zoo )',
         'if ( occupied < limit )',
         'zoo = thisagent\'s "Target"',
-        "function Restore_Convert_To_Stock_Hooligan",
-        "function Restore_Hooligan_Control_Delay",
         "expression #intent_waiting_in_zoo 199",
-        "function Restore_Become_Hooligan",
-        'thisagent\'s "Counter" * #Normal_Cycle >= #Charm_Delay_Time',
-        'thisagent\'s "ActiveScript" = $Restore_Become_Hooligan',
+        "expression #restore_zoo_flag_radius 300",
+        "function Restore_Latch_Hooligan_To_Hero",
+        "function Restore_Controlled_To_Hooligan",
+        "function Restore_Begin_Stock_Zoo_Control",
+        "$Control_Monster ( hero, thisagent )",
+        '#ATTRIB_HP,',
+        '#ATTRIB_MaxHP ) / 3',
+        'thisagent\'s "BackScript" = $Restore_Controlled_To_Hooligan',
         'thisagent\'s "Type" = "Hidden"',
-        '$SetUnitPlayerNumber (',
-        'thisagent, $GetUnitPlayerNumber ( flag ))',
+        '$DeleteEffector ( thisagent, "Charm_icon" )',
+        '( hero\'s "Num_Followers" ) --',
         "function Restore_Hooligan_Basic",
         "function Restore_Hooligan_Goto_Zoo",
         "function Restore_Assign_Hooligan",
@@ -628,7 +630,6 @@ def validate(root: Path) -> list[str]:
         'hero\'s "ActiveScript" != $Arrest_Hooligan',
         'hero\'s "BackScript" != $Arrest_Hooligan',
         'thisagent\'s "Type" = "Hooligan"',
-        'thisagent\'s "ActiveScript" = thisagent\'s "BackScript"',
         'thisagent\'s "BackScript" = $Restore_Hooligan_Basic',
         'thisagent\'s "ActiveScript" = $Restore_Hooligan_Goto_Zoo',
         "$Hide ( thisagent, zoo )",
@@ -651,16 +652,75 @@ def validate(root: Path) -> list[str]:
         "#ATTRIB_NotFlaggable, 1",
         "#ATTRIB_NotSpellTarget, 1",
         '$SetThreadInterval ( thisagent\'s "ActiveScript", #Henchmen_Cycle )',
-        'target\'s "Type" == "Monster"',
         '$Restore_Find_Available_Zoo ( thisagent )',
-        'target, thisagent, zoo',
+        '#ATTRIB_RewardCost',
+        'charm_percentage = 50 * (',
+        '$Sqrt (( cash / 20.0 ) / target_strength )',
+        'if ( charm_percentage > 95 )',
+        '$RandomNumber ( 100 ) + 1',
+        '$ListSubtypesInRadius (',
+        '#restore_zoo_flag_radius',
+        "function Restore_Capture_Flag_Poll",
+        "function Restore_Capture_Flag_Death_Callback",
+        "function Restore_Capture_Flag_Death",
+        "function Restore_Get_Attached_Capture_Flag",
+        '"RewardFlag", -1, flags, #RewardFlags',
+        'flag\'s "SubType" == "Capture_Flag"',
+        "function monster_gravestone",
+        'deadflag = TRUE',
+        '$Restore_Stock_Zoo_Flag_Check (',
+        'thisagent, zoo_agent ) == TRUE',
+        'thisagent\'s "Type" = "Dead"',
+        'thisagent\'s "ActiveScript" = $be_dead_2',
+        '"basic_death", thisagent',
+        "function Restore_Stock_Zoo_Flag_Check",
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
             errors.append(f"Zoo capture stock-clone contract is missing: {snippet}")
+    stock_check_start = capture.index("function Restore_Stock_Zoo_Flag_Check")
+    stock_check = capture[stock_check_start:]
+    for snippet in (
+        "$Restore_Find_Available_Zoo ( zoo_agent )",
+        "$Restore_Begin_Stock_Zoo_Control (",
+    ):
+        if snippet not in stock_check:
+            errors.append(f"Active stock Zoo success handoff is missing: {snippet}")
+    callback_start = capture.index("function Restore_Capture_Flag_Death_Callback")
+    callback_end = capture.index("function Restore_Capture_Flag_Death", callback_start + 1)
+    callback = capture[callback_start:callback_end]
+    if callback.count("$DeleteGamePiece ( thisagent )") != 1:
+        errors.append("Capture overlay callback must literally delete the abandoned Zoo flag")
+    if "$Restore_Stock_Zoo_Flag_Check" in callback or "$IsDead" in callback:
+        errors.append("Capture must run from monster_gravestone, not the late overlay callback")
+    gravestone_start = capture.index("function monster_gravestone")
+    gravestone_end = capture.index("function Restore_Capture_Flag_Birth", gravestone_start)
+    gravestone = capture[gravestone_start:gravestone_end]
+    grave_stop = gravestone.find("$StopMoving ( thisagent )")
+    grave_lookup = gravestone.find("$Restore_Get_Attached_Capture_Flag")
+    grave_check = gravestone.find("$Restore_Stock_Zoo_Flag_Check (")
+    grave_gold = gravestone.find("$DropGoldInRadius (")
+    grave_dead = gravestone.find('thisagent\'s "Type" = "Dead"')
+    grave_action = gravestone.find('$PerformAction ( thisagent, "basic_death", thisagent )')
+    if not (0 <= grave_stop < grave_lookup < grave_check < grave_gold < grave_dead < grave_action):
+        errors.append("Monster gravestone must preserve the stock Zoo gate and death-tail ordering")
     forbidden_capture_contract = (
         "function monster_birth",
-        "function monster_gravestone",
+        "function Restore_Get_Capture_Flag",
+        "function Restore_Continue_Original_Monster_Death",
+        "function Restore_Capture_Target_Death",
+        'target\'s "IGDeathScript" = $Restore_Capture_Target_Death',
+        '"Capture_Birth"',
+        '"Capture_TargetID"',
+        '"Capture_Target"',
+        '"Capture_Zoo"',
+        '"Capture_Ready"',
+        '"Capture_Check"',
+        '"Capture_Roll"',
+        '"Capture_Hero"',
+        'thisagent\'s "zoo_agent"',
+        'target\'s "zoo_agent"',
+        '"charm_percentage"',
         "Restore_Zoo_Get_Completed_Zoo",
         "ClearEngineDeathFlags",
         "CreateEffector",
@@ -685,8 +745,8 @@ def validate(root: Path) -> list[str]:
     for snippet in forbidden_capture_contract:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
-    if "$DeleteGamePiece ( thisagent )" in capture:
-        errors.append("Private Capture Flag must remain under the stock poll/death lifecycle")
+    if "$DeleteGamePiece ( target )" in capture:
+        errors.append("Capture lifecycle must store successful monsters, not delete them")
     storage_enter = capture.index("$Enter_Building ( thisagent, zoo )")
     storage_intent = capture.index(
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )"
@@ -718,6 +778,8 @@ def validate(root: Path) -> list[str]:
         'AIRootAgent\'s "Quest_Number" = #QNumber_Deal_Demon',
         "palaces = $ListPalaces()",
         "palace = $listmember(palaces,1)",
+        'treasury_gold = $GetPlayerData ( palace, "gold" )',
+        '$AdjustPlayerData ( palace, "gold", 90000 - treasury_gold )',
         '$SpawnUnit (Palace, "Restore_Zoo1", "MaxHP", $RandomCoord (Palace, 200) )',
         "$Setup_Quest_Music (AiRootAgent)",
         "$setup_random_treasure(30, #default_spawn_treasure_dist)",

@@ -1,8 +1,9 @@
-# Stock Hooligan diagnostic contract
+# Stock Zoo capture and Hooligan delivery contract
 
-This milestone deliberately removes the attempted Zoo capture implementation.
-It exists only to prove that an ordinary living monster can be handed to the
-complete shipped Wizard's Curse Hooligan lifecycle.
+The current test checkpoint deploys the abandoned expansion Zoo capture path
+directly. Once its stock `Control_Monster` call succeeds, the selected monster
+continues through that stock delayed-control lifecycle and enters the proven
+Wizard's Curse Hooligan return and Zoo occupant-storage handoff.
 
 ## Trigger
 
@@ -27,17 +28,16 @@ selected pointer only for the same monster intersection. A rejected target
 therefore never reaches stock reward deduction or flag creation.
 
 With that placement test and the Zoo gate satisfied, placing the Zoo's private
-Capture Flag on a living agent whose current `Type` is `Monster` begins the stock controlled-monster
-transition described below. The private flag remains attached to that target
-under its cloned stock `attack_flag_poll` and `attack_flag_death` lifecycle.
-The trigger does not wait for combat, roll capture chance, or intercept death.
+Capture Flag on a living monster leaves its ordinary AI, allegiance, attacks,
+HP, movement, and death callback unchanged. The private flag retains the
+`Flag_Attack` title so the shipped
+hero reward-evaluation path still sends heroes to fight the monster.
 
-Without a completed player Zoo, a Capture Flag placed on an otherwise eligible
-monster retains its cloned stock Attack Flag lifecycle. Non-monsters are
-rejected during placement; the GPL `Type == Monster` test remains as a
-defensive conversion guard. Palace Attack Flags always retain the literal
-shipped validator and `attack_flag_birth` lifecycle and never enter this file's
-conversion seam.
+Without an available completed player Zoo, placement is rejected by the native
+private gate. Non-monsters are likewise rejected during placement; the GPL
+`Type == Monster` test remains a defensive callback guard. Palace Attack Flags
+always retain the literal shipped validator, `attack_flag_birth`, payout, and
+death lifecycle and never enter this file's capture seam.
 
 While placing the private flag, ZCF0 uses tactical-cursor selector 32. The
 loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set
@@ -45,20 +45,56 @@ loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set
 Stock selectors 5/1005 and 6/1006 remain unchanged for Palace Attack and
 Explore placement.
 
-## Monster handoff
+## Lethal capture attempt
 
-The bridge copies the complete target-protection lifecycle from stock
-`Control_Monster`, `fake_wander`, and `Become_Controlled` before activating the
-Hooligan behavior:
+The active functions copy the abandoned chance formula and `zoo_flag_check`
+statement order at the lethal callback boundary:
 
-1. stop the target and clear its Hostiles;
-2. make its active script the private stock `fake_wander` clone;
-3. temporarily set `Type` to `Hidden` so attackers treat the target as invalid;
-4. transfer the target to the Capture Flag's player with
-   `SetUnitPlayerNumber`, matching stock control/charm;
-5. wait the shipped `Charm_Delay_Time` of 3300 ms;
-6. change `Type` to `Hooligan`, clear Hostiles again, and activate the proven
-   Hooligan arrest lifecycle.
+1. compute `50 * sqrt((RewardCost / 20) / MaxHP)`, capped at 95%;
+2. apply the shipped strict `(RandomNumber(100) + 1) < chance` test;
+3. list living Hero/Hero units inside the shipped 300-unit Zoo radius;
+4. choose list member 1;
+5. restore one third of the target's maximum HP;
+6. call the selected ruleset's actual `$Control_Monster(hero, target)`;
+7. set the abandoned HealingRateModifier value of 1;
+8. on success, replace only the stock controlled monster's eventual
+   `BackScript` with the private Hooligan-to-Zoo handoff;
+9. delete the Capture Flag after the attempt.
+
+The abandoned source writes `subdue_percentage` but reads the expansion-only
+`charm_percentage` field, and Original `RewardFlag` declares neither. A focused
+Original-rules save confirmed that the missing-field write aborts flag Birth.
+The private clone therefore evaluates the unchanged formula directly at the
+lethal event instead of storing it in an unavailable field.
+
+GPLMx `zoo_flag_check` reads the expansion-only `Monster.zoo_agent`; Original
+declares no such field. At the same `monster_gravestone` boundary, the
+compatibility clone uses stock RewardFlag enumeration and the engine-owned
+`TargetID` relation to recover the still-attached private Capture Flag. It does
+not retain a registry or write borrowed state onto the monster.
+
+The active `monster_gravestone` is the literal GPLMx Zoo gate followed by the
+literal stock monster-death tail. With no matching flag or after a failed roll,
+gold, `Type = Dead`, thread resume, `be_dead_2`, interval, and `basic_death`
+remain in shipped order. The overlay callback is the literal abandoned
+`zoo_flag_death_callback`: it only deletes the flag, because capture is invoked
+manually from the monster deathscript.
+
+## Active delivery handoff
+
+On success the bridge preserves the complete target-protection lifecycle from
+the real stock `Control_Monster`, `fake_wander`, and `Become_Controlled`:
+
+1. stock creates the infinite `Charm_icon`, records the selected hero as
+   `leader`, increments that hero's `Num_Followers`, replaces the target's
+   death callback, and transfers player ownership;
+2. the private bridge normalizes Original's temporary `Dead` value to GPLMx's
+   corrected `Hidden` value;
+3. stock waits the shipped `Charm_Delay_Time` of 3300 ms and runs
+   `Become_Controlled`;
+4. the target's private BackScript then removes `Charm_icon`, releases the
+   temporary follower count, changes Controlled to Hooligan, and activates the
+   proven delivery lifecycle.
 
 Player-controlled minions use `list_enemies_seen`, which lists only Hero and
 Monster agents on `NotMyTeam`. The temporary Hidden state cancels an attack
@@ -191,25 +227,30 @@ does not guess per-species movement-rate modifiers.
    whether or not the player owns a Zoo.
 2. Complete any level of Zoo, open its Capture panel, then place a Capture Flag
    on a living monster.
-3. The flag remains attached and visible under the stock Attack Flag overlay
-   lifecycle; conversion itself pays no bounty. For the stock 3300 ms control
-   delay, the target is Hidden and transferred to the player's allegiance so
+3. The flag remains attached and heroes fight the still-hostile monster
+   normally. Reducing it to zero HP makes one stock capture attempt; failure
+   deletes the flag and runs the monster's original death behavior.
+4. Success restores one-third HP and runs the real stock 3300 ms control delay.
+   The target is Hidden and transferred to the selected hero's allegiance so
    existing player-minion attacks terminate.
-4. After that delay, one selected hero receives the stock arrest intent, target, counter, and
+5. That selected hero receives the stock arrest intent, target, counter, and
    `Arrest_Hooligan` ActiveScript; every other hero retains normal behavior.
    The Hooligan pauses if it gets more than 50 units ahead of that hero.
-5. The literal Hooligan Basic clone sees the targeting hero and switches itself
+6. The literal Hooligan Basic clone sees the targeting hero and switches itself
    to the literal Zoo-arrival clone.
-6. The Hooligan enters its selected Zoo through stock `Hide`; its active thread
+7. The Hooligan enters its selected Zoo through stock `Hide`; its active thread
    is stopped and the valid hidden agent is appended to `Zoo.Occupants`.
-7. Arrival resets the paired hero to its unchanged native BasicScript before
+8. Arrival resets the paired hero to its unchanged native BasicScript before
    storing the target.
-8. If the hero changes targets before delivery, the Hooligan becomes available
+9. If the hero changes targets before delivery, the Hooligan becomes available
    and one different hero receives the same stock arrest handoff.
-9. If an owner dies or loses the target, the captive can be reassigned.
+10. If an owner dies or loses the target, the captive can be reassigned.
 
-Monster birth, monster death, Zoo destruction-specific cleanup,
-Agrela/Phoenix resurrection, and separate movement machinery are absent. The
-Zoo substitutes the Palace destination, adds a stock formation-style escort-
-distance gate, privatizes stock arrival cleanup to the paired owner, and uses
-the stock Mausoleum storage tail to retain the hidden occupant.
+There is no global monster-birth or monster-death override, target callback
+replacement, Agrela/Phoenix resurrection, or separate movement machinery. The
+private overlay callback is the stock-native bridge needed because Original
+lacks the expansion Zoo hook. Successful capture restores HP before the retail
+death lifecycle continues, matching
+the abandoned expansion hook; using it on a quest-critical monster may suppress
+that quest's expected death event. Zoo destruction-specific cleanup remains
+deferred.

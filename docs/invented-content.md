@@ -137,15 +137,29 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   order.
   The completion callback changes only the created prototype-name pointer from
   `Flag_Attack` to `Restore_Capture_Flag`. The private flag then retains stock
-  `RewardFlag` type, `Flag_Attack` subtype/title, AP46 panel, death callback,
-  active poll, payout, hero bookkeeping, cancellation, and cleanup.
-- When its player owns a completed Zoo, placing that private Capture Flag on a
-  living `Monster` begins a stock control transition into the Wizard's Curse
-  Hooligan lifecycle. Retaining the private flag on the converted target is a
-  newly chosen presentation behavior; the overlay continues to use stock
-  `attack_flag_poll`, `attack_flag_death`, and the target-death callback rather
-  than a new watcher or cleanup controller. Stock `attack_flag_birth` is no
-  longer overridden, so Palace Attack Flags remain entirely shipped behavior.
+  `RewardFlag` type, `Flag_Attack` subtype/title, AP46 panel, and hero reward
+  evaluation. Its poll and death callbacks are private Zoo clones because an
+  ordinary Attack Flag callback would pay a lethal bounty instead of attempting
+  capture.
+- The active trigger restores GPLMx's global `monster_gravestone` Zoo gate and
+  literal stock failure tail. An earlier attempt aborted inside missing
+  expansion-only fields and left every monster half-dead; this version does not
+  touch those fields. After the recovered Zoo check succeeds, the existing
+  private `Control_Monster` BackScript seam activates the proven
+  Hooligan-to-Zoo delivery. No watcher or deferred controller is active.
+- Original declares neither `Monster.zoo_agent` nor
+  `RewardFlag.charm_percentage`. A focused saved-state trace proved that the
+  first missing-field write aborted private flag Birth. A second focused trace
+  proved RewardFlag enumeration loses the overlay by the later engine overlay
+  callback. The earlier stock `monster_gravestone` boundary now performs a
+  one-shot stock RewardFlag enumeration and matches the engine-owned TargetID;
+  this is the sole invented replacement for `Monster.zoo_agent`. The new private
+  `Capture_Flag` subtype distinguishes the clone while its `Flag_Attack` title
+  remains stock for hero evaluation. The recovered chance formula is evaluated
+  directly at the lethal event. No timer, watcher, resurrection, custom
+  registry, or borrowed monster field is introduced.
+- The overlay callback is the literal abandoned Zoo callback and only calls
+  `DeleteGamePiece`; it does not perform or retry capture.
 - The enable gate copies the stock completed-building query shape used by the
   Mausoleum and other MX systems: player-owned `Building`, title `Zoo`, and
   `FirstStageBuilt == 1`, called from the flag with the exact argument order
@@ -163,13 +177,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - The Capture Flag owns only the proven player-Zoo gate. The converted Hooligan
   later uses the private stock destination clone to select the first completed
   Zoo.
-- Minion protection copies stock `Control_Monster`, whose source explicitly
-  sets `Type = Hidden` so other units stop attacking, transfers the target to
-  the controller's player, waits `Charm_Delay_Time`, and then activates the
-  controlled type. The private completion substitutes `Hooligan` for
-  `Controlled` and appends the existing single-hero arrest handoff. That
-  substitution is new integration behavior; the Hidden state, ownership
-  transfer, 3300 ms counter timing, and hostile-list cleanup are stock.
+- Minion protection now calls the selected ruleset's actual
+  `Control_Monster`, including its ownership transfer, `fake_wander`, 3300 ms
+  delay, `Become_Controlled`, leader link, follower count, charm effector, and
+  hostile-list cleanup. Normalizing Original's temporary `Dead` type to GPLMx's
+  corrected `Hidden` type is compatibility glue. The private BackScript then
+  deletes the infinite charm effector, decrements the temporary follower count
+  using stock controlled-monster death cleanup, substitutes `Hooligan` for
+  `Controlled`, and appends the existing arrest handoff.
 - The stock intent remains `#intent_arresting_hooligan` (numeric slot 117), but
   this mod replaces only its `STRT/AITX` display string, “Arresting a
   hooligan,” with the invented Zoo-facing wording “Capturing a monster.” No
@@ -239,9 +254,15 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   `Restore_Zoo1` beside the first Palace. The quest's music, treasure, enemy
   guild, lair, and victory setup remain in stock order. Starting this quest
   with a Zoo is invented test scaffolding, not recovered Zoo design.
-- Beyond serving as the stock `Hide` destination and generic occupant container there
-  is deliberately no capture probability, bounty payment, lethal event,
-  resurrection, carrier pairing, visitor income, or Zoo destruction cleanup.
+- The same focused fixture sets player one's treasury to exactly 90,000 gold
+  with the stock `GetPlayerData` plus delta-shaped `AdjustPlayerData` sequence.
+  This is testing scaffolding for raising Capture Flag rewards, not recovered
+  Zoo balance.
+- There is no bounty payment or resurrection. A successful capture suppresses
+  the saved death callback exactly like GPLMx `monster_gravestone`; allowing the
+  generic monster gate to target quest-critical monsters can therefore suppress
+  quest victory/death side effects and is an explicit current risk. Visitor
+  income and Zoo destruction cleanup remain absent.
 
 ## Surviving placeholder content
 
@@ -252,7 +273,8 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 
 ## Still deferred
 
-- the complete abandoned Zoo capture design, including its missing dispatcher;
-- a lethal-event handoff that does not corrupt the monster's engine state;
-- carrier-death handling, income, monster-level gates, displayed capture
-  percentage, Zoo destruction cleanup, and random breakouts.
+- displayed capture percentage;
+- visitor income, monster-level gates, Zoo destruction cleanup, and random
+  breakouts;
+- a policy for quest-critical monsters whose native death callback must fire to
+  advance or complete a scenario.
