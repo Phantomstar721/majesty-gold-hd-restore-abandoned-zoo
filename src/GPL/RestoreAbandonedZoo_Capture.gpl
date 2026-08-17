@@ -128,14 +128,29 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Upgrade ( agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
-// building_upgraded is the stock engine callback and dispatches the building's
-// upgradescript after its upgraded prototype/Level is active. Preserve
-// basic_upgrade's palace queue first, then refresh the capacity bit from that
-// new stock Level.
+// Literal stock palace_upgrade timing shape: queue the building through
+// basic_upgrade, then let upgradescript2 poll for completed construction.
+// building_upgraded runs when the upgrade starts, before UpgradeAgentAttributes
+// installs the new Level, so capacity cannot be refreshed correctly here.
 declare
 begin
 	$basic_upgrade ( zoo );
-	$Restore_Refresh_Zoo_Capacity ( zoo );
+	$RunThread (
+		zoo's "upgradescript2", #palace_upgrade_check, zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Upgrade_Complete ( agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// Literal stock palace_upgrade2 completion poll, with only the Palace-specific
+// guard/tax/peasant restarts replaced by the Zoo capacity refresh.
+declare
+begin
+	if ( $GetAttribute ( zoo, #ATTRIB_CurrentStageBuilt ) != 1 )
+		$RunThread (
+			zoo's "upgradescript2", #palace_upgrade_check, zoo );
+	else
+		$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////

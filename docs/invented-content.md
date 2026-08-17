@@ -250,6 +250,12 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   originating Zoo pointer in a four-byte, non-executable private data section
   are new integration seams. They change no Palace Attack Flag code or global
   Monster flaggability.
+- Upgrade completion uses the literal stock Palace timing lifecycle because
+  ordinary `building_upgraded` runs before `UpgradeAgentAttributes` installs
+  the new Zoo `Level`: `upgradescript` queues the upgrade and schedules
+  `upgradescript2`, which polls `CurrentStageBuilt` at
+  `#palace_upgrade_check`. Only the completed branch is adapted, replacing the
+  Palace's guard/tax/peasant restarts with the requested Zoo capacity refresh.
 - The visitor-row wording “waiting in the zoo” is invented. Its mechanism is
   stock: after `Enter_Building`, delivery calls `SpecifyIntent`, matching stock
   `Lived_In` occupant ordering. Private `#intent_waiting_in_zoo` uses expansion

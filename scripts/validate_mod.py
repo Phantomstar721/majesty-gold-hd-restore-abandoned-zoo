@@ -551,7 +551,9 @@ def validate(root: Path) -> list[str]:
     if gpl.count("(birthScript2 Restore_Zoo_Building_Birth)") != 3:
         errors.append("Every Zoo level must refresh capacity after stock Building_Birth")
     if gpl.count("(upgradescript Restore_Zoo_Upgrade)") != 3:
-        errors.append("Every Zoo level must refresh capacity through the stock upgrade callback")
+        errors.append("Every Zoo level must queue through the stock upgrade callback")
+    if gpl.count("(upgradescript2 Restore_Zoo_Upgrade_Complete)") != 3:
+        errors.append("Every Zoo level must use the stock Palace completion-poll shape")
 
     flag_gpl = (root / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat").read_text(
         encoding="utf-8"
@@ -596,6 +598,9 @@ def validate(root: Path) -> list[str]:
         "$Building_Birth ( zoo )",
         "function Restore_Zoo_Upgrade",
         "$basic_upgrade ( zoo )",
+        "function Restore_Zoo_Upgrade_Complete",
+        'zoo\'s "upgradescript2", #palace_upgrade_check, zoo',
+        "#ATTRIB_CurrentStageBuilt",
         "function Restore_Captive_Hooligan_Death",
         "$Hooligan_Death ( thisagent )",
         "function Restore_Find_Available_Zoo",

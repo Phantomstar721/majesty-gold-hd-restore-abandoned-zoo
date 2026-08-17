@@ -157,8 +157,12 @@ active and resumable arrest task as abandonment, triggering the same reassignmen
 and capacity refresh instead of leaving the native placement bit stale.
 
 The Zoo refreshes the shipped `ATTRIB_Zoo_Legal_Target` attribute after stock
-construction, through the stock `building_upgraded` -> `upgradescript` seam,
-and whenever hero latches or occupants change.
+construction, through the literal Palace upgrade-completion lifecycle, and
+whenever hero latches or occupants change. `building_upgraded` first invokes
+the Zoo's `upgradescript`, which preserves `basic_upgrade` and schedules
+`upgradescript2` at `#palace_upgrade_check`. Like stock `palace_upgrade2`, that
+callback reschedules itself until `CurrentStageBuilt == 1`; only then does it
+read the upgraded prototype's new `Level` and refresh the capacity bit.
 The private Capture placement validator and its independent completion check
 both read that capacity bit before applying their existing monster-only test.
 If stored visitors plus real hero/captive latches fill the selected Zoo,

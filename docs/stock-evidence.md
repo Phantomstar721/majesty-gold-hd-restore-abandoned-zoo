@@ -405,10 +405,15 @@ Stock monster birth assigns `ATTRIB_Zoo_Legal_Target`, documenting it as the
 Zoo flag interface's legality channel. The private `ZCF0` gate reuses that
 stock attribute on the selected Zoo as its current capacity bit. Stock
 `Building_Birth` remains first in the completion callback; the mod refreshes
-the bit afterward. Stock `building_upgraded` dispatches the upgraded
-prototype's `upgradescript`; the Zoo wrapper preserves `basic_upgrade` first
-and refreshes from the now-current `Level`. Reservation, delivery, and captive
-death refresh the same bit.
+the bit afterward. Stock `building_upgraded` dispatches `upgradescript` when
+construction starts, before `BuildingReachedMaxHP` calls
+`UpgradeAgentAttributes` and installs the new prototype `Level`. The shipped
+Palace handles this boundary by having `palace_upgrade` queue the upgrade and
+schedule `upgradescript2`, while `palace_upgrade2` reschedules itself at
+`#palace_upgrade_check` until `CurrentStageBuilt == 1`. The Zoo copies that
+lifecycle literally and replaces only the Palace-specific spawner restarts at
+completion with its capacity refresh. Reservation, delivery, and captive death
+refresh the same bit.
 Both native target-authorization passes require this bit before the already
 proven category-4 Character test, so a full Zoo rejects clicks before flag
 creation while Palace `Fl00` remains untouched.
