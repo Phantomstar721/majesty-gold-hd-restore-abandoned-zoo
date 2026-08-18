@@ -16,6 +16,7 @@ $LegacyPatchVirtualSize = 0xA0
 $LegacyPatchRawSize = 0x200
 $PrivateFactoryHookOffset = 0x40
 $CaptureTargetValidatorOffset = 0x60
+$PrivateCaptureTargetLegalityOffset = 0x60
 $PrivateFactoryOffset = 0xA0
 $PrivateHandlerOffset = 0xE0
 $PrivateVtableOffset = 0x160
@@ -67,7 +68,10 @@ $DisplayClassifierVa = 0x00508510
 $GetSelectedAgentVa = 0x00467540
 $GetAttributeVa = 0x005B9FD0
 $BadGetAttributeVa = 0x005B93D0
+$FindAttachedRelationVa = 0x005A7730
 $AttribZooLegalTarget = 0x00305A41
+$CaptureFlagArtRelation = 0x3241435A # "ZCA2" (failed v14 assumption)
+$CaptureFlagDescriptionRelation = 0x3046435A # "ZCF0"
 $SystemAlertOwnerVa = 0x007C1394
 $PrepareSystemAlertVa = 0x0046ABE0
 $PostLiteralSystemAlertVa = 0x0046ACE0
@@ -697,7 +701,7 @@ function New-CapacityCaptureTargetValidator {
     $validator
 }
 
-function New-NormalizedCapacityCaptureTargetValidator {
+function New-NormalizedCapacityCaptureTargetValidatorV12 {
     param([uint32]$ValidatorVa, [uint32]$CaptureZooSlotVa, [uint32]$AttributeGetterVa)
     # The classifier is a predicate here, not the placement result. Return the
     # stock validator's legal value 0 after category 4 matches so the cursor
@@ -739,6 +743,142 @@ function New-NormalizedCapacityCaptureTargetValidator {
     [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($validator, 0x1D)
     Write-Bytes $validator 0x21 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x21)) $AttributeGetterVa)
     Write-Bytes $validator 0x3F (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x3F)) $DisplayClassifierVa)
+    $validator
+}
+
+function New-HostileCapacityCaptureTargetValidator {
+    param([uint32]$ValidatorVa, [uint32]$CaptureZooSlotVa, [uint32]$AttributeGetterVa)
+    # Preserve the proven capacity/category gate, then use the same unit vtable
+    # method exposed by stock GetUnitPlayerNumber. Only Monster Player (7) may
+    # receive a Capture Flag; controlled/charmed player units are invalid.
+    [byte[]]$validator = @(
+        0x56,                              # push esi
+        0x8B,0x74,0x24,0x08,              # mov esi,[esp+8]
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                     # call stock Fl00 validator
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x47,                        # jne done (preserve stock 1/2)
+        0x8B,0x0D,0,0,0,0,               # mov ecx,[CaptureZooSlot]
+        0xE3,0x3A,                        # jecxz invalid
+        0x6A,0x00,                        # push 0 (attribute default)
+        0x68,0,0,0,0,                    # push ATTRIB_Zoo_Legal_Target
+        0xE8,0,0,0,0,                    # call stock attribute getter
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x2A,                        # je invalid (Zoo full)
+        0x8B,0x8E,0x60,0x00,0x00,0x00,   # mov ecx,[esi+60] (selected agent)
+        0xE3,0x22,                        # jecxz invalid
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x83,0xF8,0x04,                   # cmp eax,4 (monster)
+        0x75,0x14,                        # jne invalid
+        0x8B,0x8E,0x60,0x00,0x00,0x00,   # mov ecx,[esi+60] (selected agent)
+        0x8B,0x01,                        # mov eax,[ecx] (unit vtable)
+        0xFF,0x50,0x1C,                   # call [eax+1C] (GetUnitPlayerNumber)
+        0x83,0xF8,0x07,                   # cmp eax,Monster_Player
+        0x75,0x04,                        # jne invalid
+        0x33,0xC0,                        # xor eax,eax (stock legal result)
+        0xEB,0x05,                        # jmp done
+        0xB8,0x01,0x00,0x00,0x00,        # invalid: mov eax,1
+        0x5E,                              # done: pop esi
+        0xC3                               # ret
+    )
+    if ($validator.Length -ne 0x5B) { throw "Hostile capacity validator assembly changed length." }
+    Write-Bytes $validator 0x06 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x06)) $StockCaptureValidatorVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($validator, 0x14)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($validator, 0x1D)
+    Write-Bytes $validator 0x21 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x21)) $AttributeGetterVa)
+    Write-Bytes $validator 0x33 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x33)) $DisplayClassifierVa)
+    $validator
+}
+
+function New-PrivateCaptureTargetLegality {
+    param([uint32]$HelperVa, [uint32]$CaptureRelation)
+    # Stock Attack placement ends its target-side legality check by looking up
+    # the attached ARA2 relation at target+0xA4.  A relation already owned by
+    # the placing player rejects the target before reward deduction/creation.
+    # Capture Flags are private to the player's Zoo and attach as ZCF0, so the
+    # equivalent private test rejects any existing ZCF0 relation after keeping
+    # the proven stock monster-category and current-ownership checks.
+    #
+    # Contract: ecx = non-null selected target; eax = 1 legal / 0 invalid.
+    [byte[]]$helper = @(
+        0x56,                              # push esi
+        0x8B,0xF1,                        # mov esi,ecx
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x83,0xF8,0x04,                   # cmp eax,4 (monster)
+        0x75,0x27,                        # jne invalid
+        0x8B,0xCE,                        # mov ecx,esi
+        0x8B,0x01,                        # mov eax,[ecx] (unit vtable)
+        0xFF,0x50,0x1C,                   # call [eax+1C] (GetUnitPlayerNumber)
+        0x83,0xF8,0x07,                   # cmp eax,Monster_Player
+        0x75,0x1B,                        # jne invalid
+        0x6A,0x01,                        # push 1 (stock relation lookup mode)
+        0x68,0,0,0,0,                    # push private ZCF0 attachment key
+        0x8D,0x8E,0xA4,0x00,0x00,0x00,   # lea ecx,[esi+A4] (relations)
+        0xE8,0,0,0,0,                    # call stock attached-relation lookup
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x05,                        # jne invalid (Capture Flag exists)
+        0x6A,0x01,                        # push 1
+        0x58,                              # pop eax
+        0x5E,                              # pop esi
+        0xC3,                              # ret
+        0x33,0xC0,                        # invalid: xor eax,eax
+        0x5E,                              # pop esi
+        0xC3                               # ret
+    )
+    if ($helper.Length -ne 0x3C) { throw "Private Capture target-legality helper changed length." }
+    Write-Bytes $helper 0x04 (New-RelativeInstruction 0xE8 ([uint32]($HelperVa + 0x04)) $DisplayClassifierVa)
+    [BitConverter]::GetBytes($CaptureRelation).CopyTo($helper, 0x20)
+    Write-Bytes $helper 0x2A (New-RelativeInstruction 0xE8 ([uint32]($HelperVa + 0x2A)) $FindAttachedRelationVa)
+    $helper
+}
+
+function New-DeduplicatedCaptureTargetValidator {
+    param(
+        [uint32]$ValidatorVa,
+        [uint32]$CaptureZooSlotVa,
+        [uint32]$AttributeGetterVa,
+        [uint32]$TargetLegalityVa
+    )
+    # Preserve the complete stock Fl00 validator and capacity gate, then apply
+    # the private ZCF0 form of stock's attached-ARA2 target test together with
+    # the already-proven generic hostile-monster classification.
+    [byte[]]$validator = @(
+        0x56,                              # push esi
+        0x8B,0x74,0x24,0x08,              # mov esi,[esp+8]
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                    # call stock Fl00 validator
+        0x83,0xC4,0x04,                   # add esp,4
+        0x85,0xC0,                        # test eax,eax
+        0x75,0x32,                        # jne done (preserve stock 1/2)
+        0x8B,0x0D,0,0,0,0,               # mov ecx,[CaptureZooSlot]
+        0xE3,0x25,                        # jecxz invalid
+        0x6A,0x00,                        # push 0 (attribute default)
+        0x68,0,0,0,0,                    # push ATTRIB_Zoo_Legal_Target
+        0xE8,0,0,0,0,                    # call stock attribute getter
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x15,                        # je invalid (Zoo full)
+        0x8B,0x8E,0x60,0x00,0x00,0x00,   # mov ecx,[esi+60] (selected agent)
+        0xE3,0x0D,                        # jecxz invalid
+        0xE8,0,0,0,0,                    # call private target legality
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x04,                        # je invalid
+        0x33,0xC0,                        # xor eax,eax (stock legal result)
+        0xEB,0x05,                        # jmp done
+        0xB8,0x01,0x00,0x00,0x00,        # invalid: mov eax,1
+        0x5E,                              # done: pop esi
+        0xC3                               # ret
+    )
+    if ($validator.Length -ne 0x46) { throw "Deduplicated Capture validator assembly changed length." }
+    Write-Bytes $validator 0x06 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x06)) $StockCaptureValidatorVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($validator, 0x14)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($validator, 0x1D)
+    Write-Bytes $validator 0x21 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x21)) $AttributeGetterVa)
+    Write-Bytes $validator 0x32 (New-RelativeInstruction 0xE8 ([uint32]($ValidatorVa + 0x32)) $TargetLegalityVa)
     $validator
 }
 
@@ -787,7 +927,7 @@ function New-CapacityCaptureCompletionTargetCheckV10 {
     $targetCheck
 }
 
-function New-CapacityCaptureCompletionTargetCheck {
+function New-CapacityCaptureCompletionTargetCheckV12 {
     param(
         [uint32]$TargetCheckVa,
         [uint32]$CaptureZooSlotVa,
@@ -837,6 +977,112 @@ function New-CapacityCaptureCompletionTargetCheck {
     Write-Bytes $targetCheck 0x28 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x28)) $AttributeGetterVa)
     Write-Bytes $targetCheck 0x3E (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x3E)) $DisplayClassifierVa)
     Write-Bytes $targetCheck 0x53 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x53)) $ZooFullAlertVa)
+    $targetCheck
+}
+
+function New-HostileCapacityCaptureCompletionTargetCheck {
+    param(
+        [uint32]$TargetCheckVa,
+        [uint32]$CaptureZooSlotVa,
+        [uint32]$AttributeGetterVa,
+        [uint32]$ZooFullAlertVa
+    )
+    # Repeat hover validation at click completion, including current stock unit
+    # ownership. This prevents a target charmed between hover and placement.
+    [byte[]]$targetCheck = @(
+        0x56,                              # push esi
+        0x8B,0x44,0x24,0x0C,              # mov eax,[esp+0C] (stock arg 2)
+        0x8B,0x4C,0x24,0x08,              # mov ecx,[esp+08] (placement mode)
+        0x50,                              # push eax
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                     # call stock 0x45D2D0
+        0x83,0xC4,0x08,                   # add esp,8
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x36,                        # je done
+        0x8B,0xF0,                        # mov esi,eax (selected agent)
+        0x8B,0x0D,0,0,0,0,               # mov ecx,[CaptureZooSlot]
+        0xE3,0x2E,                        # jecxz invalid
+        0x6A,0x00,                        # push 0 (attribute default)
+        0x68,0,0,0,0,                    # push ATTRIB_Zoo_Legal_Target
+        0xE8,0,0,0,0,                    # call stock attribute getter
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x22,                        # je full (Zoo full)
+        0x56,                              # push esi
+        0xE8,0,0,0,0,                    # call stock display classifier
+        0x83,0xC4,0x04,                   # add esp,4
+        0x83,0xF8,0x04,                   # cmp eax,4 (monster)
+        0x75,0x10,                        # jne invalid
+        0x8B,0xCE,                        # mov ecx,esi
+        0x8B,0x01,                        # mov eax,[ecx] (unit vtable)
+        0xFF,0x50,0x1C,                   # call [eax+1C] (GetUnitPlayerNumber)
+        0x83,0xF8,0x07,                   # cmp eax,Monster_Player
+        0x75,0x04,                        # jne invalid
+        0x8B,0xC6,                        # mov eax,esi
+        0x5E,                              # done: pop esi
+        0xC3,                              # ret
+        0x33,0xC0,                        # invalid: xor eax,eax
+        0xEB,0xFA,                        # jmp done
+        0xE8,0,0,0,0,                    # full: post native full-Zoo alert
+        0xEB,0xF5                         # jmp invalid
+    )
+    if ($targetCheck.Length -ne 0x5A) { throw "Hostile capacity completion check changed length." }
+    Write-Bytes $targetCheck 0x0B (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x0B)) $StockFlagTargetCheckVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($targetCheck, 0x1B)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($targetCheck, 0x24)
+    Write-Bytes $targetCheck 0x28 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x28)) $AttributeGetterVa)
+    Write-Bytes $targetCheck 0x32 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x32)) $DisplayClassifierVa)
+    Write-Bytes $targetCheck 0x53 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x53)) $ZooFullAlertVa)
+    $targetCheck
+}
+
+function New-DeduplicatedCaptureCompletionTargetCheck {
+    param(
+        [uint32]$TargetCheckVa,
+        [uint32]$CaptureZooSlotVa,
+        [uint32]$AttributeGetterVa,
+        [uint32]$ZooFullAlertVa,
+        [uint32]$TargetLegalityVa
+    )
+    # Stock completion independently reacquires its target. Repeat the private
+    # ZCF0 relation check here so a second Capture Flag cannot race through
+    # after hover validation, and retain the existing capacity-race alert.
+    [byte[]]$targetCheck = @(
+        0x56,                              # push esi
+        0x8B,0x44,0x24,0x0C,              # mov eax,[esp+0C] (stock arg 2)
+        0x8B,0x4C,0x24,0x08,              # mov ecx,[esp+08] (placement mode)
+        0x50,                              # push eax
+        0x51,                              # push ecx
+        0xE8,0,0,0,0,                    # call stock 0x45D2D0
+        0x83,0xC4,0x08,                   # add esp,8
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x27,                        # je done
+        0x8B,0xF0,                        # mov esi,eax (selected agent)
+        0x8B,0x0D,0,0,0,0,               # mov ecx,[CaptureZooSlot]
+        0xE3,0x1F,                        # jecxz invalid
+        0x6A,0x00,                        # push 0 (attribute default)
+        0x68,0,0,0,0,                    # push ATTRIB_Zoo_Legal_Target
+        0xE8,0,0,0,0,                    # call stock attribute getter
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x13,                        # je full (Zoo full)
+        0x8B,0xCE,                        # mov ecx,esi
+        0xE8,0,0,0,0,                    # call private target legality
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x04,                        # je invalid
+        0x8B,0xC6,                        # mov eax,esi
+        0x5E,                              # done: pop esi
+        0xC3,                              # ret
+        0x33,0xC0,                        # invalid: xor eax,eax
+        0xEB,0xFA,                        # jmp done
+        0xE8,0,0,0,0,                    # full: post native full-Zoo alert
+        0xEB,0xF5                         # jmp invalid
+    )
+    if ($targetCheck.Length -ne 0x4B) { throw "Deduplicated Capture completion check changed length." }
+    Write-Bytes $targetCheck 0x0B (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x0B)) $StockFlagTargetCheckVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($targetCheck, 0x1B)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($targetCheck, 0x24)
+    Write-Bytes $targetCheck 0x28 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x28)) $AttributeGetterVa)
+    Write-Bytes $targetCheck 0x33 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x33)) $TargetLegalityVa)
+    Write-Bytes $targetCheck 0x44 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x44)) $ZooFullAlertVa)
     $targetCheck
 }
 
@@ -904,6 +1150,7 @@ function New-PatchBlob {
     Write-Bytes $blob $PrivateFactoryHookOffset $factoryHook
 
     $captureTargetValidatorVa = [uint32]($PatchVa + $CaptureTargetValidatorOffset)
+    $privateCaptureTargetLegalityVa = [uint32]($PatchVa + $PrivateCaptureTargetLegalityOffset)
     $capacityTargetValidatorVa = [uint32]($PatchVa + $CapacityTargetValidatorOffset)
     $capacityCompletionTargetCheckVa = [uint32]($PatchVa + $CapacityCompletionTargetCheckOffset)
     $capacityArmWrapperVa = [uint32]($PatchVa + $CapacityArmWrapperOffset)
@@ -914,14 +1161,32 @@ function New-PatchBlob {
     $captureZooSlotVa = $(if ($CaptureTargetValidatorVersion -ge 8) { $CapacitySlotVa } else { [uint32]($PatchVa + $LegacyCaptureZooSlotOffset) })
     $attributeGetterVa = $(if ($CaptureTargetValidatorVersion -ge 9) { $GetAttributeVa } else { $BadGetAttributeVa })
     if ($CaptureTargetValidatorVersion -ge 6) {
-        if ($CaptureTargetValidatorVersion -ge 10) {
-            Write-Bytes $blob $CapacityTargetValidatorOffset (New-NormalizedCapacityCaptureTargetValidator $capacityTargetValidatorVa $captureZooSlotVa $attributeGetterVa)
+        if ($CaptureTargetValidatorVersion -ge 14) {
+            $captureRelation = $(if ($CaptureTargetValidatorVersion -ge 15) { [uint32]$CaptureFlagDescriptionRelation } else { [uint32]$CaptureFlagArtRelation })
+            Write-Bytes $blob $PrivateCaptureTargetLegalityOffset (New-PrivateCaptureTargetLegality $privateCaptureTargetLegalityVa $captureRelation)
+            Write-Bytes $blob $CapacityTargetValidatorOffset (New-DeduplicatedCaptureTargetValidator $capacityTargetValidatorVa $captureZooSlotVa $attributeGetterVa $privateCaptureTargetLegalityVa)
+        }
+        elseif ($CaptureTargetValidatorVersion -ge 13) {
+            Write-Bytes $blob $CapacityTargetValidatorOffset (New-HostileCapacityCaptureTargetValidator $capacityTargetValidatorVa $captureZooSlotVa $attributeGetterVa)
+        }
+        elseif ($CaptureTargetValidatorVersion -ge 10) {
+            Write-Bytes $blob $CapacityTargetValidatorOffset (New-NormalizedCapacityCaptureTargetValidatorV12 $capacityTargetValidatorVa $captureZooSlotVa $attributeGetterVa)
         }
         else {
             Write-Bytes $blob $CapacityTargetValidatorOffset (New-CapacityCaptureTargetValidator $capacityTargetValidatorVa $captureZooSlotVa $attributeGetterVa)
         }
-        if ($CaptureTargetValidatorVersion -ge 11) {
-            Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-CapacityCaptureCompletionTargetCheck $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa)
+        if ($CaptureTargetValidatorVersion -ge 14) {
+            Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-DeduplicatedCaptureCompletionTargetCheck $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa $privateCaptureTargetLegalityVa)
+            Write-Bytes $blob $zooFullAlertOffset (New-ZooFullAlert $zooFullAlertVa $zooFullAlertTextVa)
+            [Text.Encoding]::ASCII.GetBytes("Couldn't place reward flag, Zoo is full.`0").CopyTo($blob, $zooFullAlertTextOffset)
+        }
+        elseif ($CaptureTargetValidatorVersion -ge 13) {
+            Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-HostileCapacityCaptureCompletionTargetCheck $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa)
+            Write-Bytes $blob $zooFullAlertOffset (New-ZooFullAlert $zooFullAlertVa $zooFullAlertTextVa)
+            [Text.Encoding]::ASCII.GetBytes("Couldn't place reward flag, Zoo is full.`0").CopyTo($blob, $zooFullAlertTextOffset)
+        }
+        elseif ($CaptureTargetValidatorVersion -ge 11) {
+            Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-CapacityCaptureCompletionTargetCheckV12 $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa)
             Write-Bytes $blob $zooFullAlertOffset (New-ZooFullAlert $zooFullAlertVa $zooFullAlertTextVa)
             [Text.Encoding]::ASCII.GetBytes("Couldn't place reward flag, Zoo is full.`0").CopyTo($blob, $zooFullAlertTextOffset)
         }
@@ -1040,7 +1305,10 @@ elseif ($dataSection.Characteristics -ne $DataSectionCharacteristics -or
 
 $patchVa = [uint32]($pe.ImageBase + $section.Rva)
 $captureZooSlotVa = [uint32]($pe.ImageBase + $dataSection.Rva)
-[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 12 $captureZooSlotVa
+[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 15 $captureZooSlotVa
+[byte[]]$artRelationPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 14 $captureZooSlotVa
+[byte[]]$duplicateBlindPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 13 $captureZooSlotVa
+[byte[]]$ownershipBlindPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 12 $captureZooSlotVa
 [byte[]]$uncleanAlertPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 11 $captureZooSlotVa
 [byte[]]$silentCapacityPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 10 $captureZooSlotVa
 [byte[]]$hiddenCursorPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 9 $captureZooSlotVa
@@ -1069,6 +1337,8 @@ $dispatchIsPatched = Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatch
 $modeRegistryIsStock = Test-BytesEqual $bytes $ModeRegistryHookOffset $StockModeRegistryHook
 $modeRegistryIsPatched = Test-BytesEqual $bytes $ModeRegistryHookOffset $modeRegistryHook
 $payloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $payload)
+$artRelationPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $artRelationPayload)
+$duplicateBlindPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $duplicateBlindPayload)
 $uncleanAlertPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $uncleanAlertPayload)
 $silentCapacityPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $silentCapacityPayload)
 $hiddenCursorPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $hiddenCursorPayload)
@@ -1085,6 +1355,10 @@ $previousCursorPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $Pa
 $legacyPayloadMatches = -not $sectionIsNew -and (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
 $payloadIsZero = -not $sectionIsNew -and (Test-ZeroRange $bytes $section.RawOffset $section.RawSize)
 $installed = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $payloadMatches
+$artRelationUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $artRelationPayloadMatches
+$duplicateBlindUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $duplicateBlindPayloadMatches
+$ownershipBlindPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $ownershipBlindPayload)
+$ownershipBlindUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $ownershipBlindPayloadMatches
 $uncleanAlertUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $uncleanAlertPayloadMatches
 $silentCapacityUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $silentCapacityPayloadMatches
 $hiddenCursorUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $hiddenCursorPayloadMatches
@@ -1101,7 +1375,7 @@ $cursorUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsP
 $legacyInstalled = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsStock -and $legacyPayloadMatches
 $installable = $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy)
 $reactivatable = -not $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy) -and $payloadIsZero
-if (-not ($installed -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
+if (-not ($installed -or $artRelationUpgradeable -or $duplicateBlindUpgradeable -or $ownershipBlindUpgradeable -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
     throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch; refusing to overwrite it."
 }
 
@@ -1115,7 +1389,7 @@ if ($installed) {
     Write-Host "MajestyHD.exe: the private ZC01/ZCF0 placement lifecycle is already installed."
 }
 elseif ($DryRun) {
-    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through capacity-gated monster-only ZCF0 placement." -f $(if ($uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
+    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through capacity-gated, duplicate-safe hostile-monster-only ZCF0 placement." -f $(if ($artRelationUpgradeable -or $duplicateBlindUpgradeable -or $ownershipBlindUpgradeable -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before installing the Zoo Capture Flag." }
@@ -1163,5 +1437,5 @@ else {
         (Read-U32 $verified ($dataSection.HeaderOffset + 36)) -ne $DataSectionCharacteristics) {
         throw "MajestyHD.exe verification failed after installing the private Capture Flag."
     }
-    Write-Host "MajestyHD.exe: ZC01 now uses capacity-gated monster-only private ZCF0 placement; Palace AP41 remains on stock Fl00."
+    Write-Host "MajestyHD.exe: ZC01 now uses capacity-gated, duplicate-safe hostile-monster-only private ZCF0 placement; Palace AP41 remains on stock Fl00."
 }

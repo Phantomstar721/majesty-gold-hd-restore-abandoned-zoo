@@ -112,41 +112,37 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Building_Birth ( agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
-// Building_Birth is the stock completion callback for both initial building
-// construction and completed upgrades. Run it first, then refresh capacity
-// from the now-current stock Level and Occupants fields.
+// Generic Building declares birthScript2 but not the Palace-only
+// upgradescript2. Preserve ordinary Building_Birth on first construction; when
+// the same declared completion slot is scheduled by Restore_Zoo_Upgrade, copy
+// Palace_upgrade2's CurrentStageBuilt poll and refresh only after the upgraded
+// prototype has installed its new Level.
 declare
 begin
-	$Building_Birth ( zoo );
-	$Restore_Refresh_Zoo_Capacity ( zoo );
+	if ( $GetAttribute ( zoo, #ATTRIB_FirstStageBuilt ) != 1 )
+		begin
+			$Building_Birth ( zoo );
+			$Restore_Refresh_Zoo_Capacity ( zoo );
+		end
+	else if ( $GetAttribute ( zoo, #ATTRIB_CurrentStageBuilt ) != 1 )
+		$RunThread (
+			zoo's "birthScript2", #palace_upgrade_check, zoo );
+	else
+		$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Upgrade ( agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
 // Literal stock palace_upgrade timing shape: queue the building through
-// basic_upgrade, then let upgradescript2 poll for completed construction.
-// building_upgraded runs when the upgrade starts, before UpgradeAgentAttributes
-// installs the new Level, so capacity cannot be refreshed correctly here.
+// basic_upgrade, then schedule the declared completion slot to perform the
+// unchanged Palace_upgrade2 poll. Generic Building has no upgradescript2 field,
+// so birthScript2 is the closest stock completion callback it actually owns.
 declare
 begin
 	$basic_upgrade ( zoo );
 	$RunThread (
-		zoo's "upgradescript2", #palace_upgrade_check, zoo );
-end
-
-///////////////////////////////////////////////////////////////////////////////
-function Restore_Zoo_Upgrade_Complete ( agent zoo )
-///////////////////////////////////////////////////////////////////////////////
-// Literal stock palace_upgrade2 completion poll, with only the Palace-specific
-// guard/tax/peasant restarts replaced by the Zoo capacity refresh.
-declare
-begin
-	if ( $GetAttribute ( zoo, #ATTRIB_CurrentStageBuilt ) != 1 )
-		$RunThread (
-			zoo's "upgradescript2", #palace_upgrade_check, zoo );
-	else
-		$Restore_Refresh_Zoo_Capacity ( zoo );
+		zoo's "birthScript2", #palace_upgrade_check, zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -396,6 +392,8 @@ function Restore_Hooligan_Goto_Zoo ( agent thisagent )
 declare
 	list hooligans;
 	agent zoo, AIRootAgent, owner;
+	list visitors;
+	integer limit;
 begin
 	zoo = thisagent's "Target";
 	if ( $IsValidGamePiece ( zoo ) == FALSE )
@@ -440,6 +438,25 @@ begin
 
 	if ( $IsHidden ( thisagent ))
 		begin
+			// Stock Check_Mausoleum repeats its Occupants < limit test at
+			// the same boundary that stores the agent. Preserve that final
+			// admission check here: a lost/stale arrest reservation must never
+			// allow a delivered captive to overfill the Zoo.
+			visitors = zoo's "Occupants";
+			limit = $Restore_Zoo_Visitor_Limit ( zoo );
+			if ( $ListSize ( visitors ) >= limit )
+				begin
+					if ( $IsValidGamePiece ( owner ))
+						if ( $IsDead ( owner ) == FALSE )
+							$Reset_Tasks ( owner );
+
+					thisagent's "leader" = $NullAgent ();
+					thisagent's "Special_Boolean" = FALSE;
+					thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
+					$Restore_Refresh_Zoo_Capacity ( zoo );
+					return;
+				end
+
 			$ListObjects ( zoo, "Hooligan", -1, hooligans, #NoHiddenMap );
 			if ( $ListSize ( hooligans ) == 0 )
 				begin
@@ -448,19 +465,19 @@ begin
 
 				end
 
-			// Stock resets arresting heroes before completing the Hooligan.
-			// Single-owner Zoo arrests require the same reset for each owner's
-			// delivery, not only for the globally last Hooligan on the map.
-			if ( $isvalidgamepiece ( owner ))
-				if ( $isdead ( owner ) == FALSE )
-					$Reset_Tasks ( owner );
-
 			// The stock visitor callback runs only after travel has delivered the
 			// agent.  Hide has now completed, so register this hidden captive
 			// through that callback, give it a persistent occupant intent using
 			// the same Enter_Building -> SpecifyIntent ordering as stock Lived_In,
 			// then stop its permanent stored lifecycle.
 			$Enter_Building ( thisagent, zoo );
+
+			// The final stock admission and occupant insertion are now complete;
+			// release the exact arrest owner before ending the Hooligan lifecycle.
+			if ( $IsValidGamePiece ( owner ))
+				if ( $IsDead ( owner ) == FALSE )
+					$Reset_Tasks ( owner );
+
 			thisagent's "Target" = $NullAgent ();
 			$SpecifyIntent ( thisagent, #intent_waiting_in_zoo );
 			$Restore_Refresh_Zoo_Capacity ( zoo );
@@ -671,6 +688,16 @@ declare
 	list heroes, valid_heroes;
 begin
 	subdueflag = FALSE;
+
+	// The native display classifier identifies the underlying Skeleton unit
+	// class as a monster even after stock Skeleton_Birth turns a Priestess
+	// summon into a player-owned Familiar/Controlled hero. Recheck the stock
+	// gameplay ownership at the lethal boundary so controlled units continue
+	// through Controlled_Monster_Death instead of crossing into Zoo storage.
+	if ( thisagent's "Familiar" == TRUE )
+		return FALSE;
+	if ( $GetUnitPlayerNumber ( thisagent ) != #Monster_Player )
+		return FALSE;
 
 	if ( $IsValidGamePiece ( zoo_agent ))
 		begin

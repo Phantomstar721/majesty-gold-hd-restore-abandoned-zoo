@@ -26,10 +26,15 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 - its Capture control selects a private `ZCF0` placement-mode clone, whose
   completion callback creates private `Restore_Capture_Flag` reward flags;
 - `ZCF0` preserves the complete stock Attack Flag placement validator, then
-  accepts only Majesty's stock runtime display category `4` plus
-  unit-description `Character` intersection—the generic stock shape observed
-  for a normal monster—so Capture Flags cannot be placed on heroes, henchmen,
-  buildings, or effects;
+  accepts only Majesty's stock runtime display category `4` and stock
+  `Monster_Player` ownership—the generic stock shape of a currently hostile
+  monster—so Capture Flags cannot be placed on heroes, henchmen, buildings,
+  effects, Priestess minions, or Cultist/other controlled monsters;
+- stock Attack placement rejects a duplicate by looking for its attached
+  `ARA2` description relation on the selected target; the private validator
+  repeats that exact lookup for Capture description relation `ZCF0`, both while
+  hovering and again at click completion, so one monster can carry at most one
+  Capture Flag;
 - that placement clone selects private tactical-cursor selector 32, backed by
   an appended `CUR1` set 1032 repaint of stock Attack cursor set 1005;
 - the private flag retains the stock Attack Flag animation topology but selects
@@ -64,8 +69,9 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   visitor limits of 4 at level 1, 6 at level 2, and 8 at level 3; stored
   visitors and captives actually latched to a live arresting hero consume
   capacity, while flags and successfully subdued but unlatched Hooligans do
-  not; a queued Hooligan retries the existing arrest assignment from its stock
-  Basic lifecycle when room opens; the private Capture Flag gate refuses to arm
+  not; delivery repeats the stock Mausoleum's immediate capacity comparison
+  before storage, and a queued Hooligan retries the existing arrest assignment
+  from its stock Basic lifecycle when room opens; the private Capture Flag gate refuses to arm
   once those real commitments fill the Zoo and posts “Couldn't place reward
   flag, Zoo is full” through Majesty's native system-alert path;
 - delivered monsters use the stock occupant-intent field so their visitor rows
@@ -125,7 +131,7 @@ literal AP41 controller constructor. A third stock-boundary redirect appends
 private `ZCF0` beside the shipped flag-placement modes; ZC01 alone receives a
 private vtable selecting it. Its private validator calls the full stock Fl00
 validator before applying the selected Zoo's capacity bit and the stock
-monster-class intersection. The Capture button and independent placement
+monster-class plus `Monster_Player` ownership intersection. The Capture button and independent placement
 completion check repeat that same capacity test; a full-Zoo attempt uses the
 stock literal-string alert helper and does not arm or spend gold. The stock
 Palace `AP41`/`Fl00`, the existing

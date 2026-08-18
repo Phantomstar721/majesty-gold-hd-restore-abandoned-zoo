@@ -35,12 +35,14 @@ Mausoleum resurrection:
 
 1. let the current stock `Hide` trip finish;
 2. keep the valid hidden monster agent instead of deleting it;
-3. reset the paired arresting hero as before;
+3. repeat stock `Check_Mausoleum`'s final `Occupants < limit` admission test;
 4. call stock `Enter_Building` now that delivery is complete; it adds the
    captive once to `zoo.Occupants` and plays the normal entry effect;
-5. call stock `SpecifyIntent`, in the same post-entry position used by stock
+5. reset the paired arresting hero after the reservation has become an
+   occupant;
+6. call stock `SpecifyIntent`, in the same post-entry position used by stock
    `Lived_In`, so the row displays “is waiting in the zoo”;
-6. kill the hidden Hooligan's active thread so it remains stored.
+7. kill the hidden Hooligan's active thread so it remains stored.
 
 There is no GPL Hero filter in the generic occupant list or Visitors control.
 Live inspection proved that the controller receives every delivered monster,

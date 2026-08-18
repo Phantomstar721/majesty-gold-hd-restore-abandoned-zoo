@@ -9,7 +9,6 @@
 		(birthScript2 Restore_Zoo_Building_Birth)
 		(IGdeathscript building_death)
 		(upgradescript Restore_Zoo_Upgrade)
-		(upgradescript2 Restore_Zoo_Upgrade_Complete)
 	}
 [end]
 
@@ -24,7 +23,6 @@
 		(birthScript2 Restore_Zoo_Building_Birth)
 		(IGdeathscript building_death)
 		(upgradescript Restore_Zoo_Upgrade)
-		(upgradescript2 Restore_Zoo_Upgrade_Complete)
 	}
 [end]
 
@@ -38,6 +36,5 @@
 		(birthScript2 Restore_Zoo_Building_Birth)
 		(IGdeathscript building_death)
 		(upgradescript Restore_Zoo_Upgrade)
-		(upgradescript2 Restore_Zoo_Upgrade_Complete)
 	}
 [end]

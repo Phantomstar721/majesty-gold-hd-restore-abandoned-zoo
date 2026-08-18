@@ -552,8 +552,6 @@ def validate(root: Path) -> list[str]:
         errors.append("Every Zoo level must refresh capacity after stock Building_Birth")
     if gpl.count("(upgradescript Restore_Zoo_Upgrade)") != 3:
         errors.append("Every Zoo level must queue through the stock upgrade callback")
-    if gpl.count("(upgradescript2 Restore_Zoo_Upgrade_Complete)") != 3:
-        errors.append("Every Zoo level must use the stock Palace completion-poll shape")
 
     flag_gpl = (root / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat").read_text(
         encoding="utf-8"
@@ -598,8 +596,7 @@ def validate(root: Path) -> list[str]:
         "$Building_Birth ( zoo )",
         "function Restore_Zoo_Upgrade",
         "$basic_upgrade ( zoo )",
-        "function Restore_Zoo_Upgrade_Complete",
-        'zoo\'s "upgradescript2", #palace_upgrade_check, zoo',
+        'zoo\'s "birthScript2", #palace_upgrade_check, zoo',
         "#ATTRIB_CurrentStageBuilt",
         "function Restore_Captive_Hooligan_Death",
         "$Hooligan_Death ( thisagent )",
@@ -647,6 +644,8 @@ def validate(root: Path) -> list[str]:
         "#Arrest_Hooligan_Dist",
         "$StopMoving ( thisagent )",
         "$Reset_Tasks ( owner )",
+        'visitors = zoo\'s "Occupants"',
+        "if ( $ListSize ( visitors ) >= limit )",
         "$Enter_Building ( thisagent, zoo )",
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )",
         '$KillThread ( thisagent\'s "ActiveScript" )',
@@ -680,6 +679,8 @@ def validate(root: Path) -> list[str]:
         'thisagent\'s "ActiveScript" = $be_dead_2',
         '"basic_death", thisagent',
         "function Restore_Stock_Zoo_Flag_Check",
+        'thisagent\'s "Familiar" == TRUE',
+        "$GetUnitPlayerNumber ( thisagent ) != #Monster_Player",
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -754,6 +755,10 @@ def validate(root: Path) -> list[str]:
     for snippet in forbidden_capture_contract:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
+    if "upgradescript2" in gpl:
+        errors.append(
+            "Generic Building does not declare upgradescript2; Zoo upgrade polling must use its declared completion slot"
+        )
     if "$DeleteGamePiece ( target )" in capture:
         errors.append("Capture lifecycle must store successful monsters, not delete them")
     storage_enter = capture.index("$Enter_Building ( thisagent, zoo )")
@@ -762,9 +767,11 @@ def validate(root: Path) -> list[str]:
     )
     storage_kill = capture.index('$KillThread ( thisagent\'s "ActiveScript" )')
     hidden_arrival = capture.index("if ( $IsHidden ( thisagent ))")
-    if not hidden_arrival < storage_enter < storage_intent < storage_kill:
+    final_capacity = capture.index("if ( $ListSize ( visitors ) >= limit )")
+    owner_reset = capture.index("$Reset_Tasks ( owner )", storage_enter)
+    if not hidden_arrival < final_capacity < storage_enter < owner_reset < storage_intent < storage_kill:
         errors.append(
-            "Zoo storage must enter, set its occupant intent, then stop after arrival"
+            "Zoo storage must final-check capacity, enter, release its owner, set occupant intent, then stop"
         )
 
     project = (root / "GPL" / "RestoreAbandonedZoo.gplproj").read_text(

@@ -135,9 +135,11 @@ classifications:
   by stock interface dispatch. A focused live trace of an ordinary monster
   returned category `4`. This is not the raw GPL `GetUnitType` result; the
   earlier category-`0` inference was disproved by the runtime trace.
-- the stock XML description registry created at `0x005A013A-0x005A023C` maps
-  `Character` to structural subtype `3`, independently excluding Building,
-  Projectile, Overlay, ParticleSystem, and the other non-character resources.
+- the stock GPL `GetUnitPlayerNumber` wrapper at `0x00432140` resolves its unit
+  and invokes vtable slot `+0x1C`. The private validator calls that identical
+  slot after category 4 and accepts only shipped `Monster_Player` value 7.
+  This current-ownership test distinguishes a hostile monster from the same
+  underlying unit class after Priestess or Cultist control.
 
 The same live target returned structural subtype `3`. Their intersection is
 the observed engine shape of a normal monster: display category `4` +
@@ -145,6 +147,21 @@ the observed engine shape of a normal monster: display category `4` +
 invalid-placement result (`1`) used by Fl00. No prototype names or stock
 monster roster are hardcoded. Palace Fl00 continues to point directly at its
 original validator.
+
+Stock target authorization continues through `0x0045CBF0`. Its final test asks
+the selected target's relation table at `+0xA4` for key `ARA2`, the Attack
+Flag's shipped unit-description ID, and rejects an already attached relation
+owned by the placing player. That is stock's pre-creation duplicate guard.
+Stock Attack uses `ARA2` for both description and art, making those identities
+ambiguous until the private clone separated them. A focused live test proved
+that private art key `ZCA2` does not find an attached Capture Flag, while
+private description key `ZCF0` does. The private validator repeats the same
+relation-table lookup at `0x005A7730` with only the description key privatized
+from `ARA2` to `ZCF0`. Capture placement belongs only to the player's Zoo,
+making any attached `ZCF0` the private equivalent of stock's same-player
+match. This check runs in both the
+hover validator and the independent completion authorization, before reward
+deduction or flag creation. Palace Fl00 retains its literal `ARA2` test.
 
 Fl00 also reports its ordinary placement-ready state before the cursor has an
 agent selected. The wrapper preserves that stock mode initialization but maps
@@ -158,7 +175,8 @@ enters reward deduction and flag creation. The relocated private completion
 callback redirects that single internal call to a private check with the same
 two-argument shape and pointer/zero return contract. The check calls the full
 stock `0x0045D2D0` first, returns zero on any stock rejection, and returns the
-stock pointer only when that agent also passes category `4` + `Character`.
+stock pointer only when that agent also passes category `4` plus
+`Monster_Player` ownership.
 Every subsequent completion instruction remains the relocated stock clone.
 This prevents creation on non-monsters even if the UI attempts completion;
 Palace Fl00's callback continues to call `0x0045D2D0` directly.
@@ -381,7 +399,8 @@ Stock Palace arrival resets heroes whose Active or Back script is
 cleanup is insufficient after privatizing each Hooligan to one `leader`: a
 specific hero may otherwise retain a delivered target while unrelated
 Hooligans remain. The Zoo arrival therefore applies stock `Reset_Tasks` to its
-exact owner on every delivery before the occupant-storage step.
+exact owner on every delivery after its reservation has become a stored
+occupant.
 
 Stock expansion `Check_Mausoleum` queries completed player-owned Mausoleums,
 copies each building's generic `Occupants` list, compares `$ListSize` with
@@ -401,6 +420,13 @@ pairings against the level limit. This latch definition is Zoo integration, not
 recovered stock functionality, but adds no watcher, thread, counter, or
 prototype field.
 
+`Check_Mausoleum` performs its `Occupants < limit` comparison immediately before
+the synchronous storage step. Zoo arrival repeats that exact comparison before
+`Enter_Building`; a late delivery that no longer has room releases its owner and
+returns to the existing unlatched Hooligan lifecycle. This final stock boundary
+prevents reservation drift or controlled-unit crossover from overfilling the
+generic occupant list.
+
 Stock monster birth assigns `ATTRIB_Zoo_Legal_Target`, documenting it as the
 Zoo flag interface's legality channel. The private `ZCF0` gate reuses that
 stock attribute on the selected Zoo as its current capacity bit. Stock
@@ -410,10 +436,19 @@ construction starts, before `BuildingReachedMaxHP` calls
 `UpgradeAgentAttributes` and installs the new prototype `Level`. The shipped
 Palace handles this boundary by having `palace_upgrade` queue the upgrade and
 schedule `upgradescript2`, while `palace_upgrade2` reschedules itself at
-`#palace_upgrade_check` until `CurrentStageBuilt == 1`. The Zoo copies that
-lifecycle literally and replaces only the Palace-specific spawner restarts at
-completion with its capacity refresh. Reservation, delivery, and captive death
-refresh the same bit.
+`#palace_upgrade_check` until `CurrentStageBuilt == 1`.
+
+The focused `ZooTrace.GMP` checkpoint showed a real level-two Zoo with four
+occupants and a false capacity bit. Its serialized GPL fields contained
+`birthScript2` and `upgradescript` but no `upgradescript2`: generic stock
+`Building` does not declare that Palace/Outpost-only field, so the DAT compiler
+discarded the attempted assignment and the completion poll never ran. The Zoo
+now copies the same Palace timing and test through its declared `birthScript2`
+slot. That callback still runs ordinary `Building_Birth` on initial completion;
+when scheduled after an upgrade begins, it reschedules at the same stock
+interval until `CurrentStageBuilt == 1`, then substitutes only the Zoo capacity
+refresh for Palace's guard/tax/peasant restarts. Reservation, delivery, and
+captive death refresh the same bit.
 Both native target-authorization passes require this bit before the already
 proven category-4 Character test, so a full Zoo rejects clicks before flag
 creation while Palace `Fl00` remains untouched.

@@ -39,6 +39,14 @@ private gate. Non-monsters are likewise rejected during placement; the GPL
 always retain the literal shipped validator, `attack_flag_birth`, payout, and
 death lifecycle and never enter this file's capture seam.
 
+Stock Attack placement prevents a duplicate before creation by querying the
+target's attached `ARA2` relation. The private target check copies that native
+relation lookup with only the private Capture description key `ZCF0`
+substituted. A focused live test proved the target table is keyed by unit
+description, not the separate private `ZCA2` art identifier.
+The hover and completion gates both reject a monster that already carries that
+relation, so no second Capture Flag is created and no additional gold is spent.
+
 While placing the private flag, ZCF0 uses tactical-cursor selector 32. The
 loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set
 1032, derived from Attack cursor set 1005 but repainted with the Zoo paw flag.
@@ -142,8 +150,9 @@ shape, with the adaptations required by private single-owner arrests:
 - stop the Hooligan when it gets farther than that distance from its owner;
 - after it becomes hidden, check whether this was the last Hooligan;
 - emit the stock completion message and set quest flag 2 for the last one;
-- reset the exact paired owner on every arrival;
-- call stock `Enter_Building` only after `Hide` has completed, then stop the
+- repeat the stock Mausoleum capacity comparison on every arrival;
+- call stock `Enter_Building` only after `Hide` has completed, reset the exact
+  paired owner after its reservation becomes an occupant, then stop the
   hidden Hooligan's active thread so it remains in the Zoo's `Occupants` list.
 
 The flag-side query uses the Capture Flag's player ownership and copies stock
@@ -164,20 +173,45 @@ and capacity refresh instead of leaving the native placement bit stale.
 The Zoo refreshes the shipped `ATTRIB_Zoo_Legal_Target` attribute after stock
 construction, through the literal Palace upgrade-completion lifecycle, and
 whenever hero latches or occupants change. `building_upgraded` first invokes
-the Zoo's `upgradescript`, which preserves `basic_upgrade` and schedules
-`upgradescript2` at `#palace_upgrade_check`. Like stock `palace_upgrade2`, that
-callback reschedules itself until `CurrentStageBuilt == 1`; only then does it
-read the upgraded prototype's new `Level` and refresh the capacity bit.
+the Zoo's `upgradescript`, which preserves `basic_upgrade` and schedules the
+Zoo's declared `birthScript2` completion slot at `#palace_upgrade_check`.
+Generic stock `Building` does not declare the Palace-only `upgradescript2`
+field. The shared Zoo callback therefore preserves ordinary `Building_Birth`
+for initial construction and, only after first-stage completion, applies stock
+`palace_upgrade2`'s unchanged `CurrentStageBuilt` reschedule test. It reads the
+upgraded prototype's new `Level` and refreshes the capacity bit only when that
+test reaches 1.
 The private Capture placement validator and its independent completion check
-both read that capacity bit before applying their existing monster-only test.
+both read that capacity bit before applying their hostile-monster-only test.
 If stored visitors plus real hero/captive latches fill the selected Zoo, the
 Capture button refuses to arm and posts “Couldn't place reward flag, Zoo is
 full” through the native stock system-alert helper. The independent completion
 check repeats the same test for a capacity change after arming. No flag is
 created and no gold is spent.
+
+The native unit-display classifier reports the underlying Skeleton class as a
+monster even after stock `Skeleton_Birth` turns a Priestess summon into a
+player-owned `Familiar`/`Controlled` unit. The placement validator and its
+independent click-completion check therefore copy stock
+`GetUnitPlayerNumber`'s unit-vtable query and require `Monster_Player` after the
+generic monster classification. This rejects Priestess summons,
+Priestess-controlled undead, Cultist-charmed monsters, and every other
+currently controlled monster without a per-title list. The GPL lethal boundary
+repeats that ownership condition and explicitly rejects `Familiar`, ensuring a
+target controlled after flag placement retains stock `Controlled_Monster_Death`.
+
+Stock `Check_Mausoleum` repeats its `Occupants < limit` comparison immediately
+before storing an agent. Zoo delivery now preserves that final admission
+boundary as well as its earlier travel reservation. If the Zoo has filled
+before a captive arrives, the arresting hero is reset and the captive returns
+to the existing unlatched Hooligan queue; `Enter_Building` is not called. A
+stale or interrupted reservation therefore cannot create a seventh level-2
+occupant.
+
 Stock resets all arresting heroes only when the globally last quest Hooligan
 arrives. The private one-owner system instead uses the same `Reset_Tasks`
-cleanup on the delivered Hooligan's `leader` before storing the target.
+cleanup on the delivered Hooligan's `leader` after the final admission and
+occupant insertion.
 
 There is no visitor income, breakout, or Zoo-destruction-specific cleanup in
 this storage test.
@@ -245,6 +279,7 @@ does not guess per-species movement-rate modifiers.
    whether or not the player owns a Zoo.
 2. Complete any level of Zoo, open its Capture panel, then place a Capture Flag
    on a living monster.
+   Re-entering placement cannot attach a second Capture Flag to that monster.
 3. The flag remains attached and heroes fight the still-hostile monster
    normally. Reducing it to zero HP makes one stock capture attempt; failure
    deletes the flag and runs the monster's original death behavior.
@@ -261,8 +296,8 @@ does not guess per-species movement-rate modifiers.
    50 units ahead of that hero.
 7. The Hooligan enters its selected Zoo through stock `Hide`; its active thread
    is stopped and the valid hidden agent is appended to `Zoo.Occupants`.
-8. Arrival resets the paired hero to its unchanged native BasicScript before
-   storing the target.
+8. Arrival repeats the stock Mausoleum capacity check, stores the target, then
+   resets the paired hero to its unchanged native BasicScript.
 9. If the hero changes targets before delivery, the Hooligan becomes available
    and one different hero receives the same stock arrest handoff.
 10. If an owner dies or loses the target, the captive can be reassigned.
