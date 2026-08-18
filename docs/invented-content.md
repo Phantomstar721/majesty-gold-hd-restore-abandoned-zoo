@@ -203,12 +203,16 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   Counter 0, and ActiveScript `Arrest_Hooligan`. The hero's native Starting,
   Basic, Back, and Quest scripts are never replaced.
 - Single-hero ownership copies the abandoned Zoo and `Control_Monster` seam:
-  filter living native heroes, choose valid list member 1, and store that hero
-  in the Monster prototype's declared `leader` field. Only that selected hero
-  receives the direct stock arrest handoff. Heroes already running or returning
-  to `Arrest_Hooligan` are excluded. Applying this ownership to the Hooligan
-  return path is integration glue, but the ownership fields and selection shape
-  are stock.
+  filter living native heroes, choose valid list member 1, and temporarily
+  store that hero in the Monster prototype's declared `leader` field. The
+  abandoned source limits this owner search to a 300-unit radius; by requested
+  design, the active compatibility bridge searches all living player-one heroes
+  because no nearby hero is required at lethal capture. After stock control
+  completes, that temporary relationship is released and only an available
+  capacity-backed arrest handoff becomes a real reservation. Heroes already
+  running or returning to `Arrest_Hooligan` are excluded. Applying this
+  ownership to the Hooligan return path is integration glue, but the ownership
+  fields and selection shape are stock.
 - Interruption recovery copies the abandoned Zoo's `zoo_flag_poll` ownership
   test: a hero whose Target is no longer the monster has abandoned it. The
   Hooligan stops, clears its stock `Special_Boolean`, returns to its existing
@@ -240,8 +244,11 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   captured Hooligan records its selected Zoo in the stock Monster `Target`
   field. Pending capacity counts only a real stock arrest pairing: a live
   `leader` hero still targeting that Hooligan with `Arrest_Hooligan` active or
-  resumable. Unassigned flagged captives remain queued, and assignment refuses
-  another pairing once stored visitors plus real pairings reach the limit.
+  resumable. Ordinary flags consume no capacity. A successfully controlled
+  Hooligan that finds the Zoo full remains unlatched in its existing Basic
+  lifecycle and retries the same assignment on later cycles; assignment refuses
+  another pairing until stored visitors plus real pairings fall below the
+  limit.
   This avoids overbooking without adding a new field, counter, timer, or
   watcher.
 - The private Capture placement gate uses the otherwise Zoo-specific stock
@@ -250,6 +257,11 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   originating Zoo pointer in a four-byte, non-executable private data section
   are new integration seams. They change no Palace Attack Flag code or global
   Monster flaggability.
+- The full-Zoo message text “Couldn't place reward flag, Zoo is full” is
+  invented wording. Its presentation is not invented: the Capture-button gate
+  and last-moment completion gate use Majesty's shipped literal-string system
+  alert lifecycle. A full attempt does not arm placement, create a flag, or
+  spend gold.
 - Upgrade completion uses the literal stock Palace timing lifecycle because
   ordinary `building_upgraded` runs before `UpgradeAgentAttributes` installs
   the new Zoo `Level`: `upgradescript` queues the upgrade and schedules

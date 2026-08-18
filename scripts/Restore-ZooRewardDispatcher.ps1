@@ -5,7 +5,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $SectionName = ".mzoo"
-$PatchVirtualSize = 0x574
+$PatchVirtualSize = 0x600
+$RecognizedPatchVirtualSize = 0x574
 $PatchRawSize = 0x600
 $DataSectionName = ".mzdt"
 $DataSectionCharacteristics = [uint32]0xC0000040L
@@ -156,7 +157,7 @@ if ($section) {
         $modeRegistryIsStock -and
         (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
 
-    if ($section.RawSize -ge $PatchRawSize -and $section.VirtualSize -ge $PatchVirtualSize) {
+    if ($section.RawSize -ge $PatchRawSize -and $section.VirtualSize -ge $RecognizedPatchVirtualSize) {
         [byte[]]$signature = [Text.Encoding]::ASCII.GetBytes("RestoreAbandonedZoo.ZC01.ZCF0")
         [byte[]]$prototypeName = [Text.Encoding]::ASCII.GetBytes("Restore_Capture_Flag`0")
         $privateHandlerVa = [uint32]($patchVa + $PrivateHandlerOffset)

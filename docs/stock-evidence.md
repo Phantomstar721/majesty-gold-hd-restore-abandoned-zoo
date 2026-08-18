@@ -418,6 +418,18 @@ Both native target-authorization passes require this bit before the already
 proven category-4 Character test, so a full Zoo rejects clicks before flag
 creation while Palace `Fl00` remains untouched.
 
+The private Capture-button wrapper also reads that bit before it tail-calls the
+unchanged stock `SetFlagMode`. On a full Zoo it instead copies Majesty's native
+placement-failure alert sequence: `0x0046ABE0` selects the standard alert
+presentation and shipped helper `0x0046ACE0` constructs, posts, and destroys a
+literal engine string. The completion check retains the same alert branch for
+the narrow race where capacity becomes full after the cursor was armed. No
+custom message queue, timer, or UI controller is introduced.
+`SetFlagMode` normally returns with `RET 8`, consuming the mode and reward
+arguments pushed by AP41. Because the full-Zoo branch deliberately bypasses
+that callee, it performs the identical eight-byte return cleanup before the
+private panel handler restores its registers.
+
 The generic Visitors-menu control is restored independently: MX09 already
 contains the Visitors strings, rectangle, command ID `0x1F55`, and the first
 0x84 bytes of AP02's stock control, but its record ends 16 bytes early. The mod

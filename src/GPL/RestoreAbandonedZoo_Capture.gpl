@@ -12,10 +12,6 @@
 // stock intent or quest message.
 expression #intent_waiting_in_zoo 199
 
-// GPLMx/mx_Globals.gpl ships this exact value only in the expansion rules.
-// Keep a private name so this base="Any" package compiles for Original too.
-expression #restore_zoo_flag_radius 300
-
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -59,8 +55,8 @@ function Restore_Zoo_Pending_Reservations ( agent zoo ) is integer
 ///////////////////////////////////////////////////////////////////////////////
 // A Mausoleum stores immediately after its stock capacity check. Zoo captives
 // must travel, so count only Hooligans whose ordinary Target names this Zoo
-// and whose stock arrest task is actually latched to a live hero. Flagged but
-// unassigned captives remain queued without consuming visitor capacity.
+// and whose stock arrest task is actually latched to a live hero. Flags and
+// unlatched Hooligans do not consume visitor capacity.
 declare
 	list hidden_hooligans, hooligans;
 	agent hooligan;
@@ -198,32 +194,22 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Latch_Hooligan_To_Hero (
-	agent thisagent, agent hero ) is boolean
+function Restore_Find_Completed_Zoo ( agent thisagent ) is agent
 ///////////////////////////////////////////////////////////////////////////////
-// Apply the literal successful Hooligan_Check -> Be_Dumb writes to the one hero
-// selected by stock zoo_flag_check/Control_Monster.
+// The abandoned Zoo capture check required a completed player-owned Zoo before
+// invoking Control_Monster. Admission is deliberately deferred until the
+// controlled monster becomes a Hooligan, so a successful lethal roll can wait
+// in the stock Hooligan lifecycle while every completed Zoo is temporarily full.
 declare
-	agent zoo;
+	list zoos;
 begin
-	zoo = thisagent's "Target";
-	if ( $IsValidGamePiece ( hero ))
-		if ( $IsDead ( hero ) == FALSE )
-			if ( hero's "SubType" == "Hero" )
-				if ( hero's "ActiveScript" != $Arrest_Hooligan )
-					if ( hero's "BackScript" != $Arrest_Hooligan )
-						begin
-							thisagent's "leader" = hero;
-							$SpecifyIntent ( hero, #intent_arresting_hooligan );
-							hero's "Target" = thisagent;
-							hero's "Counter" = 0;
-							hero's "ActiveScript" = $Arrest_Hooligan;
-							if ( $IsValidGamePiece ( zoo ))
-								$Restore_Refresh_Zoo_Capacity ( zoo );
-							return TRUE;
-						end
+	$ListObjects ( thisagent, "building", -1, zoos,
+		#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 );
 
-	return FALSE;
+	if ( $ListSize ( zoos ) > 0 )
+		return $ListMember ( zoos, 1 );
+
+	return $NullAgent ();
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -270,14 +256,11 @@ begin
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
 	$SetThreadInterval ( thisagent's "ActiveScript", #Henchmen_Cycle );
 
-	if ( $Restore_Is_Latched_Capture ( thisagent ) == FALSE )
-		begin
-			if ( $Restore_Assign_Hooligan ( thisagent, hero ) == FALSE )
-				// The stock-selected controller may already own an arrest.
-				// Clear it only after releasing Num_Followers so Basic can
-				// retry every free hero, including this one once it is free.
-				thisagent's "leader" = $NullAgent ();
-		end
+	// Control_Monster's temporary owner is not an arrest reservation. Release
+	// that link after its follower count, then let the ordinary Hooligan Basic
+	// lifecycle reserve one capacity slot only when a real arrest can begin.
+	thisagent's "leader" = $NullAgent ();
+	$Restore_Assign_Hooligan ( thisagent, $NullAgent () );
 
 	if ( $IsValidGamePiece ( zoo ))
 		$Restore_Refresh_Zoo_Capacity ( zoo );
@@ -296,8 +279,10 @@ declare
 	list visitors;
 	integer committed, limit;
 begin
-	zoo = thisagent's "Target";
-	if ( $IsValidGamePiece ( zoo ) == FALSE )
+	zoo = $Restore_Find_Available_Zoo ( thisagent );
+	if ( $IsValidGamePiece ( zoo ))
+		thisagent's "Target" = zoo;
+	else
 		return FALSE;
 
 	// A queued Capture Flag may seek heroes only while the Zoo has room for a
@@ -511,10 +496,10 @@ begin
 	// charm delay cannot advance into Become_Controlled and BackScript.
 	$ResumeThread ( thisagent's "ActiveScript" );
 
-	// The flag's stock death cleanup resets its seekers. Delete it before
-	// latching the one Control_Monster hero to the arrest task.
+	// The flag's stock death cleanup resets its seekers. Delete it now; the
+	// temporary Control_Monster owner is released by Restore_Controlled_To_Hooligan
+	// before capacity-aware Hooligan assignment begins.
 	$DeleteGamePiece ( flag );
-	$Restore_Latch_Hooligan_To_Hero ( thisagent, hero );
 	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
 	$Restore_Refresh_Zoo_Capacity ( zoo );
@@ -681,7 +666,7 @@ function Restore_Stock_Zoo_Flag_Check (
 ///////////////////////////////////////////////////////////////////////////////
 declare
 	agent hero, zoo;
-	boolean valid_hero, subdueflag;
+	boolean subdueflag;
 	integer cash, target_strength, charm_percentage;
 	list heroes, valid_heroes;
 begin
@@ -697,21 +682,20 @@ begin
 				charm_percentage = 95;
 			if (( $RandomNumber ( 100 ) + 1 ) < charm_percentage )
 				begin
-					heroes = $ListSubtypesInRadius (
-						thisagent, "hero", "hero", #restore_zoo_flag_radius );
+					$ListObjects (
+						thisagent, "Hero", -1, heroes, #NoHiddenMap );
 					foreach hero in heroes do
 						begin
-							if ( $IsDead ( hero ) == FALSE )
-								begin
-									valid_heroes << hero;
-									valid_hero = TRUE;
-								end
-						end
+							if ( $GetUnitPlayerNumber ( hero ) == #Player_1 )
+								if ( $IsDead ( hero ) == FALSE )
+									if ( hero's "SubType" == "Hero" )
+										valid_heroes << hero;
+					end
 
-					if ( valid_hero == TRUE )
+					if ( $ListSize ( valid_heroes ) > 0 )
 						begin
 							hero = $ListMember ( valid_heroes, 1 );
-							zoo = $Restore_Find_Available_Zoo ( zoo_agent );
+							zoo = $Restore_Find_Completed_Zoo ( zoo_agent );
 							if ( $IsValidGamePiece ( zoo ))
 								begin
 									$Restore_Begin_Stock_Zoo_Control (
@@ -725,7 +709,7 @@ begin
 				end
 
 			// The overlay callback owns failure cleanup. The success bridge
-			// consumes the flag before latching the selected hero.
+			// consumes the flag before capacity-aware Hooligan assignment.
 		end
 
 	return subdueflag;

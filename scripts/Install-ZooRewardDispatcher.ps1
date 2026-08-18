@@ -10,7 +10,7 @@ $DataSectionName = ".mzdt"
 $DataSectionCharacteristics = [uint32]0xC0000040L
 $DataSectionVirtualSize = 0x04
 $DataSectionRawSize = 0x200
-$PatchVirtualSize = 0x574
+$PatchVirtualSize = 0x600
 $PatchRawSize = 0x600
 $LegacyPatchVirtualSize = 0xA0
 $LegacyPatchRawSize = 0x200
@@ -27,6 +27,10 @@ $CapacityTargetValidatorOffset = 0x490
 $CapacityCompletionTargetCheckOffset = 0x4F0
 $CapacityArmWrapperOffset = 0x550
 $LegacyCaptureZooSlotOffset = 0x570
+$BuggyZooFullAlertOffset = 0x580
+$BuggyZooFullAlertTextOffset = 0x5B0
+$ZooFullAlertOffset = 0x590
+$ZooFullAlertTextOffset = 0x5C0
 $CaptureCursorSelector = 0x20
 
 $FactoryHookOffset = 0x10A020
@@ -64,6 +68,9 @@ $GetSelectedAgentVa = 0x00467540
 $GetAttributeVa = 0x005B9FD0
 $BadGetAttributeVa = 0x005B93D0
 $AttribZooLegalTarget = 0x00305A41
+$SystemAlertOwnerVa = 0x007C1394
+$PrepareSystemAlertVa = 0x0046ABE0
+$PostLiteralSystemAlertVa = 0x0046ACE0
 $StockAp41VtableOffset = 0x33D3B4
 $StockAp41VtableLength = 0x2C
 
@@ -270,6 +277,87 @@ function New-CapacityArmWrapper {
         [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($wrapper, 0x07)
         Write-Bytes $wrapper 0x0C (New-RelativeInstruction 0xE9 ([uint32]($WrapperVa + 0x0C)) $SetFlagModeVa)
     }
+    $wrapper
+}
+
+function New-AlertingCapacityArmWrapperV11 {
+    param(
+        [uint32]$WrapperVa,
+        [uint32]$CaptureZooSlotVa,
+        [uint32]$AttributeGetterVa,
+        [uint32]$ZooFullAlertVa
+    )
+    # Preserve the stock AP41 selected-building lookup and SetFlagMode handoff.
+    # If that completed Zoo currently reports no legal capacity, stop before
+    # arming placement and post the same native system alert lifecycle used by
+    # stock placement failures. The completion check repeats the gate for the
+    # narrow race where capacity changes after the cursor was armed.
+    [byte[]]$wrapper = @(
+        0x51,                              # push ecx (flag manager)
+        0x8B,0xCE,                        # mov ecx,esi (AP41 controller)
+        0xE8,0,0,0,0,                    # call selected-agent getter
+        0xA3,0,0,0,0,                    # mov [CaptureZooSlot],eax
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x18,                        # je full
+        0x8B,0xC8,                        # mov ecx,eax (selected Zoo)
+        0x6A,0x00,                        # push 0 (attribute default)
+        0x68,0,0,0,0,                    # push ATTRIB_Zoo_Legal_Target
+        0xE8,0,0,0,0,                    # call stock attribute getter
+        0x85,0xC0,                        # test eax,eax
+        0x74,0x06,                        # je full
+        0x59,                              # pop ecx (flag manager)
+        0xE9,0,0,0,0,                    # jmp stock SetFlagMode
+        0x59,                              # full: pop ecx
+        0xE8,0,0,0,0,                    # call native Zoo-full alert
+        0xC3                              # ret to private panel handler
+    )
+    if ($wrapper.Length -ne 0x30) { throw "Alerting capacity arm wrapper changed length." }
+    Write-Bytes $wrapper 0x03 (New-RelativeInstruction 0xE8 ([uint32]($WrapperVa + 0x03)) $GetSelectedAgentVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($wrapper, 0x09)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($wrapper, 0x16)
+    Write-Bytes $wrapper 0x1A (New-RelativeInstruction 0xE8 ([uint32]($WrapperVa + 0x1A)) $AttributeGetterVa)
+    Write-Bytes $wrapper 0x24 (New-RelativeInstruction 0xE9 ([uint32]($WrapperVa + 0x24)) $SetFlagModeVa)
+    Write-Bytes $wrapper 0x2A (New-RelativeInstruction 0xE8 ([uint32]($WrapperVa + 0x2A)) $ZooFullAlertVa)
+    $wrapper
+}
+
+function New-AlertingCapacityArmWrapper {
+    param(
+        [uint32]$WrapperVa,
+        [uint32]$CaptureZooSlotVa,
+        [uint32]$AttributeGetterVa,
+        [uint32]$ZooFullAlertVa
+    )
+    # SetFlagMode is a thiscall whose RET 8 consumes the mode and reward
+    # arguments already pushed by the private panel handler. The full branch
+    # bypasses that stock callee, so it must perform the identical RET 8 before
+    # the handler restores its saved registers.
+    [byte[]]$wrapper = @(
+        0x51,
+        0x8B,0xCE,
+        0xE8,0,0,0,0,
+        0xA3,0,0,0,0,
+        0x85,0xC0,
+        0x74,0x18,
+        0x8B,0xC8,
+        0x6A,0x00,
+        0x68,0,0,0,0,
+        0xE8,0,0,0,0,
+        0x85,0xC0,
+        0x74,0x06,
+        0x59,
+        0xE9,0,0,0,0,
+        0x59,
+        0xE8,0,0,0,0,
+        0xC2,0x08,0x00                   # ret 8: match stock SetFlagMode
+    )
+    if ($wrapper.Length -ne 0x32) { throw "Alerting capacity arm wrapper changed length." }
+    Write-Bytes $wrapper 0x03 (New-RelativeInstruction 0xE8 ([uint32]($WrapperVa + 0x03)) $GetSelectedAgentVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($wrapper, 0x09)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($wrapper, 0x16)
+    Write-Bytes $wrapper 0x1A (New-RelativeInstruction 0xE8 ([uint32]($WrapperVa + 0x1A)) $AttributeGetterVa)
+    Write-Bytes $wrapper 0x24 (New-RelativeInstruction 0xE9 ([uint32]($WrapperVa + 0x24)) $SetFlagModeVa)
+    Write-Bytes $wrapper 0x2A (New-RelativeInstruction 0xE8 ([uint32]($WrapperVa + 0x2A)) $ZooFullAlertVa)
     $wrapper
 }
 
@@ -654,8 +742,58 @@ function New-NormalizedCapacityCaptureTargetValidator {
     $validator
 }
 
-function New-CapacityCaptureCompletionTargetCheck {
+function New-CapacityCaptureCompletionTargetCheckV10 {
     param([uint32]$TargetCheckVa, [uint32]$CaptureZooSlotVa, [uint32]$AttributeGetterVa)
+    # Previous capacity-gated completion check retained solely so an installed
+    # checkpoint can be recognized and upgraded without weakening validation.
+    [byte[]]$targetCheck = @(
+        0x56,
+        0x8B,0x44,0x24,0x0C,
+        0x8B,0x4C,0x24,0x08,
+        0x50,
+        0x51,
+        0xE8,0,0,0,0,
+        0x83,0xC4,0x08,
+        0x85,0xC0,
+        0x74,0x36,
+        0x8B,0xF0,
+        0x8B,0x0D,0,0,0,0,
+        0xE3,0x2E,
+        0x6A,0x00,
+        0x68,0,0,0,0,
+        0xE8,0,0,0,0,
+        0x85,0xC0,
+        0x74,0x1E,
+        0x8B,0x8E,0x90,0x00,0x00,0x00,
+        0x83,0x79,0x08,0x03,
+        0x75,0x12,
+        0x56,
+        0xE8,0,0,0,0,
+        0x83,0xC4,0x04,
+        0x83,0xF8,0x04,
+        0x75,0x04,
+        0x8B,0xC6,
+        0x5E,
+        0xC3,
+        0x33,0xC0,
+        0xEB,0xFA
+    )
+    if ($targetCheck.Length -ne 0x53) { throw "V10 capacity completion check changed length." }
+    Write-Bytes $targetCheck 0x0B (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x0B)) $StockFlagTargetCheckVa)
+    [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($targetCheck, 0x1B)
+    [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($targetCheck, 0x24)
+    Write-Bytes $targetCheck 0x28 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x28)) $AttributeGetterVa)
+    Write-Bytes $targetCheck 0x3E (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x3E)) $DisplayClassifierVa)
+    $targetCheck
+}
+
+function New-CapacityCaptureCompletionTargetCheck {
+    param(
+        [uint32]$TargetCheckVa,
+        [uint32]$CaptureZooSlotVa,
+        [uint32]$AttributeGetterVa,
+        [uint32]$ZooFullAlertVa
+    )
     # Stock completion independently reacquires and authorizes its target. Apply
     # the same selected-Zoo capacity gate here so a full Zoo cannot race a click.
     [byte[]]$targetCheck = @(
@@ -675,7 +813,7 @@ function New-CapacityCaptureCompletionTargetCheck {
         0x68,0,0,0,0,                    # push ATTRIB_Zoo_Legal_Target
         0xE8,0,0,0,0,                    # call stock attribute getter
         0x85,0xC0,                        # test eax,eax
-        0x74,0x1E,                        # je invalid (Zoo full)
+        0x74,0x22,                        # je full (Zoo full)
         0x8B,0x8E,0x90,0x00,0x00,0x00,   # mov ecx,[esi+90] (description)
         0x83,0x79,0x08,0x03,              # cmp dword ptr [ecx+8],Character
         0x75,0x12,                        # jne invalid
@@ -688,15 +826,44 @@ function New-CapacityCaptureCompletionTargetCheck {
         0x5E,                              # done: pop esi
         0xC3,                              # ret
         0x33,0xC0,                        # invalid: xor eax,eax
-        0xEB,0xFA                         # jmp done
+        0xEB,0xFA,                        # jmp done
+        0xE8,0,0,0,0,                    # full: post native full-Zoo alert
+        0xEB,0xF5                         # jmp invalid
     )
-    if ($targetCheck.Length -ne 0x53) { throw "Capacity Capture completion target check changed length." }
+    if ($targetCheck.Length -ne 0x5A) { throw "Capacity Capture completion target check changed length." }
     Write-Bytes $targetCheck 0x0B (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x0B)) $StockFlagTargetCheckVa)
     [BitConverter]::GetBytes($CaptureZooSlotVa).CopyTo($targetCheck, 0x1B)
     [BitConverter]::GetBytes([uint32]$AttribZooLegalTarget).CopyTo($targetCheck, 0x24)
     Write-Bytes $targetCheck 0x28 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x28)) $AttributeGetterVa)
     Write-Bytes $targetCheck 0x3E (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x3E)) $DisplayClassifierVa)
+    Write-Bytes $targetCheck 0x53 (New-RelativeInstruction 0xE8 ([uint32]($TargetCheckVa + 0x53)) $ZooFullAlertVa)
     $targetCheck
+}
+
+function New-ZooFullAlert {
+    param([uint32]$AlertVa, [uint32]$AlertTextVa)
+    # Literal stock system-alert lifecycle used by placement failures:
+    # select the standard alert presentation, construct the engine string from
+    # a literal, post it globally, and let the shipped helper destroy it.
+    [byte[]]$alert = @(
+        0x8B,0x0D,0,0,0,0,               # mov ecx,[system alert owner]
+        0x6A,0xFF,                        # push 255
+        0x68,0x00,0xFF,0x00,0x80,         # push stock alert color
+        0x6A,0x01,                        # push 1
+        0xE8,0,0,0,0,                    # call stock alert presentation
+        0x6A,0x01,                        # push 1
+        0x6A,0xFF,                        # push -1 (global alert)
+        0x68,0,0,0,0,                    # push literal text
+        0xE8,0,0,0,0,                    # call stock literal-string alert helper
+        0x83,0xC4,0x0C,                  # add esp,12
+        0xC3                              # ret
+    )
+    if ($alert.Length -ne 0x26) { throw "Zoo-full alert assembly changed length." }
+    [BitConverter]::GetBytes([uint32]$SystemAlertOwnerVa).CopyTo($alert, 0x02)
+    Write-Bytes $alert 0x0F (New-RelativeInstruction 0xE8 ([uint32]($AlertVa + 0x0F)) $PrepareSystemAlertVa)
+    [BitConverter]::GetBytes($AlertTextVa).CopyTo($alert, 0x19)
+    Write-Bytes $alert 0x1D (New-RelativeInstruction 0xE8 ([uint32]($AlertVa + 0x1D)) $PostLiteralSystemAlertVa)
+    $alert
 }
 
 function New-PatchBlob {
@@ -740,6 +907,10 @@ function New-PatchBlob {
     $capacityTargetValidatorVa = [uint32]($PatchVa + $CapacityTargetValidatorOffset)
     $capacityCompletionTargetCheckVa = [uint32]($PatchVa + $CapacityCompletionTargetCheckOffset)
     $capacityArmWrapperVa = [uint32]($PatchVa + $CapacityArmWrapperOffset)
+    $zooFullAlertOffset = $(if ($CaptureTargetValidatorVersion -ge 12) { $ZooFullAlertOffset } else { $BuggyZooFullAlertOffset })
+    $zooFullAlertTextOffset = $(if ($CaptureTargetValidatorVersion -ge 12) { $ZooFullAlertTextOffset } else { $BuggyZooFullAlertTextOffset })
+    $zooFullAlertVa = [uint32]($PatchVa + $zooFullAlertOffset)
+    $zooFullAlertTextVa = [uint32]($PatchVa + $zooFullAlertTextOffset)
     $captureZooSlotVa = $(if ($CaptureTargetValidatorVersion -ge 8) { $CapacitySlotVa } else { [uint32]($PatchVa + $LegacyCaptureZooSlotOffset) })
     $attributeGetterVa = $(if ($CaptureTargetValidatorVersion -ge 9) { $GetAttributeVa } else { $BadGetAttributeVa })
     if ($CaptureTargetValidatorVersion -ge 6) {
@@ -749,8 +920,23 @@ function New-PatchBlob {
         else {
             Write-Bytes $blob $CapacityTargetValidatorOffset (New-CapacityCaptureTargetValidator $capacityTargetValidatorVa $captureZooSlotVa $attributeGetterVa)
         }
-        Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-CapacityCaptureCompletionTargetCheck $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa)
-        Write-Bytes $blob $CapacityArmWrapperOffset (New-CapacityArmWrapper $capacityArmWrapperVa $captureZooSlotVa ($CaptureTargetValidatorVersion -ge 7))
+        if ($CaptureTargetValidatorVersion -ge 11) {
+            Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-CapacityCaptureCompletionTargetCheck $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa)
+            Write-Bytes $blob $zooFullAlertOffset (New-ZooFullAlert $zooFullAlertVa $zooFullAlertTextVa)
+            [Text.Encoding]::ASCII.GetBytes("Couldn't place reward flag, Zoo is full.`0").CopyTo($blob, $zooFullAlertTextOffset)
+        }
+        else {
+            Write-Bytes $blob $CapacityCompletionTargetCheckOffset (New-CapacityCaptureCompletionTargetCheckV10 $capacityCompletionTargetCheckVa $captureZooSlotVa $attributeGetterVa)
+        }
+        if ($CaptureTargetValidatorVersion -ge 12) {
+            Write-Bytes $blob $CapacityArmWrapperOffset (New-AlertingCapacityArmWrapper $capacityArmWrapperVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa)
+        }
+        elseif ($CaptureTargetValidatorVersion -eq 11) {
+            Write-Bytes $blob $CapacityArmWrapperOffset (New-AlertingCapacityArmWrapperV11 $capacityArmWrapperVa $captureZooSlotVa $attributeGetterVa $zooFullAlertVa)
+        }
+        else {
+            Write-Bytes $blob $CapacityArmWrapperOffset (New-CapacityArmWrapper $capacityArmWrapperVa $captureZooSlotVa ($CaptureTargetValidatorVersion -ge 7))
+        }
     }
     elseif ($CaptureTargetValidatorVersion -eq 5) {
         Write-Bytes $blob $CaptureTargetValidatorOffset (New-CaptureTargetValidator $captureTargetValidatorVa)
@@ -854,7 +1040,9 @@ elseif ($dataSection.Characteristics -ne $DataSectionCharacteristics -or
 
 $patchVa = [uint32]($pe.ImageBase + $section.Rva)
 $captureZooSlotVa = [uint32]($pe.ImageBase + $dataSection.Rva)
-[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 10 $captureZooSlotVa
+[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 12 $captureZooSlotVa
+[byte[]]$uncleanAlertPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 11 $captureZooSlotVa
+[byte[]]$silentCapacityPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 10 $captureZooSlotVa
 [byte[]]$hiddenCursorPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 9 $captureZooSlotVa
 [byte[]]$badGetterPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 8 $captureZooSlotVa
 [byte[]]$readOnlyCapacityPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 7
@@ -881,6 +1069,8 @@ $dispatchIsPatched = Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatch
 $modeRegistryIsStock = Test-BytesEqual $bytes $ModeRegistryHookOffset $StockModeRegistryHook
 $modeRegistryIsPatched = Test-BytesEqual $bytes $ModeRegistryHookOffset $modeRegistryHook
 $payloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $payload)
+$uncleanAlertPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $uncleanAlertPayload)
+$silentCapacityPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $silentCapacityPayload)
 $hiddenCursorPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $hiddenCursorPayload)
 $badGetterPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $badGetterPayload)
 $readOnlyCapacityPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $readOnlyCapacityPayload)
@@ -895,6 +1085,8 @@ $previousCursorPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $Pa
 $legacyPayloadMatches = -not $sectionIsNew -and (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
 $payloadIsZero = -not $sectionIsNew -and (Test-ZeroRange $bytes $section.RawOffset $section.RawSize)
 $installed = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $payloadMatches
+$uncleanAlertUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $uncleanAlertPayloadMatches
+$silentCapacityUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $silentCapacityPayloadMatches
 $hiddenCursorUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $hiddenCursorPayloadMatches
 $badGetterUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $badGetterPayloadMatches
 $readOnlyCapacityUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $readOnlyCapacityPayloadMatches
@@ -909,20 +1101,21 @@ $cursorUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsP
 $legacyInstalled = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsStock -and $legacyPayloadMatches
 $installable = $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy)
 $reactivatable = -not $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy) -and $payloadIsZero
-if (-not ($installed -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
+if (-not ($installed -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
     throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch; refusing to overwrite it."
 }
 
 $sectionIsLast = -not $sectionIsNew -and $dataSectionIsNew -and $section.Index -eq ($pe.SectionCount - 1) -and ($section.RawOffset + $section.RawSize) -eq $bytes.Length
-$needsExpansion = -not $sectionIsNew -and ($section.RawSize -lt $PatchRawSize -or $section.VirtualSize -lt $PatchVirtualSize)
-if ($needsExpansion -and -not $sectionIsLast) { throw "The existing .mzoo section is not last and cannot be safely expanded." }
+$needsRawExpansion = -not $sectionIsNew -and $section.RawSize -lt $PatchRawSize
+$needsHeaderRefresh = -not $sectionIsNew -and $section.VirtualSize -lt $PatchVirtualSize
+if ($needsRawExpansion -and -not $sectionIsLast) { throw "The existing .mzoo section is not last and cannot be safely expanded." }
 
 Write-Host "Majesty Gold HD Restore Abandoned Zoo private Capture Flag"
 if ($installed) {
     Write-Host "MajestyHD.exe: the private ZC01/ZCF0 placement lifecycle is already installed."
 }
 elseif ($DryRun) {
-    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through capacity-gated monster-only ZCF0 placement." -f $(if ($hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
+    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through capacity-gated monster-only ZCF0 placement." -f $(if ($uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before installing the Zoo Capture Flag." }
@@ -933,11 +1126,17 @@ else {
         Write-Bytes $bytes $section.HeaderOffset (New-SectionHeader $SectionName $PatchVirtualSize $section.Rva $PatchRawSize $section.RawOffset)
         [BitConverter]::GetBytes([uint16]($pe.SectionCount + 1)).CopyTo($bytes, $pe.SectionCountOffset)
     }
-    elseif ($needsExpansion) {
+    elseif ($needsRawExpansion) {
         [byte[]]$expanded = New-Object byte[] ($section.RawOffset + $PatchRawSize)
         [Array]::Copy($bytes, 0, $expanded, 0, $bytes.Length)
         $bytes = $expanded
         Write-Bytes $bytes $section.HeaderOffset (New-SectionHeader $SectionName $PatchVirtualSize $section.Rva $PatchRawSize $section.RawOffset)
+    }
+    elseif ($needsHeaderRefresh) {
+        # Version 10 already reserved the full 0x600 raw bytes before .mzdt.
+        # Raising VirtualSize to expose the alert tail changes no RVA or file
+        # layout because RawSize was already the larger section extent.
+        Write-Bytes $bytes $section.HeaderOffset (New-SectionHeader $SectionName $PatchVirtualSize $section.Rva $section.RawSize $section.RawOffset)
     }
     if ($dataSectionIsNew) {
         [byte[]]$expanded = New-Object byte[] ($dataSection.RawOffset + $DataSectionRawSize)

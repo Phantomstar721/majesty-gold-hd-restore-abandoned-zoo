@@ -604,6 +604,7 @@ def validate(root: Path) -> list[str]:
         "function Restore_Captive_Hooligan_Death",
         "$Hooligan_Death ( thisagent )",
         "function Restore_Find_Available_Zoo",
+        "function Restore_Find_Completed_Zoo",
         '$ListObjects ( thisagent, "building", -1, zoos,',
         '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
         'visitors = zoo\'s "Occupants"',
@@ -611,8 +612,6 @@ def validate(root: Path) -> list[str]:
         'if ( occupied < limit )',
         'zoo = thisagent\'s "Target"',
         "expression #intent_waiting_in_zoo 199",
-        "expression #restore_zoo_flag_radius 300",
-        "function Restore_Latch_Hooligan_To_Hero",
         "function Restore_Controlled_To_Hooligan",
         "function Restore_Begin_Stock_Zoo_Control",
         "$Control_Monster ( hero, thisagent )",
@@ -657,14 +656,16 @@ def validate(root: Path) -> list[str]:
         "#ATTRIB_NotFlaggable, 1",
         "#ATTRIB_NotSpellTarget, 1",
         '$SetThreadInterval ( thisagent\'s "ActiveScript", #Henchmen_Cycle )',
+        'thisagent\'s "leader" = $NullAgent ()',
+        '$Restore_Assign_Hooligan ( thisagent, $NullAgent () )',
         '$Restore_Find_Available_Zoo ( thisagent )',
         '#ATTRIB_RewardCost',
         'charm_percentage = 50 * (',
         '$Sqrt (( cash / 20.0 ) / target_strength )',
         'if ( charm_percentage > 95 )',
         '$RandomNumber ( 100 ) + 1',
-        '$ListSubtypesInRadius (',
-        '#restore_zoo_flag_radius',
+        '$ListObjects (',
+        'thisagent, "Hero", -1, heroes, #NoHiddenMap',
         "function Restore_Capture_Flag_Poll",
         "function Restore_Capture_Flag_Death_Callback",
         "function Restore_Capture_Flag_Death",
@@ -686,7 +687,7 @@ def validate(root: Path) -> list[str]:
     stock_check_start = capture.index("function Restore_Stock_Zoo_Flag_Check")
     stock_check = capture[stock_check_start:]
     for snippet in (
-        "$Restore_Find_Available_Zoo ( zoo_agent )",
+        "$Restore_Find_Completed_Zoo ( zoo_agent )",
         "$Restore_Begin_Stock_Zoo_Control (",
     ):
         if snippet not in stock_check:
@@ -746,6 +747,9 @@ def validate(root: Path) -> list[str]:
         'thisagent\'s "ActiveScript" = thisagent\'s "QuestScript"',
         'thisagent\'s "BackScript" = thisagent\'s "QuestScript"',
         "function attack_flag_birth",
+        "function Restore_Latch_Hooligan_To_Hero",
+        "#restore_zoo_flag_radius",
+        "$ListSubtypesInRadius (",
     )
     for snippet in forbidden_capture_contract:
         if snippet in capture:

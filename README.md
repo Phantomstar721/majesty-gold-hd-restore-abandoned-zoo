@@ -63,8 +63,11 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 - Zoo admission uses the stock Mausoleum capacity pattern, with requested
   visitor limits of 4 at level 1, 6 at level 2, and 8 at level 3; stored
   visitors and captives actually latched to a live arresting hero consume
-  capacity, while flagged but unassigned captives do not; the private Capture
-  Flag target gate rejects placement once those real commitments fill the Zoo;
+  capacity, while flags and successfully subdued but unlatched Hooligans do
+  not; a queued Hooligan retries the existing arrest assignment from its stock
+  Basic lifecycle when room opens; the private Capture Flag gate refuses to arm
+  once those real commitments fill the Zoo and posts “Couldn't place reward
+  flag, Zoo is full” through Majesty's native system-alert path;
 - delivered monsters use the stock occupant-intent field so their visitor rows
   read “is waiting in the zoo” rather than the default “is Thinking”;
 - the abandoned Zoo panel's truncated `Visitors` control is completed with the
@@ -122,7 +125,9 @@ literal AP41 controller constructor. A third stock-boundary redirect appends
 private `ZCF0` beside the shipped flag-placement modes; ZC01 alone receives a
 private vtable selecting it. Its private validator calls the full stock Fl00
 validator before applying the selected Zoo's capacity bit and the stock
-monster-class intersection. The stock
+monster-class intersection. The Capture button and independent placement
+completion check repeat that same capacity test; a full-Zoo attempt uses the
+stock literal-string alert helper and does not arm or spend gold. The stock
 Palace `AP41`/`Fl00`, the existing
 `CGxx` custom-guild route, and unrelated QOL patches remain untouched. Restore
 only the Zoo redirects, mode registration, and private sections with:

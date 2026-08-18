@@ -52,7 +52,9 @@ statement order at the lethal callback boundary:
 
 1. compute `50 * sqrt((RewardCost / 20) / MaxHP)`, capped at 95%;
 2. apply the shipped strict `(RandomNumber(100) + 1) < chance` test;
-3. list living Hero/Hero units inside the shipped 300-unit Zoo radius;
+3. list living player-one Hero/Hero units globally so stock
+   `Control_Monster` has a temporary controller without requiring that hero to
+   be near the lethal event;
 4. choose list member 1;
 5. restore one third of the target's maximum HP;
 6. call the selected ruleset's actual `$Control_Monster(hero, target)`;
@@ -98,8 +100,10 @@ the real stock `Control_Monster`, `fake_wander`, and `Become_Controlled`:
 4. stock waits the shipped `Charm_Delay_Time` of 3300 ms and runs
    `Become_Controlled`;
 5. the target's private BackScript then removes `Charm_icon`, releases the
-   temporary follower count, changes Controlled to Hooligan, and activates the
-   proven delivery lifecycle.
+   temporary follower count and leader link, changes Controlled to Hooligan,
+   and activates the proven delivery lifecycle. It receives an arresting hero
+   immediately only if a real Zoo slot is available; otherwise its existing
+   Hooligan Basic cycle retries assignment when room opens.
 
 Player-controlled minions use `list_enemies_seen`, which lists only Hero and
 Monster agents on `NotMyTeam`. The temporary Hidden state cancels an attack
@@ -149,8 +153,9 @@ building `Level` field and is 4 / 6 / 8 for Zoo levels 1 / 2 / 3. A captured
 Hooligan keeps its selected Zoo in the ordinary Monster `Target` field, but it
 consumes pending capacity only after the stock arrest handoff is real: its
 `leader` is a live hero, that hero still targets the captive, and
-`Arrest_Hooligan` is active or resumable. Flagged but unassigned captives stay
-queued without consuming a visitor slot. Assignment repeats the same
+`Arrest_Hooligan` is active or resumable. Undefeated flagged monsters and
+successfully controlled but unlatched Hooligans stay unreserved; the latter
+remain queued without consuming a visitor slot. Assignment repeats the same
 Occupants-plus-latched comparison, so queued captives cannot overbook the Zoo.
 The existing Hooligan Basic/Goto lifecycle checks also treat loss of both the
 active and resumable arrest task as abandonment, triggering the same reassignment
@@ -165,9 +170,10 @@ callback reschedules itself until `CurrentStageBuilt == 1`; only then does it
 read the upgraded prototype's new `Level` and refresh the capacity bit.
 The private Capture placement validator and its independent completion check
 both read that capacity bit before applying their existing monster-only test.
-If stored visitors plus real hero/captive latches fill the selected Zoo,
-clicking a Monster is rejected
-by exactly the same private gate that rejects a Hero or building; no flag is
+If stored visitors plus real hero/captive latches fill the selected Zoo, the
+Capture button refuses to arm and posts “Couldn't place reward flag, Zoo is
+full” through the native stock system-alert helper. The independent completion
+check repeats the same test for a capacity change after arming. No flag is
 created and no gold is spent.
 Stock resets all arresting heroes only when the globally last quest Hooligan
 arrives. The private one-owner system instead uses the same `Reset_Tasks`
@@ -200,10 +206,13 @@ heroes escorting one Hooligan is therefore expected stock behavior.
 The abandoned Zoo already provides a literal single-owner mechanism. It builds
 `valid_heroes`, chooses `$ListMember(valid_heroes, 1)`, and passes only that
 hero to `Control_Monster`; stock `Control_Monster` records the relationship in
-the Monster prototype's declared `leader` field. The conversion copies that
-selection and leader link, and directly gives only that hero the stock arrest
-handoff. Heroes whose ActiveScript or BackScript is already `Arrest_Hooligan`
-are excluded, so one hero cannot own two captures.
+the Monster prototype's declared `leader` field. The active compatibility seam
+uses that owner only for stock control and then clears the temporary leader
+after releasing its follower count. The ordinary Hooligan Basic lifecycle asks
+`Restore_Assign_Hooligan` for one available Zoo and one eligible hero. Only that
+real arrest pairing consumes pending capacity. Heroes whose ActiveScript or
+BackScript is already `Arrest_Hooligan` are excluded, so one hero cannot own two
+captures.
 
 The surviving Zoo's `zoo_flag_poll` defines abandonment as a living seeker
 whose `Target` is no longer the flagged monster. The Zoo return applies that
@@ -242,11 +251,14 @@ does not guess per-species movement-rate modifiers.
 4. Success restores one-third HP and runs the real stock 3300 ms control delay.
    The target is Hidden and transferred to the selected hero's allegiance so
    existing player-minion attacks terminate.
-5. That selected hero receives the stock arrest intent, target, counter, and
-   `Arrest_Hooligan` ActiveScript; every other hero retains normal behavior.
-   The Hooligan pauses if it gets more than 50 units ahead of that hero.
+5. When stock control finishes, the temporary controller is released. If the
+   Zoo has a free real slot, one eligible hero receives the stock arrest intent,
+   target, counter, and `Arrest_Hooligan` ActiveScript; every other hero retains
+   normal behavior. If the Zoo is full, the unlatched Hooligan remains queued
+   in the same Basic lifecycle until room opens.
 6. The literal Hooligan Basic clone sees the targeting hero and switches itself
-   to the literal Zoo-arrival clone.
+   to the literal Zoo-arrival clone. The Hooligan pauses if it gets more than
+   50 units ahead of that hero.
 7. The Hooligan enters its selected Zoo through stock `Hide`; its active thread
    is stopped and the valid hidden agent is appended to `Zoo.Occupants`.
 8. Arrival resets the paired hero to its unchanged native BasicScript before

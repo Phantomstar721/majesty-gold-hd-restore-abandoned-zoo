@@ -67,10 +67,13 @@ patch contains no monster-type or Zoo-specific icon table.
 
 Admission now follows stock `Check_Mausoleum`: it compares the Zoo's generic
 `Occupants` list plus captives genuinely latched to live arresting heroes with
-a limit. Flagged but unassigned captives do not consume capacity. The requested
+a limit. Flags and successfully subdued but unlatched Hooligans do not consume
+capacity; the latter retry assignment through their existing Basic cycle when
+room opens. The requested
 limits are 4 / 6 / 8 at Zoo levels 1 / 2 / 3. The selected Zoo exposes whether
 that comparison has room through the stock Zoo legality attribute, allowing
-the private Capture target gate to reject placement before a flag exists.
+the private Capture gate to reject placement before a flag exists and post its
+full-Zoo message through the native stock system-alert path.
 Income, breakout, a release
 command, and Zoo-destruction-specific behavior remain absent. Generic
 `building_death` will call stock `release_occupants`; whether that produces a
