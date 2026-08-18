@@ -53,6 +53,15 @@ loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set
 Stock selectors 5/1005 and 6/1006 remain unchanged for Palace Attack and
 Explore placement.
 
+Capture pricing uses a private unset-initialized DWORD rather than AP41's
+global Palace Attack DWORD. ZC01 temporarily swaps that private value through
+the stock Attack slot only while shipped AP41 activation, its later APPA
+secondary refresh, or +/- handling is on the call stack, then records the
+normalized/adjusted result and restores the Palace amount. Capture placement
+pushes the private result. Thus both panels retain stock AP41 behavior but
+changing one panel's amount does not change the other or repaint Capture with
+Palace's value.
+
 ## Lethal capture attempt
 
 The active functions copy the abandoned chance formula and `zoo_flag_check`

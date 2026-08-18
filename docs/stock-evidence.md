@@ -104,6 +104,29 @@ birth, poll, target-death callback, manual flag-death cleanup, hero-task reset,
 and UI refresh remain unchanged. This milestone adds no Zoo flag prototype,
 placement state, timer, callback, cancellation branch, or reward accounting.
 
+AP41 does not store reward amounts on the dialog object. Stock routine
+`0x004A9100` reads Attack from process-global `0x007C17A4` and Explore from
+`0x007C17A8`, normalizes negative values to `#RewardDelta`, rounds/caps them
+against available gold, enables the four +/- controls, and paints amount
+controls 8 and `0x138C`. Stock handler `0x004A92F0` mutates those same slots
+for controls 10/11 and `0x1388`/`0x1389`, then passes the selected value to
+`SetFlagMode`. Reusing AP41 unchanged therefore made ZC01 and Palace Attack
+share `0x007C17A4` even though their modes and flag prototypes were private.
+
+The private data section now exposes a second DWORD initialized to -1, matching
+stock AP41's unset-value contract. Only ZC01's cloned activation vtable entry
+and private 10/11 handler initially scoped that DWORD through stock Attack's
+slot while the complete shipped activation/refresh/adjustment call ran. Live
+testing showed the numeric value remained private but its painted control later
+returned to Palace's amount until the next Capture click. The second stock AP41
+vtable refresh at `0x004A94A0` independently calls `0x004A9100` for APPA
+updates after activation. ZC01 now scopes that complete callback through the
+same swap as well, copying its four arguments and preserving its `RET 0x10`
+contract. Direct Capture and ZCF0 re-arm paths push the private DWORD. No stock
+AP41 code or Palace vtable entry changes; Capture still inherits stock's
+100-gold initialization, rounding, affordability, button state, text refresh,
+and `SetFlagMode` order.
+
 ## Private Capture Flag placement clone
 
 `Fl00` is the stock Attack Flag placement-mode token, not the flag's unit ID.

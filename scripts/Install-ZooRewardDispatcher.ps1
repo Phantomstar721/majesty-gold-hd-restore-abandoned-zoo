@@ -8,7 +8,7 @@ $SectionName = ".mzoo"
 $SectionCharacteristics = 0x60000020
 $DataSectionName = ".mzdt"
 $DataSectionCharacteristics = [uint32]0xC0000040L
-$DataSectionVirtualSize = 0x04
+$DataSectionVirtualSize = 0x08
 $DataSectionRawSize = 0x200
 $PatchVirtualSize = 0x600
 $PatchRawSize = 0x600
@@ -24,6 +24,11 @@ $ModeRegistrationOffset = 0x1C0
 $CaptureCallbackOffset = 0x240
 $CapturePrototypeNameOffset = 0x420
 $CaptureCompletionTargetCheckOffset = 0x450
+$PrivateRewardSwapOffset = 0x450
+$PrivateActivationOffset = 0x470
+$PrivateRewardSwapV17Offset = 0x1AD
+$PrivateActivationV17Offset = 0x435
+$PrivateRefreshV17Offset = 0x450
 $CapacityTargetValidatorOffset = 0x490
 $CapacityCompletionTargetCheckOffset = 0x4F0
 $CapacityArmWrapperOffset = 0x550
@@ -44,6 +49,9 @@ $Ap41ConstructorVa = 0x004A94E0
 $OpenDialogVa = 0x004B03F0
 $PalaceDispatchVa = 0x004A5440
 $StockAp41HandlerVa = 0x004A92F0
+$StockAp41ActivationVa = 0x004A9230
+$StockAp41RefreshVa = 0x004A94A0
+$AttackRewardAmountVa = 0x007C17A4
 $GetFlagModeManagerVa = 0x00454B90
 $GetSelectedFlagModeVa = 0x004556D0
 $SetFlagModeVa = 0x00454E70
@@ -249,6 +257,141 @@ function New-PrivateHandler {
     Write-Bytes $handler 56 (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 56)) $GetSelectedFlagModeVa)
     Write-Bytes $handler 85 (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 85)) $SetFlagModeVa)
     Write-Bytes $handler 115 (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 115)) $CaptureArmVa)
+    $handler
+}
+
+function New-PrivateRewardSwap {
+    param([uint32]$CaptureRewardAmountVa)
+    # AP41's shipped Attack amount lives at 0x7C17A4. Swap the private Capture
+    # channel through that exact stock slot while AP41 clamps, displays, or
+    # adjusts it; calling this function a second time stores the updated
+    # Capture value and restores Palace Attack atomically.
+    [byte[]]$swap = @(
+        0xA1,0,0,0,0,                    # mov eax,[CaptureRewardAmount]
+        0x87,0x05,0,0,0,0,               # xchg [stock Attack amount],eax
+        0xA3,0,0,0,0,                    # mov [CaptureRewardAmount],eax
+        0xC3                               # ret
+    )
+    if ($swap.Length -ne 0x11) { throw "Private Capture reward swap changed length." }
+    [BitConverter]::GetBytes($CaptureRewardAmountVa).CopyTo($swap, 0x01)
+    [BitConverter]::GetBytes([uint32]$AttackRewardAmountVa).CopyTo($swap, 0x07)
+    [BitConverter]::GetBytes($CaptureRewardAmountVa).CopyTo($swap, 0x0C)
+    $swap
+}
+
+function New-PrivateRewardActivation {
+    param([uint32]$ActivationVa, [uint32]$RewardSwapVa)
+    # AP41 activation calls its stock refresh, which normalizes a negative
+    # amount to RewardDelta, caps it against current gold, updates +/- enabled
+    # states, and paints the numeric control. Scope that literal lifecycle to
+    # Capture's private channel, then restore Palace Attack before returning.
+    [byte[]]$activation = @(
+        0x56,                              # push esi
+        0x8B,0xF1,                        # mov esi,ecx
+        0xE8,0,0,0,0,                    # call private reward swap (Capture in)
+        0x8B,0xCE,                        # mov ecx,esi
+        0xE8,0,0,0,0,                    # call stock AP41 activation
+        0x50,                              # push eax (preserve stock result)
+        0xE8,0,0,0,0,                    # call private reward swap (Capture out)
+        0x58,                              # pop eax
+        0x5E,                              # pop esi
+        0xC3                               # ret
+    )
+    if ($activation.Length -ne 0x18) { throw "Private Capture activation wrapper changed length." }
+    Write-Bytes $activation 0x03 (New-RelativeInstruction 0xE8 ([uint32]($ActivationVa + 0x03)) $RewardSwapVa)
+    Write-Bytes $activation 0x0A (New-RelativeInstruction 0xE8 ([uint32]($ActivationVa + 0x0A)) $StockAp41ActivationVa)
+    Write-Bytes $activation 0x10 (New-RelativeInstruction 0xE8 ([uint32]($ActivationVa + 0x10)) $RewardSwapVa)
+    $activation
+}
+
+function New-PrivateRewardRefresh {
+    param([uint32]$RefreshVa, [uint32]$RewardSwapVa)
+    # AP41's secondary vtable refresh calls 0x4A9100 for APPA updates after
+    # activation. Copy all four original arguments, run that complete shipped
+    # callback with Capture scoped into the Attack slot, then restore Palace
+    # Attack before returning through the callback's original RET 0x10 shape.
+    [byte[]]$refresh = @(
+        0x56,                              # push esi
+        0x8B,0xF1,                        # mov esi,ecx
+        0xE8,0,0,0,0,                    # call reward swap (Capture in)
+        0xFF,0x74,0x24,0x14,              # push original arg 4
+        0xFF,0x74,0x24,0x14,              # push original arg 3
+        0xFF,0x74,0x24,0x14,              # push original arg 2
+        0xFF,0x74,0x24,0x14,              # push original arg 1
+        0x8B,0xCE,                        # mov ecx,esi
+        0xE8,0,0,0,0,                    # call stock AP41 refresh
+        0x50,                              # push eax (preserve stock result)
+        0xE8,0,0,0,0,                    # call reward swap (Capture out)
+        0x58,                              # pop eax
+        0x5E,                              # pop esi
+        0xC2,0x10,0x00                    # ret 0x10
+    )
+    if ($refresh.Length -ne 0x2A) { throw "Private Capture refresh wrapper changed length." }
+    Write-Bytes $refresh 0x03 (New-RelativeInstruction 0xE8 ([uint32]($RefreshVa + 0x03)) $RewardSwapVa)
+    Write-Bytes $refresh 0x1A (New-RelativeInstruction 0xE8 ([uint32]($RefreshVa + 0x1A)) $StockAp41RefreshVa)
+    Write-Bytes $refresh 0x20 (New-RelativeInstruction 0xE8 ([uint32]($RefreshVa + 0x20)) $RewardSwapVa)
+    $refresh
+}
+
+function New-PrivateRewardHandler {
+    param(
+        [uint32]$HandlerVa,
+        [uint32]$CaptureArmVa,
+        [uint32]$CaptureRewardAmountVa,
+        [uint32]$RewardSwapVa
+    )
+    # Preserve AP41 command order. Non-Capture controls tail-call stock. The
+    # shipped minus/plus commands run with Capture temporarily occupying the
+    # stock Attack channel, so stock performs its exact adjustment, clamp, UI
+    # refresh, and active-mode update. Direct placement pushes the private
+    # amount without modifying Palace Attack.
+    [byte[]]$handler = @(
+        0x56,                              # push esi
+        0x8B,0xF1,                        # mov esi,ecx
+        0x8B,0x44,0x24,0x08,              # mov eax,[esp+8] (control ID)
+        0x3D,0x8A,0x13,0x00,0x00,         # cmp eax,0x138A (Capture)
+        0x74,0x53,                        # je direct
+        0x83,0xF8,0x0A,                   # cmp eax,10 (minus)
+        0x74,0x0B,                        # je adjust
+        0x83,0xF8,0x0B,                   # cmp eax,11 (plus)
+        0x74,0x06,                        # je adjust
+        0x5E,                              # pop esi
+        0xE9,0,0,0,0,                    # jmp stock AP41 handler
+        0x50,                              # adjust: push control ID
+        0xE8,0,0,0,0,                    # call reward swap (Capture in)
+        0x8B,0xCE,                        # mov ecx,esi
+        0xE8,0,0,0,0,                    # call stock AP41 handler
+        0xE8,0,0,0,0,                    # call reward swap (Capture out)
+        0x8B,0x0D,0xF0,0x12,0x7C,0x00,   # mov ecx,[flag-mode manager]
+        0xE8,0,0,0,0,                    # call GetFlagModeManager
+        0x8B,0xC8,                        # mov ecx,eax
+        0xE8,0,0,0,0,                    # call GetSelectedFlagMode
+        0x3D,0x5A,0x43,0x46,0x30,         # cmp eax,"ZCF0"
+        0x75,0x2E,                        # jne done
+        0xFF,0x35,0,0,0,0,               # push [CaptureRewardAmount]
+        0x68,0x5A,0x43,0x46,0x30,         # push "ZCF0"
+        0x8B,0x0D,0xF0,0x12,0x7C,0x00,   # mov ecx,[flag-mode manager]
+        0xE8,0,0,0,0,                    # call stock SetFlagMode
+        0xEB,0x16,                        # jmp done
+        0xFF,0x35,0,0,0,0,               # direct: push [CaptureRewardAmount]
+        0x68,0x5A,0x43,0x46,0x30,         # push "ZCF0"
+        0x8B,0x0D,0xF0,0x12,0x7C,0x00,   # mov ecx,[flag-mode manager]
+        0xE8,0,0,0,0,                    # call capacity-gated Capture arm
+        0x33,0xC0,                        # done: xor eax,eax
+        0x5E,                              # pop esi
+        0xC2,0x04,0x00                    # ret 4
+    )
+    if ($handler.Length -ne 0x7D) { throw "Private Capture reward handler changed length." }
+    Write-Bytes $handler 0x19 (New-RelativeInstruction 0xE9 ([uint32]($HandlerVa + 0x19)) $StockAp41HandlerVa)
+    Write-Bytes $handler 0x1F (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x1F)) $RewardSwapVa)
+    Write-Bytes $handler 0x26 (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x26)) $StockAp41HandlerVa)
+    Write-Bytes $handler 0x2B (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x2B)) $RewardSwapVa)
+    Write-Bytes $handler 0x36 (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x36)) $GetFlagModeManagerVa)
+    Write-Bytes $handler 0x3D (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x3D)) $GetSelectedFlagModeVa)
+    [BitConverter]::GetBytes($CaptureRewardAmountVa).CopyTo($handler, 0x4B)
+    Write-Bytes $handler 0x5A (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x5A)) $SetFlagModeVa)
+    [BitConverter]::GetBytes($CaptureRewardAmountVa).CopyTo($handler, 0x63)
+    Write-Bytes $handler 0x72 (New-RelativeInstruction 0xE8 ([uint32]($HandlerVa + 0x72)) $CaptureArmVa)
     $handler
 }
 
@@ -1151,6 +1294,11 @@ function New-PatchBlob {
 
     $captureTargetValidatorVa = [uint32]($PatchVa + $CaptureTargetValidatorOffset)
     $privateCaptureTargetLegalityVa = [uint32]($PatchVa + $PrivateCaptureTargetLegalityOffset)
+    $selectedRewardSwapOffset = $(if ($CaptureTargetValidatorVersion -ge 17) { $PrivateRewardSwapV17Offset } else { $PrivateRewardSwapOffset })
+    $selectedActivationOffset = $(if ($CaptureTargetValidatorVersion -ge 17) { $PrivateActivationV17Offset } else { $PrivateActivationOffset })
+    $privateRewardSwapVa = [uint32]($PatchVa + $selectedRewardSwapOffset)
+    $privateActivationVa = [uint32]($PatchVa + $selectedActivationOffset)
+    $privateRefreshVa = [uint32]($PatchVa + $PrivateRefreshV17Offset)
     $capacityTargetValidatorVa = [uint32]($PatchVa + $CapacityTargetValidatorOffset)
     $capacityCompletionTargetCheckVa = [uint32]($PatchVa + $CapacityCompletionTargetCheckOffset)
     $capacityArmWrapperVa = [uint32]($PatchVa + $CapacityArmWrapperOffset)
@@ -1159,6 +1307,7 @@ function New-PatchBlob {
     $zooFullAlertVa = [uint32]($PatchVa + $zooFullAlertOffset)
     $zooFullAlertTextVa = [uint32]($PatchVa + $zooFullAlertTextOffset)
     $captureZooSlotVa = $(if ($CaptureTargetValidatorVersion -ge 8) { $CapacitySlotVa } else { [uint32]($PatchVa + $LegacyCaptureZooSlotOffset) })
+    $captureRewardAmountVa = [uint32]($captureZooSlotVa + 4)
     $attributeGetterVa = $(if ($CaptureTargetValidatorVersion -ge 9) { $GetAttributeVa } else { $BadGetAttributeVa })
     if ($CaptureTargetValidatorVersion -ge 6) {
         if ($CaptureTargetValidatorVersion -ge 14) {
@@ -1223,11 +1372,29 @@ function New-PatchBlob {
     $vtableVa = [uint32]($PatchVa + $PrivateVtableOffset)
     Write-Bytes $blob $PrivateFactoryOffset (New-PrivateFactory ([uint32]($PatchVa + $PrivateFactoryOffset)) $vtableVa)
     $captureArmVa = $(if ($CaptureTargetValidatorVersion -ge 6) { $capacityArmWrapperVa } else { $SetFlagModeVa })
-    Write-Bytes $blob $PrivateHandlerOffset (New-PrivateHandler $handlerVa $captureArmVa)
+    if ($CaptureTargetValidatorVersion -ge 16) {
+        Write-Bytes $blob $selectedRewardSwapOffset (New-PrivateRewardSwap $captureRewardAmountVa)
+        Write-Bytes $blob $selectedActivationOffset (New-PrivateRewardActivation $privateActivationVa $privateRewardSwapVa)
+        if ($CaptureTargetValidatorVersion -ge 17) {
+            Write-Bytes $blob $PrivateRefreshV17Offset (New-PrivateRewardRefresh $privateRefreshVa $privateRewardSwapVa)
+        }
+        Write-Bytes $blob $PrivateHandlerOffset (New-PrivateRewardHandler $handlerVa $captureArmVa $captureRewardAmountVa $privateRewardSwapVa)
+    }
+    else {
+        Write-Bytes $blob $PrivateHandlerOffset (New-PrivateHandler $handlerVa $captureArmVa)
+    }
 
     [byte[]]$vtable = $Bytes[$StockAp41VtableOffset..($StockAp41VtableOffset + $StockAp41VtableLength - 1)]
     if ((Read-U32 $vtable 0x0C) -ne $StockAp41HandlerVa) { throw "Stock AP41 primary vtable changed." }
     [BitConverter]::GetBytes($handlerVa).CopyTo($vtable, 0x0C)
+    if ($CaptureTargetValidatorVersion -ge 16) {
+        if ((Read-U32 $vtable 0x04) -ne $StockAp41ActivationVa) { throw "Stock AP41 activation vtable entry changed." }
+        [BitConverter]::GetBytes($privateActivationVa).CopyTo($vtable, 0x04)
+        if ($CaptureTargetValidatorVersion -ge 17) {
+            if ((Read-U32 $vtable 0x20) -ne $StockAp41RefreshVa) { throw "Stock AP41 refresh vtable entry changed." }
+            [BitConverter]::GetBytes($privateRefreshVa).CopyTo($vtable, 0x20)
+        }
+    }
     Write-Bytes $blob $PrivateVtableOffset $vtable
 
     $registrationVa = [uint32]($PatchVa + $ModeRegistrationOffset)
@@ -1305,7 +1472,9 @@ elseif ($dataSection.Characteristics -ne $DataSectionCharacteristics -or
 
 $patchVa = [uint32]($pe.ImageBase + $section.Rva)
 $captureZooSlotVa = [uint32]($pe.ImageBase + $dataSection.Rva)
-[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 15 $captureZooSlotVa
+[byte[]]$payload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 17 $captureZooSlotVa
+[byte[]]$staleRewardDisplayPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 16 $captureZooSlotVa
+[byte[]]$sharedRewardPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 15 $captureZooSlotVa
 [byte[]]$artRelationPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 14 $captureZooSlotVa
 [byte[]]$duplicateBlindPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 13 $captureZooSlotVa
 [byte[]]$ownershipBlindPayload = New-PatchBlob $bytes $patchVa $CaptureCursorSelector 12 $captureZooSlotVa
@@ -1337,6 +1506,8 @@ $dispatchIsPatched = Test-BytesEqual $bytes $DispatchSlotOffset $privateDispatch
 $modeRegistryIsStock = Test-BytesEqual $bytes $ModeRegistryHookOffset $StockModeRegistryHook
 $modeRegistryIsPatched = Test-BytesEqual $bytes $ModeRegistryHookOffset $modeRegistryHook
 $payloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $payload)
+$staleRewardDisplayPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $staleRewardDisplayPayload)
+$sharedRewardPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $sharedRewardPayload)
 $artRelationPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $artRelationPayload)
 $duplicateBlindPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $duplicateBlindPayload)
 $uncleanAlertPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $uncleanAlertPayload)
@@ -1355,6 +1526,8 @@ $previousCursorPayloadMatches = -not $sectionIsNew -and $section.RawSize -ge $Pa
 $legacyPayloadMatches = -not $sectionIsNew -and (Test-BytesEqual $bytes $section.RawOffset $legacyPayload)
 $payloadIsZero = -not $sectionIsNew -and (Test-ZeroRange $bytes $section.RawOffset $section.RawSize)
 $installed = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $payloadMatches
+$staleRewardDisplayUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $staleRewardDisplayPayloadMatches
+$sharedRewardUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $sharedRewardPayloadMatches
 $artRelationUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $artRelationPayloadMatches
 $duplicateBlindUpgradeable = -not $sectionIsNew -and -not $dataSectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsPatched -and $duplicateBlindPayloadMatches
 $ownershipBlindPayloadMatches = -not $sectionIsNew -and -not $dataSectionIsNew -and $section.RawSize -ge $PatchRawSize -and (Test-BytesEqual $bytes $section.RawOffset $ownershipBlindPayload)
@@ -1375,13 +1548,14 @@ $cursorUpgradeable = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsP
 $legacyInstalled = -not $sectionIsNew -and $factoryIsPatched -and $dispatchIsPatched -and $modeRegistryIsStock -and $legacyPayloadMatches
 $installable = $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy)
 $reactivatable = -not $sectionIsNew -and $factoryIsStock -and $modeRegistryIsStock -and ($dispatchIsStock -or $dispatchIsLegacy) -and $payloadIsZero
-if (-not ($installed -or $artRelationUpgradeable -or $duplicateBlindUpgradeable -or $ownershipBlindUpgradeable -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
+if (-not ($installed -or $staleRewardDisplayUpgradeable -or $sharedRewardUpgradeable -or $artRelationUpgradeable -or $duplicateBlindUpgradeable -or $ownershipBlindUpgradeable -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled -or $installable -or $reactivatable)) {
     throw "MajestyHD.exe contains a partial or unrecognized Zoo private-panel patch; refusing to overwrite it."
 }
 
 $sectionIsLast = -not $sectionIsNew -and $dataSectionIsNew -and $section.Index -eq ($pe.SectionCount - 1) -and ($section.RawOffset + $section.RawSize) -eq $bytes.Length
 $needsRawExpansion = -not $sectionIsNew -and $section.RawSize -lt $PatchRawSize
 $needsHeaderRefresh = -not $sectionIsNew -and $section.VirtualSize -lt $PatchVirtualSize
+$needsDataHeaderRefresh = -not $dataSectionIsNew -and $dataSection.VirtualSize -lt $DataSectionVirtualSize
 if ($needsRawExpansion -and -not $sectionIsLast) { throw "The existing .mzoo section is not last and cannot be safely expanded." }
 
 Write-Host "Majesty Gold HD Restore Abandoned Zoo private Capture Flag"
@@ -1389,7 +1563,7 @@ if ($installed) {
     Write-Host "MajestyHD.exe: the private ZC01/ZCF0 placement lifecycle is already installed."
 }
 elseif ($DryRun) {
-    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through capacity-gated, duplicate-safe hostile-monster-only ZCF0 placement." -f $(if ($artRelationUpgradeable -or $duplicateBlindUpgradeable -or $ownershipBlindUpgradeable -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
+    Write-Host ("MajestyHD.exe: would {0} .mzoo and route only ZC01 through independently priced, capacity-gated, duplicate-safe hostile-monster-only ZCF0 placement." -f $(if ($staleRewardDisplayUpgradeable -or $sharedRewardUpgradeable -or $artRelationUpgradeable -or $duplicateBlindUpgradeable -or $ownershipBlindUpgradeable -or $uncleanAlertUpgradeable -or $silentCapacityUpgradeable -or $hiddenCursorUpgradeable -or $badGetterUpgradeable -or $readOnlyCapacityUpgradeable -or $brokenCapacityUpgradeable -or $monsterOnlyUpgradeable -or $zeroCategoryUpgradeable -or $validatorOnlyUpgradeable -or $stateTargetUpgradeable -or $unsafeTargetUpgradeable -or $targetUpgradeable -or $cursorUpgradeable -or $legacyInstalled) { "upgrade" } elseif ($sectionIsNew) { "append" } else { "reactivate" }))
 }
 else {
     if (Get-Process -Name "MajestyHD" -ErrorAction SilentlyContinue) { throw "Majesty Gold HD is running. Close the game before installing the Zoo Capture Flag." }
@@ -1420,9 +1594,16 @@ else {
         $newSectionCount = $pe.SectionCount + 1 + $(if ($sectionIsNew) { 1 } else { 0 })
         [BitConverter]::GetBytes([uint16]$newSectionCount).CopyTo($bytes, $pe.SectionCountOffset)
     }
+    elseif ($needsDataHeaderRefresh) {
+        # The existing writable private-data section already reserves 0x200
+        # raw bytes. Expose its second DWORD for the independent Capture reward
+        # without moving any section or changing another utility's RVA.
+        Write-Bytes $bytes $dataSection.HeaderOffset (New-SectionHeader $DataSectionName $DataSectionVirtualSize $dataSection.Rva $dataSection.RawSize $dataSection.RawOffset $DataSectionCharacteristics)
+    }
     $sizeOfImage = Align-Value ([uint32]($dataSection.Rva + $DataSectionVirtualSize)) $pe.SectionAlignment
     [BitConverter]::GetBytes([uint32]$sizeOfImage).CopyTo($bytes, $pe.SizeOfImageOffset)
     Write-Bytes $bytes $section.RawOffset $payload
+    [BitConverter]::GetBytes([int32]-1).CopyTo($bytes, ($dataSection.RawOffset + 4))
     Write-Bytes $bytes $FactoryHookOffset $factoryHook
     Write-Bytes $bytes $DispatchSlotOffset $privateDispatchSlot
     Write-Bytes $bytes $ModeRegistryHookOffset $modeRegistryHook
@@ -1434,8 +1615,10 @@ else {
         -not (Test-BytesEqual $verified $ModeRegistryHookOffset $modeRegistryHook) -or
         -not (Test-BytesEqual $verified $section.RawOffset $payload) -or
         (Read-U32 $verified ($section.HeaderOffset + 36)) -ne $SectionCharacteristics -or
-        (Read-U32 $verified ($dataSection.HeaderOffset + 36)) -ne $DataSectionCharacteristics) {
+        (Read-U32 $verified ($dataSection.HeaderOffset + 8)) -lt $DataSectionVirtualSize -or
+        (Read-U32 $verified ($dataSection.HeaderOffset + 36)) -ne $DataSectionCharacteristics -or
+        (Read-U32 $verified ($dataSection.RawOffset + 4)) -ne [uint32]0xFFFFFFFFL) {
         throw "MajestyHD.exe verification failed after installing the private Capture Flag."
     }
-    Write-Host "MajestyHD.exe: ZC01 now uses capacity-gated, duplicate-safe hostile-monster-only private ZCF0 placement; Palace AP41 remains on stock Fl00."
+    Write-Host "MajestyHD.exe: ZC01 now uses independently priced, capacity-gated, duplicate-safe hostile-monster-only private ZCF0 placement; Palace AP41 remains on stock Fl00."
 }

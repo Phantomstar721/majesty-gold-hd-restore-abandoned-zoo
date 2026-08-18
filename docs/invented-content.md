@@ -118,6 +118,13 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   identifiers are invented; no finished Capture Flag resource survives in
   stock data. `ZCA2` changes only its private image selection; the placement
   and reward lifecycle remain the already-tested stock clone.
+- The private Capture reward DWORD and scoped swap wrapper are new state
+  privatization. Stock AP41 already has distinct global Attack and Explore
+  channels but offers no third channel. ZC01's private activation, secondary
+  APPA refresh, and +/- paths swap Capture through the unchanged Attack channel
+  only for the duration of stock normalization, formatting, button refresh,
+  and adjustment, then restore Palace Attack. This invents no reward arithmetic
+  or UI lifecycle.
 - The private placement mode is a literal clone of stock `Fl00`: the same
   registration parameters, mouse lifecycle, reward amount, cancellation, gold
   accounting, and completion code are used. Its private validation wrapper

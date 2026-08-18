@@ -18,6 +18,10 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   the stock Palace Rewards panel;
 - that clone retains only the Attack placement path, labels it **Capture
   Flag**, and uses the stock 100-gold initial increment;
+- Capture reward pricing has its own private channel: the Zoo panel runs the
+  unchanged stock AP41 activation and secondary-refresh normalization, +/-
+  button, amount-text, and placement lifecycle against that channel without
+  changing Palace Attack's amount;
 - only that private clone selects a Zoo-themed `ZOBG` backing, which retains
   the stock Capture controls and removes the baked-in appearance of the hidden
   Explore row without changing controller behavior;
