@@ -222,8 +222,14 @@ arrives. The private one-owner system instead uses the same `Reset_Tasks`
 cleanup on the delivered Hooligan's `leader` after the final admission and
 occupant insertion.
 
-There is no visitor income, breakout, or Zoo-destruction-specific cleanup in
-this storage test.
+Stored captives now provide stock-shaped Zoo revenue and have a destruction
+release lifecycle. Every 60-second revenue pulse deposits 40 gold per captive
+Threat Rank into the Zoo's coffers. Physical or spell damage retains captives
+while the private Zoo lives, copying the existing Mausoleum exception in
+`release_occupants`. Once stock `building_death` marks the Zoo dead, the same
+function applies stock `Reset_Controlled`, full HP, and stock `Exit_Building`
+to every valid captive. There is no random breakout or manual release command
+in this checkpoint.
 
 ## Hero handoff
 

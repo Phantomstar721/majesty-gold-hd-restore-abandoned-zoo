@@ -9,6 +9,9 @@
 		(birthScript2 Restore_Zoo_Building_Birth)
 		(IGdeathscript building_death)
 		(upgradescript Restore_Zoo_Upgrade)
+		(RevenueScript Restore_Zoo_Revenue)
+		(Revenue_Amount 40)
+		(Revenue_Time 60000)
 	}
 [end]
 
@@ -23,6 +26,9 @@
 		(birthScript2 Restore_Zoo_Building_Birth)
 		(IGdeathscript building_death)
 		(upgradescript Restore_Zoo_Upgrade)
+		(RevenueScript Restore_Zoo_Revenue)
+		(Revenue_Amount 40)
+		(Revenue_Time 60000)
 	}
 [end]
 
@@ -36,5 +42,8 @@
 		(birthScript2 Restore_Zoo_Building_Birth)
 		(IGdeathscript building_death)
 		(upgradescript Restore_Zoo_Upgrade)
+		(RevenueScript Restore_Zoo_Revenue)
+		(Revenue_Amount 40)
+		(Revenue_Time 60000)
 	}
 [end]

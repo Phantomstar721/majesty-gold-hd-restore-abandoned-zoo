@@ -543,6 +543,39 @@ only that linked hero. The subsequent stock `Control_Monster` Hidden delay and
 player-allegiance transfer protect the captive from allied minions before the
 Hooligan state becomes active.
 
+## Visitor revenue and destruction release
+
+`TaskModules/Buildings/mx_Auto_Revenue.gpl` supplies the closest stock dynamic
+income lifecycle. `Fairgrounds_Revenue` validates the true Palace, reads a
+building-owned participant list, computes one revenue pulse, and calls
+`Give_Gold` on the building. `Building_Birth` starts any declared
+`RevenueScript` at its declared `Revenue_Time`. The Zoo declares that same
+thread shape at 60,000 ms and substitutes its existing `Occupants` list for
+Fairgrounds `combatants`. Each occupant's multiplier comes from stock
+`ATTRIB_LevelXP`, the designer-authored kill bounty read by normal monster
+combat. The seven private rank boundaries are shared with Generic Visitor
+Lists; the GPL calculation is independent of that display patch.
+
+Both physical building attacks in `make_attack` and player-spell reactions in
+`react_player_spell` call global `release_occupants` immediately when a
+building is hit. `building_death` later sets `Type = Dead` and calls the same
+function before rubble and deletion. Northern Expansion already changes that
+function so a living building titled `Mausoleum` retains its occupants, while
+a dead Mausoleum processes them. The private GPL symbol is a literal copy of
+that function with one sibling branch gated by `Title == Zoo` and the private
+`Restore_Zoo_Building_Birth` callback. It returns without action while that Zoo
+lives and processes captives only when the existing stock death call reaches
+it. Every non-Zoo and Mausoleum statement remains in stock order.
+
+`Reset_Controlled` is the shipped end-of-charm lifecycle. It restores
+`Monster` type, the immutable `StartingScript` to all three task slots,
+`Monster_Gravestone`, `Monster_Player`, and clears charm ownership state.
+Capture therefore no longer overwrites `StartingScript`, `attack_action`, or
+the original idle/guardian behavior. At dead-Zoo release, each valid living
+captive runs `Reset_Controlled`, receives `MaxHP`, clears the two Capture-only
+target prohibitions, and then runs stock `Exit_Building`, which resets tasks,
+unhides it, and plays the normal exit effect.
+
 ## Original-design interview
 
 In the archived June 12, 2001 Cyberlore chat, Jay Adan reads the Zoo entry from

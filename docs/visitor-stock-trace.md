@@ -76,7 +76,20 @@ limits are 4 / 6 / 8 at Zoo levels 1 / 2 / 3. The selected Zoo exposes whether
 that comparison has room through the stock Zoo legality attribute, allowing
 the private Capture gate to reject placement before a flag exists and post its
 full-Zoo message through the native stock system-alert path.
-Income, breakout, a release
-command, and Zoo-destruction-specific behavior remain absent. Generic
-`building_death` will call stock `release_occupants`; whether that produces a
-sensible released Hooligan remains deferred.
+Zoo revenue now copies stock `Fairgrounds_Revenue` ownership and timing: a
+declared `RevenueScript` runs every 60,000 ms, reads the building-owned
+participant list, and gives the computed gold to the building so ordinary Tax
+Collectors remain authoritative. The Zoo substitutes `Occupants` for
+Fairgrounds `combatants` and weights each valid captive by its generic stock
+`ATTRIB_LevelXP` Threat Rank. The current invented balance is 40 gold per rank
+per pulse; an empty Zoo earns nothing.
+
+Ordinary physical and spell attacks call stock `release_occupants` as soon as
+a building is struck. Northern Expansion's function already exempts a living
+Mausoleum and reaches the same function after `building_death` marks it dead.
+The Zoo extends that exact branch shape: a living private Zoo does nothing;
+when stock `building_death` calls again after setting `Type = Dead`, each valid
+captive runs the shipped `Reset_Controlled` charm-expiry lifecycle, is healed
+to `MaxHP`, and leaves through stock `Exit_Building`. Other buildings and the
+Mausoleum retain the shipped branches. Random breakouts and a manual release
+command remain absent.

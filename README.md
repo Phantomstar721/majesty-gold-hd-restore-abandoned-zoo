@@ -80,6 +80,11 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   flag, Zoo is full” through Majesty's native system-alert path;
 - delivered monsters use the stock occupant-intent field so their visitor rows
   read “is waiting in the zoo” rather than the default “is Thinking”;
+- each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
+  minute and deposits `40 * Threat Rank` gold per valid captive into its own
+  coffers for ordinary Tax Collector pickup; Threat Rank reads the monster's
+  stock `LevelXP` bounty through the same generic bands used by Generic Visitor
+  Lists, with no per-monster table;
 - the abandoned Zoo panel's truncated `Visitors` control is completed with the
   missing bytes from the stock Blacksmith control and displays delivered
   monsters from the generic occupant list;
@@ -93,8 +98,12 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   reset cleanly;
 - if combat or fleeing changes that hero's target, the stock Zoo flag
   abandonment test releases the Hooligan and assigns one different hero;
-- there is currently no visitor income, Zoo-destruction-specific handling, or
-  breakout behavior. Successfully capturing a quest-critical monster suppresses
+- stock attack and spell reactions still call `release_occupants`, but the
+  private Zoo follows the shipped living-Mausoleum exception and retains its
+  captives while standing; stock `building_death` reaches the same boundary
+  after marking the Zoo dead, at which point every captive is restored to full
+  HP through stock `Reset_Controlled` and `Exit_Building` as a hostile monster;
+- there is currently no random breakout behavior. Successfully capturing a quest-critical monster suppresses
   that monster's stock death callback, exactly like the abandoned expansion
   hook, and may therefore prevent a quest's expected death event.
 

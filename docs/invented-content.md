@@ -318,8 +318,19 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - There is no bounty payment or resurrection. A successful capture suppresses
   the saved death callback exactly like GPLMx `monster_gravestone`; allowing the
   generic monster gate to target quest-critical monsters can therefore suppress
-  quest victory/death side effects and is an explicit current risk. Visitor
-  income and Zoo destruction cleanup remain absent.
+  quest victory/death side effects and is an explicit current risk.
+- Visitor revenue is recovered intent with invented balance. The source
+  interview says income depends on contained monster types, while stock
+  `Fairgrounds_Revenue` provides the building-owned participant-list pulse and
+  `Give_Gold` lifecycle. The Zoo's 60-second interval copies Fairgrounds; 40
+  gold per `LevelXP` Threat Rank and zero income when empty are best-guess
+  values. The rank boundaries are the documented Generic Visitor Lists bands,
+  not a recovered Zoo formula.
+- Preventing first-hit ejection copies the shipped living-Mausoleum exception
+  at the same global `release_occupants` boundary. The added private-Zoo test is
+  integration glue. On destruction, stock `Reset_Controlled` and
+  `Exit_Building` own the hostile reactivation; restoring full HP and clearing
+  Capture's `NotFlaggable` / `NotSpellTarget` bits are requested Zoo behavior.
 
 ## Surviving placeholder content
 
@@ -331,7 +342,6 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 ## Still deferred
 
 - displayed capture percentage;
-- visitor income, monster-level gates, Zoo destruction cleanup, and random
-  breakouts;
+- monster-level capture gates and random breakouts;
 - a policy for quest-critical monsters whose native death callback must fire to
   advance or complete a scenario.

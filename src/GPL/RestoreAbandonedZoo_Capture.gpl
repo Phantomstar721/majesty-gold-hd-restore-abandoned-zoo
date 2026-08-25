@@ -15,6 +15,157 @@ expression #intent_waiting_in_zoo 199
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Threat_Rank ( agent visitor ) is integer
+///////////////////////////////////////////////////////////////////////////////
+// The stock combat bounty is the only generic designer-authored monster
+// strength scalar. These are the same approximate XP quantiles used by the
+// Generic Visitor Lists display patch; no title table is required.
+declare
+	integer experience;
+begin
+	experience = $GetAttribute ( visitor, #ATTRIB_LevelXP );
+
+	if ( experience <= 230 )
+		return 1;
+	else if ( experience <= 400 )
+		return 2;
+	else if ( experience <= 500 )
+		return 3;
+	else if ( experience <= 900 )
+		return 4;
+	else if ( experience <= 1500 )
+		return 5;
+	else if ( experience <= 2000 )
+		return 6;
+	else if ( experience <= 3500 )
+		return 7;
+
+	return 8;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Revenue ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Fairgrounds_Revenue reads a building-owned participant list, computes
+// one pulse, and gives that gold to the building for ordinary tax collection.
+// The Zoo uses the same lifecycle but weights its Occupants by the captured
+// monster's stock LevelXP-derived threat rank.
+declare
+	agent palace, visitor;
+	list visitors;
+	integer revenue;
+begin
+	palace = $GetTruePalace ( thisagent );
+
+	if ( $IsValidGamePiece ( palace ))
+		begin
+			visitors = thisagent's "Occupants";
+			foreach visitor in visitors do
+				begin
+					if ( $IsValidGamePiece ( visitor ))
+						if ( $IsDead ( visitor ) == FALSE )
+							revenue += thisagent's "Revenue_Amount" *
+								$Restore_Zoo_Threat_Rank ( visitor );
+				end
+
+			if ( revenue > 0 )
+				$Give_Gold ( thisagent, revenue );
+		end
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Release_Captive ( agent captive, agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Reset_Controlled is the shipped charm-expiry path: it restores the
+// monster's StartingScript, Monster_Player ownership, monster death callback,
+// and hostile classification. Heal before the stock Exit_Building lifecycle
+// unhides it and resets its task thread.
+declare
+begin
+	$Reset_Controlled ( captive );
+	$SetAttribute (
+		captive, #ATTRIB_HP, $GetAttribute ( captive, #ATTRIB_MaxHP ));
+	$SetAttribute ( captive, #ATTRIB_NotFlaggable, 0 );
+	$SetAttribute ( captive, #ATTRIB_NotSpellTarget, 0 );
+	captive's "leader" = $NullAgent ();
+	captive's "Target" = $NullAgent ();
+	$Exit_Building ( captive, zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function release_occupants ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal Northern Expansion release_occupants structure, extended beside its
+// living-Mausoleum exception with the equivalent living-Zoo exception. The
+// ordinary and Mausoleum branches retain their shipped statement order.
+declare
+	list guys;
+	agent guy;
+begin
+	if ( $HasAttribute ( "Occupants", thisagent ))
+		if ( $ListSize ( thisagent's "Occupants" ) > 0 )
+			begin
+				if ( thisagent's "Title" == "Zoo" &&
+					thisagent's "birthScript2" == $Restore_Zoo_Building_Birth )
+					begin
+						if ( $IsDead ( thisagent ))
+							begin
+								guys = thisagent's "Occupants";
+								foreach guy in guys do
+									begin
+										if ( $IsValidGamePiece ( guy ))
+											begin
+												if ( $IsDead ( guy ) == FALSE )
+													$Restore_Zoo_Release_Captive (
+														guy, thisagent );
+												else
+													$Be_Dead ( guy );
+
+												thisagent's "Occupants" -= guy;
+											end
+									end
+							end
+					end
+				else if ( thisagent's "Title" != "Mausoleum" )
+					begin
+						guys = thisagent's "Occupants";
+						foreach guy in guys do
+							begin
+								if ( $IsValidGamePiece ( guy ))
+									begin
+										if ( $IsDead ( guy ) == FALSE )
+											begin
+												$Exit_Building ( guy, thisagent );
+												thisagent's "Occupants" -= guy;
+											end
+										else
+											begin
+												$Be_Dead ( guy );
+												thisagent's "Occupants" -= guy;
+											end
+									end
+								else
+									$DebugOut ( 911,
+										"INVALID OCCUPANT FOUND INSIDE BUILDING: ",
+										thisagent, "!!!" );
+							end
+					end
+				else if ( $IsDead ( thisagent ))
+					begin
+						guys = thisagent's "Occupants";
+						foreach guy in guys do
+							begin
+								if ( $IsValidGamePiece ( guy ))
+									begin
+										$Be_Dead ( guy );
+										thisagent's "Occupants" -= guy;
+									end
+							end
+					end
+			end
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Visitor_Limit ( agent zoo ) is integer
 ///////////////////////////////////////////////////////////////////////////////
 // The building's shipped Level field is the stock source for upgrade state.
@@ -234,15 +385,10 @@ begin
 
 	thisagent's "Type" = "Hooligan";
 	thisagent's "Original_Type" = "Monster";
-	thisagent's "SubType" = "Hooligan";
 	thisagent's "EnemyType" = "hero";
-	thisagent's "Idle_action" = "basic_idle";
-	thisagent's "attack_action" = "do_nothing";
-	thisagent's "Guardian_Mod" = 3;
 	thisagent's "coord_home" = $LocationOf ( thisagent );
 	thisagent's "Special_Boolean" = FALSE;
 	thisagent's "Target" = zoo;
-	thisagent's "StartingScript" = $Restore_Hooligan_Basic;
 	thisagent's "BasicScript" = $Restore_Hooligan_Basic;
 	thisagent's "BackScript" = $Restore_Hooligan_Basic;
 	thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
