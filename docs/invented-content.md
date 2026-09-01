@@ -260,8 +260,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   integration behavior.
 - Visitor registration calls stock `Enter_Building` only after the existing
   `Hide` arrival and final capacity check, then resets the paired owner and
-  kills the stored agent's active thread. Applying the ordinary visitor
-  callback to a living Hooligan is new integration behavior.
+  assigns the stored agent a private clone of stock Guardhouse
+  `Garrison_Scan_Or_Leave`. Applying the ordinary visitor callback and that
+  garrison lifecycle to a living Hooligan is new integration behavior.
 - Visitor capacity is requested invented design: 4 at Zoo level 1, 6 at level
   2, and 8 at level 3. Admission copies stock `Check_Mausoleum`'s completed
   player-building query, `Occupants` size comparison, in-loop legal-candidate
@@ -348,6 +349,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   because its completion callback slot is mutable. On destruction, stock `Reset_Controlled` and
   `Exit_Building` own the hostile reactivation; restoring full HP and clearing
   Capture's `NotFlaggable` / `NotSpellTarget` bits are requested Zoo behavior.
+  Captive storage/release uses stock Guardhouse's still-running occupant-task
+  lifecycle so released monsters actually run the original behavior restored
+  by `Reset_Controlled`.
+- Random breakout mechanics copy stock Guardhouse
+  `Garrison_Scan_Or_Leave`: each captive reads its building container, makes the
+  same 1..100 strict-less-than roll, and exits through the established hostile
+  release path on success. The 60-second period and threshold 6 (effective 5%)
+  are best-guess balance values, not recovered Zoo balance.
 
 ## Surviving placeholder content
 
@@ -359,6 +368,6 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 ## Still deferred
 
 - displayed capture percentage;
-- monster-level capture gates and random breakouts;
+- monster-level capture gates;
 - a policy for quest-critical monsters whose native death callback must fire to
   advance or complete a scenario.

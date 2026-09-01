@@ -528,7 +528,8 @@ replaces only that truncated record with AP02's complete 0x98-byte control.
 On delivery, the captive is already a valid agent hidden inside the
 destination. The arrival then calls stock `Enter_Building`, whose complete
 functional body plays `Spawneffect_In` and appends the agent once to the
-building's `Occupants` list, before stopping the stored agent's active thread.
+building's `Occupants` list, before assigning the stored agent a private clone
+of the stock Guardhouse occupant task.
 The call is deliberately not used for travel: stock `Enter_Building` has no
 active movement or `Hide` statement. It does not copy hero-specific death,
 guild, intent, resurrection, or home logic.
@@ -622,7 +623,14 @@ Capture therefore no longer overwrites `StartingScript`, `attack_action`, or
 the original idle/guardian behavior. At dead-Zoo release, each valid stored
 captive runs `Reset_Controlled`, receives `MaxHP`, clears the two Capture-only
 target prohibitions, and then runs stock `Exit_Building`, which resets tasks,
-unhides it, and plays the normal exit effect.
+unhides it, and plays the normal exit effect. Stock `Guardhouse_Visited` enters
+the visitor and assigns `Garrison_Scan_Or_Leave` to its still-running
+`ActiveScript`; that function obtains the containing building through
+`GetBuildingContainer`, makes a `RandomNumber(100) + 1` roll, and calls
+`Exit_Building` on success. The Zoo clones that active occupant lifecycle and
+replaces only the ordinary exit with its already-proven hostile captive release
+helper. Killing or suspending the captive task at delivery left correct script
+pointers on release but no running monster behavior after `Exit_Building`.
 
 ## Executable profiles
 

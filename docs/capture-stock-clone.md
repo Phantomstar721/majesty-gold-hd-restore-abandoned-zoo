@@ -237,8 +237,12 @@ stored occupant Threat Rank into the Zoo's coffers. Physical or spell damage ret
 while the private Zoo lives, copying the existing Mausoleum exception in
 `release_occupants`. Once stock `building_death` marks the Zoo dead, the same
 function applies stock `Reset_Controlled`, full HP, and stock `Exit_Building`
-to every valid captive. There is no random breakout or manual release command
-in this checkpoint.
+to every valid captive. While stored, each captive runs a private clone of stock
+Guardhouse `Garrison_Scan_Or_Leave`: it obtains its container, makes the same
+strict-less-than random roll, and routes success through the same hostile
+release helper. The current values are one roll every 60 seconds with threshold
+6, which is an effective 5% chance for the stock 1..100 roll. There
+is no manual release command in this checkpoint.
 
 ## Hero handoff
 

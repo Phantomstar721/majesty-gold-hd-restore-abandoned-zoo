@@ -97,6 +97,10 @@ The Zoo extends that exact branch shape and uses its private `RevenueScript`
 function as stable identity: a living private Zoo does nothing;
 when stock `building_death` calls again after setting `Type = Dead`, each valid
 captive runs the shipped `Reset_Controlled` charm-expiry lifecycle, is healed
-to `MaxHP`, and leaves through stock `Exit_Building`. Other buildings and the
-Mausoleum retain the shipped branches. Random breakouts and a manual release
-command remain absent.
+to `MaxHP`, and leaves through stock `Exit_Building`. Delivery assigns a private
+clone of the shipped Guardhouse `Garrison_Scan_Or_Leave` occupant task instead
+of killing or suspending the captive task thread. That task obtains the Zoo
+through `GetBuildingContainer`, makes the stock-shaped random roll, and uses
+the same hostile release helper after a successful breakout roll. Other
+buildings and the Mausoleum retain the shipped branches. A manual release
+command remains absent.

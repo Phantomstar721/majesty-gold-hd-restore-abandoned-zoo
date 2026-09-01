@@ -813,7 +813,14 @@ def validate(root: Path) -> list[str]:
         "if ( $ListSize ( visitors ) >= limit )",
         "$Enter_Building ( thisagent, zoo )",
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )",
-        '$KillThread ( thisagent\'s "ActiveScript" )',
+        "expression #Restore_Zoo_Breakout_Threshold 6",
+        "expression #Restore_Zoo_Breakout_Period 60000",
+        "function Restore_Zoo_Breakout_Check",
+        "$GetBuildingContainer ( thisagent )",
+        "#Restore_Zoo_Breakout_Threshold",
+        '$Restore_Zoo_Release_Captive ( thisagent, zoo )',
+        'thisagent\'s "ActiveScript" = $Restore_Zoo_Breakout_Check',
+        '#Restore_Zoo_Breakout_Period',
         "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
         "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
         'thisagent\'s "IGDeathScript" = $Restore_Captive_Hooligan_Death',
@@ -994,13 +1001,51 @@ def validate(root: Path) -> list[str]:
     storage_intent = capture.index(
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )"
     )
-    storage_kill = capture.index('$KillThread ( thisagent\'s "ActiveScript" )')
+    storage_breakout = capture.index(
+        'thisagent\'s "ActiveScript" = $Restore_Zoo_Breakout_Check'
+    )
+    storage_interval = capture.index(
+        'thisagent\'s "ActiveScript", #Restore_Zoo_Breakout_Period'
+    )
     hidden_arrival = capture.index("if ( $IsHidden ( thisagent ))")
     final_capacity = capture.index("if ( $ListSize ( visitors ) >= limit )")
     owner_reset = capture.index("$Reset_Tasks ( owner )", storage_enter)
-    if not hidden_arrival < final_capacity < storage_enter < owner_reset < storage_intent < storage_kill:
+    if not (
+        hidden_arrival
+        < final_capacity
+        < storage_enter
+        < owner_reset
+        < storage_intent
+        < storage_breakout
+        < storage_interval
+    ):
         errors.append(
-            "Zoo storage must final-check capacity, enter, release its owner, set occupant intent, then stop"
+            "Zoo storage must final-check capacity, enter, release its owner, "
+            "set occupant intent, then enter the periodic breakout task"
+        )
+    release_captive_start = capture.index("function Restore_Zoo_Release_Captive")
+    breakout_start = capture.index("function Restore_Zoo_Breakout_Check")
+    release_occupants_start = capture.index("function release_occupants")
+    release_captive = capture[release_captive_start:breakout_start]
+    release_reset = release_captive.find("$Reset_Controlled ( captive )")
+    release_exit = release_captive.find("$Exit_Building ( captive, zoo )")
+    if not (0 <= release_reset < release_exit):
+        errors.append(
+            "Zoo release must restore stock monster control before exiting the building"
+        )
+    breakout = capture[breakout_start:release_occupants_start]
+    breakout_container = breakout.find("$GetBuildingContainer ( thisagent )")
+    breakout_roll = breakout.find("$RandomNumber ( 100 ) + 1")
+    breakout_release = breakout.find(
+        "$Restore_Zoo_Release_Captive ( thisagent, zoo )"
+    )
+    breakout_refresh = breakout.find("$Restore_Refresh_Zoo_Capacity ( zoo )")
+    if not (
+        0 <= breakout_container < breakout_roll < breakout_release < breakout_refresh
+    ):
+        errors.append(
+            "Zoo breakout must preserve the stock garrison container, random-roll, "
+            "exit, and capacity-refresh order"
         )
 
     project = (root / "GPL" / "RestoreAbandonedZoo.gplproj").read_text(

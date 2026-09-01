@@ -13,6 +13,12 @@
 expression #intent_waiting_in_zoo 199
 expression #intent_capturing_monster 198
 
+// Stock Garrison_Scan_Or_Leave rolls 1..100 with a strict less-than
+// comparison. A threshold of 6 therefore gives an effective 5% chance on each
+// 60-second stored-occupant check.
+expression #Restore_Zoo_Breakout_Threshold 6
+expression #Restore_Zoo_Breakout_Period 60000
+
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -82,7 +88,8 @@ function Restore_Zoo_Release_Captive ( agent captive, agent zoo )
 // Stock Reset_Controlled is the shipped charm-expiry path: it restores the
 // monster's StartingScript, Monster_Player ownership, monster death callback,
 // and hostile classification. Heal before the stock Exit_Building lifecycle
-// unhides it and resets its task thread.
+// unhides it and resets its task pointers. The stored captive retains a running
+// stock-shaped garrison task, so Exit_Building can return it to BasicScript.
 declare
 begin
 	$Reset_Controlled ( captive );
@@ -93,6 +100,27 @@ begin
 	captive's "leader" = $NullAgent ();
 	captive's "Target" = $NullAgent ();
 	$Exit_Building ( captive, zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Breakout_Check ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal Garrison_Scan_Or_Leave random-exit shape, with the Guardhouse
+// container replaced by the containing Zoo and the ordinary hero exit replaced
+// by the already-proven hostile captive release lifecycle.
+declare
+	agent zoo;
+begin
+	zoo = $GetBuildingContainer ( thisagent );
+
+	if ( $IsValidGamePiece ( zoo ))
+		if ( $IsDead ( zoo ) == FALSE )
+			if (( $RandomNumber ( 100 ) + 1 ) <
+				#Restore_Zoo_Breakout_Threshold )
+				begin
+					$Restore_Zoo_Release_Captive ( thisagent, zoo );
+					$Restore_Refresh_Zoo_Capacity ( zoo );
+				end
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -637,7 +665,7 @@ begin
 			// agent.  Hide has now completed, so register this hidden captive
 			// through that callback, give it a persistent occupant intent using
 			// the same Enter_Building -> SpecifyIntent ordering as stock Lived_In,
-			// then stop its permanent stored lifecycle.
+			// then enter the stock-shaped periodic garrison exit lifecycle.
 			$Enter_Building ( thisagent, zoo );
 
 			// The final stock admission and occupant insertion are now complete;
@@ -649,7 +677,9 @@ begin
 			thisagent's "Target" = $NullAgent ();
 			$SpecifyIntent ( thisagent, #intent_waiting_in_zoo );
 			$Restore_Refresh_Zoo_Capacity ( zoo );
-			$KillThread ( thisagent's "ActiveScript" );
+			thisagent's "ActiveScript" = $Restore_Zoo_Breakout_Check;
+			$SetThreadInterval (
+				thisagent's "ActiveScript", #Restore_Zoo_Breakout_Period );
 		end
 end
 
