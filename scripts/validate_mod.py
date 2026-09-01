@@ -696,6 +696,11 @@ def validate(root: Path) -> list[str]:
             errors.append(f"GPL duplicates shipped prototype {duplicate}")
     if gpl.count("(birthScript2 Restore_Zoo_Building_Birth)") != 3:
         errors.append("Every Zoo level must refresh capacity after stock Building_Birth")
+    if gpl.count("(birthscript Restore_Zoo_Building_Birth)") != 2:
+        errors.append(
+            "Zoo levels two and three must copy the stock Marketplace upgrade "
+            "birthscript revenue restart"
+        )
     if gpl.count("(upgradescript Restore_Zoo_Upgrade)") != 3:
         errors.append("Every Zoo level must queue through the stock upgrade callback")
 
@@ -749,6 +754,8 @@ def validate(root: Path) -> list[str]:
         "#ATTRIB_Zoo_Legal_Target, 0",
         "function Restore_Zoo_Building_Birth",
         "$Building_Birth ( zoo )",
+        "function Restore_Zoo_Upgrade_Complete",
+        'zoo\'s "birthScript2" = $Restore_Zoo_Upgrade_Complete',
         "function Restore_Zoo_Upgrade",
         "$basic_upgrade ( zoo )",
         'zoo\'s "birthScript2", #palace_upgrade_check, zoo',
@@ -837,10 +844,73 @@ def validate(root: Path) -> list[str]:
         "function Restore_Stock_Zoo_Flag_Check",
         'thisagent\'s "Familiar" == TRUE',
         "$GetUnitPlayerNumber ( thisagent ) != #Monster_Player",
+        "revenue = 0",
+        'thisagent\'s "RevenueScript" == $Restore_Zoo_Revenue',
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
             errors.append(f"Zoo capture stock-clone contract is missing: {snippet}")
+    revenue_start = capture.index("function Restore_Zoo_Revenue")
+    release_start = capture.index("function release_occupants")
+    revenue = capture[revenue_start:release_start]
+    if "$IsDead ( visitor )" in revenue:
+        errors.append(
+            "Zoo revenue must count valid stored occupants without filtering "
+            "their stock subdued state"
+        )
+    release_end = capture.index("function Restore_Zoo_Visitor_Limit", release_start)
+    release = capture[release_start:release_end]
+    if 'thisagent\'s "birthScript2" == $Restore_Zoo_Building_Birth' in release:
+        errors.append("Living-Zoo release protection must not use a mutable callback slot")
+    birth_start = capture.index("function Restore_Zoo_Building_Birth")
+    upgrade_complete_start = capture.index("function Restore_Zoo_Upgrade_Complete")
+    upgrade_start = capture.index("function Restore_Zoo_Upgrade", upgrade_complete_start + 1)
+    captive_death_start = capture.index("function Restore_Captive_Hooligan_Death")
+    birth = capture[birth_start:upgrade_complete_start]
+    upgrade_complete = capture[upgrade_complete_start:upgrade_start]
+    upgrade = capture[upgrade_start:captive_death_start]
+    birth_building = birth.find("$Building_Birth ( zoo )")
+    birth_refresh = birth.find("$Restore_Refresh_Zoo_Capacity ( zoo )")
+    birth_repoint = birth.find(
+        'zoo\'s "birthScript2" = $Restore_Zoo_Upgrade_Complete'
+    )
+    if not (0 <= birth_building < birth_refresh < birth_repoint):
+        errors.append(
+            "Zoo initial completion must start stock Building_Birth before "
+            "capacity refresh and upgrade-callback installation"
+        )
+    if "#ATTRIB_FirstStageBuilt" in birth:
+        errors.append(
+            "Zoo initial completion must not skip Building_Birth after the stock "
+            "completion flag has already been set"
+        )
+    complete_stage = upgrade_complete.find("#ATTRIB_CurrentStageBuilt")
+    complete_poll = upgrade_complete.find(
+        'zoo\'s "birthScript2", #palace_upgrade_check, zoo'
+    )
+    complete_repoint = upgrade_complete.find(
+        'zoo\'s "birthScript2" = $Restore_Zoo_Upgrade_Complete'
+    )
+    complete_refresh = upgrade_complete.find("$Restore_Refresh_Zoo_Capacity ( zoo )")
+    if not (
+        0 <= complete_stage < complete_poll < complete_repoint < complete_refresh
+    ):
+        errors.append(
+            "Zoo upgrade completion must preserve palace_upgrade2 polling before "
+            "restoring its callback and refreshing capacity"
+        )
+    upgrade_basic = upgrade.find("$basic_upgrade ( zoo )")
+    upgrade_repoint = upgrade.find(
+        'zoo\'s "birthScript2" = $Restore_Zoo_Upgrade_Complete'
+    )
+    upgrade_poll = upgrade.find(
+        'zoo\'s "birthScript2", #palace_upgrade_check, zoo'
+    )
+    if not (0 <= upgrade_basic < upgrade_repoint < upgrade_poll):
+        errors.append(
+            "Zoo upgrade must queue stock basic_upgrade before installing and "
+            "scheduling its completion callback"
+        )
     stock_check_start = capture.index("function Restore_Stock_Zoo_Flag_Check")
     stock_check = capture[stock_check_start:]
     for snippet in (

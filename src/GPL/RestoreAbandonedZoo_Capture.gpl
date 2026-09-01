@@ -49,14 +49,17 @@ function Restore_Zoo_Revenue ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Stock Fairgrounds_Revenue reads a building-owned participant list, computes
 // one pulse, and gives that gold to the building for ordinary tax collection.
-// The Zoo uses the same lifecycle but weights its Occupants by the captured
-// monster's stock LevelXP-derived threat rank.
+// The Zoo uses the same lifecycle but weights each valid Occupants entry by
+// the captured monster's stock LevelXP-derived threat rank. Do not apply a
+// living/dead filter here: stock capture deliberately preserves its subdued
+// state while the valid agent is hidden inside the Zoo.
 declare
 	agent palace, visitor;
 	list visitors;
 	integer revenue;
 begin
 	palace = $GetTruePalace ( thisagent );
+	revenue = 0;
 
 	if ( $IsValidGamePiece ( palace ))
 		begin
@@ -64,9 +67,8 @@ begin
 			foreach visitor in visitors do
 				begin
 					if ( $IsValidGamePiece ( visitor ))
-						if ( $IsDead ( visitor ) == FALSE )
-							revenue += thisagent's "Revenue_Amount" *
-								$Restore_Zoo_Threat_Rank ( visitor );
+						revenue += thisagent's "Revenue_Amount" *
+							$Restore_Zoo_Threat_Rank ( visitor );
 				end
 
 			if ( revenue > 0 )
@@ -107,20 +109,17 @@ begin
 		if ( $ListSize ( thisagent's "Occupants" ) > 0 )
 			begin
 				if ( thisagent's "Title" == "Zoo" &&
-					thisagent's "birthScript2" == $Restore_Zoo_Building_Birth )
+					thisagent's "RevenueScript" == $Restore_Zoo_Revenue )
 					begin
 						if ( $IsDead ( thisagent ))
 							begin
 								guys = thisagent's "Occupants";
-								foreach guy in guys do
+							foreach guy in guys do
 									begin
 										if ( $IsValidGamePiece ( guy ))
 											begin
-												if ( $IsDead ( guy ) == FALSE )
-													$Restore_Zoo_Release_Captive (
-														guy, thisagent );
-												else
-													$Be_Dead ( guy );
+												$Restore_Zoo_Release_Captive (
+													guy, thisagent );
 
 												thisagent's "Occupants" -= guy;
 											end
@@ -264,35 +263,48 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Building_Birth ( agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
-// Generic Building declares birthScript2 but not the Palace-only
-// upgradescript2. Preserve ordinary Building_Birth on first construction; when
-// the same declared completion slot is scheduled by Restore_Zoo_Upgrade, copy
-// Palace_upgrade2's CurrentStageBuilt poll and refresh only after the upgraded
-// prototype has installed its new Level.
+// Literal Fairgrounds_Birth completion shape for the shared lifecycle we use:
+// Building_Birth starts the declared RevenueScript at Revenue_Time. Generic
+// Building lacks Palace.upgradescript2, so after initial completion repoint its
+// existing function-valued birthScript2 slot to the private literal
+// palace_upgrade2-shaped completion poll used only by later Zoo upgrades.
 declare
 begin
-	if ( $GetAttribute ( zoo, #ATTRIB_FirstStageBuilt ) != 1 )
-		begin
-			$Building_Birth ( zoo );
-			$Restore_Refresh_Zoo_Capacity ( zoo );
-		end
-	else if ( $GetAttribute ( zoo, #ATTRIB_CurrentStageBuilt ) != 1 )
+	$Building_Birth ( zoo );
+	$Restore_Refresh_Zoo_Capacity ( zoo );
+	zoo's "birthScript2" = $Restore_Zoo_Upgrade_Complete;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Upgrade_Complete ( agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// Literal palace_upgrade2 timing and CurrentStageBuilt test. The sole Zoo
+// substitution after completion is refreshing its level-derived capacity.
+declare
+begin
+	if ( $GetAttribute ( zoo, #ATTRIB_CurrentStageBuilt ) != 1 )
 		$RunThread (
 			zoo's "birthScript2", #palace_upgrade_check, zoo );
 	else
-		$Restore_Refresh_Zoo_Capacity ( zoo );
+		begin
+			// UpgradeAgentAttributes installs the next prototype's original
+			// birthScript2 value; restore this upgrade callback for later levels.
+			zoo's "birthScript2" = $Restore_Zoo_Upgrade_Complete;
+			$Restore_Refresh_Zoo_Capacity ( zoo );
+		end
 end
 
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Upgrade ( agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
 // Literal stock palace_upgrade timing shape: queue the building through
-// basic_upgrade, then schedule the declared completion slot to perform the
-// unchanged Palace_upgrade2 poll. Generic Building has no upgradescript2 field,
-// so birthScript2 is the closest stock completion callback it actually owns.
+// basic_upgrade, then schedule the function-valued completion slot to perform
+// the unchanged Palace_upgrade2 poll. Set the slot first so existing saves
+// built before this correction enter the same upgrade lifecycle.
 declare
 begin
 	$basic_upgrade ( zoo );
+	zoo's "birthScript2" = $Restore_Zoo_Upgrade_Complete;
 	$RunThread (
 		zoo's "birthScript2", #palace_upgrade_check, zoo );
 end

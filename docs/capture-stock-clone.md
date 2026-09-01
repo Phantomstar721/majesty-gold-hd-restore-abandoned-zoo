@@ -189,11 +189,16 @@ whenever hero latches or occupants change. `building_upgraded` first invokes
 the Zoo's `upgradescript`, which preserves `basic_upgrade` and schedules the
 Zoo's declared `birthScript2` completion slot at `#palace_upgrade_check`.
 Generic stock `Building` does not declare the Palace-only `upgradescript2`
-field. The shared Zoo callback therefore preserves ordinary `Building_Birth`
-for initial construction and, only after first-stage completion, applies stock
-`palace_upgrade2`'s unchanged `CurrentStageBuilt` reschedule test. It reads the
-upgraded prototype's new `Level` and refreshes the capacity bit only when that
-test reaches 1.
+field. Initial completion therefore follows `Fairgrounds_Birth`: it calls
+`Building_Birth` to start the declared revenue thread, refreshes capacity, and
+then repoints the existing function slot to a private `palace_upgrade2` clone.
+Later upgrades install and schedule that clone, which preserves the unchanged
+`CurrentStageBuilt` reschedule test, reads the upgraded prototype's new `Level`,
+restores itself after prototype replacement, and refreshes capacity only when
+the test reaches 1. As with stock Marketplace levels two and three, each
+upgraded Zoo prototype also runs this private `Building_Birth` wrapper from its
+`birthscript`, replacing the declared revenue thread across the prototype
+transition.
 The private Capture placement validator and its independent completion check
 both read that capacity bit before applying their hostile-monster-only test.
 If stored visitors plus real hero/captive latches fill the selected Zoo, the
@@ -227,8 +232,8 @@ cleanup on the delivered Hooligan's `leader` after the final admission and
 occupant insertion.
 
 Stored captives now provide stock-shaped Zoo revenue and have a destruction
-release lifecycle. Every 60-second revenue pulse deposits 40 gold per captive
-Threat Rank into the Zoo's coffers. Physical or spell damage retains captives
+release lifecycle. Every 60-second revenue pulse deposits 40 gold per valid
+stored occupant Threat Rank into the Zoo's coffers. Physical or spell damage retains captives
 while the private Zoo lives, copying the existing Mausoleum exception in
 `release_occupants`. Once stock `building_death` marks the Zoo dead, the same
 function applies stock `Reset_Controlled`, full HP, and stock `Exit_Building`

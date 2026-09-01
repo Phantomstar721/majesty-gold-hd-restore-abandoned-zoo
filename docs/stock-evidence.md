@@ -482,8 +482,9 @@ generic occupant list.
 Stock monster birth assigns `ATTRIB_Zoo_Legal_Target`, documenting it as the
 Zoo flag interface's legality channel. The private `ZCF0` gate reuses that
 stock attribute on the selected Zoo as its current capacity bit. Stock
-`Building_Birth` remains first in the completion callback; the mod refreshes
-the bit afterward. Stock `building_upgraded` dispatches `upgradescript` when
+`Building_Birth` remains first in the initial completion callback; this starts
+the declared revenue thread before the mod refreshes the capacity bit. Stock
+`building_upgraded` dispatches `upgradescript` when
 construction starts, before `BuildingReachedMaxHP` calls
 `UpgradeAgentAttributes` and installs the new prototype `Level`. The shipped
 Palace handles this boundary by having `palace_upgrade` queue the upgrade and
@@ -495,12 +496,15 @@ occupants and a false capacity bit. Its serialized GPL fields contained
 `birthScript2` and `upgradescript` but no `upgradescript2`: generic stock
 `Building` does not declare that Palace/Outpost-only field, so the DAT compiler
 discarded the attempted assignment and the completion poll never ran. The Zoo
-now copies the same Palace timing and test through its declared `birthScript2`
-slot. That callback still runs ordinary `Building_Birth` on initial completion;
-when scheduled after an upgrade begins, it reschedules at the same stock
-interval until `CurrentStageBuilt == 1`, then substitutes only the Zoo capacity
-refresh for Palace's guard/tax/peasant restarts. Reservation, delivery, and
-captive death refresh the same bit.
+now uses the same function-valued `birthScript2` slot for two stock phases. The
+initial callback literally calls `Building_Birth`, as `Fairgrounds_Birth` does,
+then points that slot at a private `palace_upgrade2` clone. `Restore_Zoo_Upgrade`
+also installs that callback before scheduling it, so older saved buildings
+enter the corrected upgrade path. The callback reschedules at the stock
+interval until `CurrentStageBuilt == 1`, restores itself after the new
+prototype is installed, and substitutes only the Zoo capacity refresh for
+Palace's guard/tax/peasant restarts. Reservation, delivery, and captive death
+refresh the same bit.
 Both native target-authorization passes require this bit before the already
 proven category-4 Character test, so a full Zoo rejects clicks before flag
 creation while Palace `Fl00` remains untouched.
@@ -580,10 +584,22 @@ building-owned participant list, computes one revenue pulse, and calls
 `Give_Gold` on the building. `Building_Birth` starts any declared
 `RevenueScript` at its declared `Revenue_Time`. The Zoo declares that same
 thread shape at 60,000 ms and substitutes its existing `Occupants` list for
-Fairgrounds `combatants`. Each occupant's multiplier comes from stock
+Fairgrounds `combatants`. Each valid occupant is counted directly, without a
+second living/dead filter, because the stock capture lifecycle deliberately
+keeps a subdued agent hidden in `Occupants`. Its multiplier comes from stock
 `ATTRIB_LevelXP`, the designer-authored kill bounty read by normal monster
 combat. The seven private rank boundaries are shared with Generic Visitor
 Lists; the GPL calculation is independent of that display patch.
+
+An earlier shared initial/upgrade callback tested `FirstStageBuilt` before
+calling `Building_Birth`. Stock `BuildingReachedMaxHP` queues `birthScript2`
+with a one-tick delay and then sets `FirstStageBuilt = 1`, so that test always
+skipped the revenue-thread launch. The corrected initial callback follows
+`Fairgrounds_Birth` and calls `Building_Birth` unconditionally. Stock
+Marketplace levels two and three put `Building_Birth` in the upgraded
+prototype's `birthscript`; the corresponding Zoo levels use the private wrapper
+there as well, so each `UpgradeAgentAttributes` transition restarts the declared
+revenue lifecycle instead of losing it after an upgrade.
 
 Both physical building attacks in `make_attack` and player-spell reactions in
 `react_player_spell` call global `release_occupants` immediately when a
@@ -591,16 +607,19 @@ building is hit. `building_death` later sets `Type = Dead` and calls the same
 function before rubble and deletion. Northern Expansion already changes that
 function so a living building titled `Mausoleum` retains its occupants, while
 a dead Mausoleum processes them. The private GPL symbol is a literal copy of
-that function with one sibling branch gated by `Title == Zoo` and the private
-`Restore_Zoo_Building_Birth` callback. It returns without action while that Zoo
-lives and processes captives only when the existing stock death call reaches
-it. Every non-Zoo and Mausoleum statement remains in stock order.
+that function with one sibling branch gated by `Title == Zoo` and the stable
+private `Restore_Zoo_Revenue` function declared on all three Zoo prototypes.
+The earlier `birthScript2` discriminator was not stable because the capacity
+upgrade callback intentionally repoints that function slot. The corrected
+branch returns without action while that Zoo lives and processes captives only
+when the existing stock death call reaches it. Every non-Zoo and Mausoleum
+statement remains in stock order.
 
 `Reset_Controlled` is the shipped end-of-charm lifecycle. It restores
 `Monster` type, the immutable `StartingScript` to all three task slots,
 `Monster_Gravestone`, `Monster_Player`, and clears charm ownership state.
 Capture therefore no longer overwrites `StartingScript`, `attack_action`, or
-the original idle/guardian behavior. At dead-Zoo release, each valid living
+the original idle/guardian behavior. At dead-Zoo release, each valid stored
 captive runs `Reset_Controlled`, receives `MaxHP`, clears the two Capture-only
 target prohibitions, and then runs stock `Exit_Building`, which resets tasks,
 unhides it, and plays the normal exit effect.

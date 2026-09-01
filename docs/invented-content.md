@@ -304,12 +304,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   the new Zoo `Level`. Stock Palace stores its completion poll in
   `upgradescript2`, but generic `Building` does not declare that field; the
   failed assignment was demonstrably absent from the live save. The Zoo instead
-  schedules its declared `birthScript2` slot after `basic_upgrade`. That shared
-  callback distinguishes initial construction through the shipped
-  `FirstStageBuilt` attribute, then copies Palace's `CurrentStageBuilt` poll and
-  interval exactly for upgrades. Reusing the generic completion slot and
-  replacing Palace's completed spawner restarts with capacity refresh are the
-  compatibility seams; no new watcher, field, or timing loop is introduced.
+  uses its declared function-valued `birthScript2` slot in two phases. Initial
+  completion follows `Fairgrounds_Birth`, including `Building_Birth`; it then
+  repoints that slot to a private copy of Palace's `CurrentStageBuilt` poll.
+  Upgrades install and schedule that callback after `basic_upgrade`, and the
+  callback restores itself after prototype replacement. Reusing the generic
+  function slot and replacing Palace's completed spawner restarts with capacity
+  refresh are the compatibility seams; no new watcher, field, or timing loop is
+  introduced.
 - The visitor-row wording “waiting in the zoo” is invented. Its mechanism is
   stock: after `Enter_Building`, delivery calls `SpecifyIntent`, matching stock
   `Lived_In` occupant ordering. Private `#intent_waiting_in_zoo` uses expansion
@@ -336,9 +338,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   gold per `LevelXP` Threat Rank and zero income when empty are best-guess
   values. The rank boundaries are the documented Generic Visitor Lists bands,
   not a recovered Zoo formula.
+- Level-two and level-three Zoo prototypes copy the stock Marketplace upgrade
+  `birthscript` shape so their declared revenue thread survives prototype
+  replacement. Revenue counts every valid stored occupant directly; it does not
+  reinterpret the capture lifecycle's subdued/hidden state as an empty cage.
 - Preventing first-hit ejection copies the shipped living-Mausoleum exception
   at the same global `release_occupants` boundary. The added private-Zoo test is
-  integration glue. On destruction, stock `Reset_Controlled` and
+  integration glue. The branch uses the private Zoo `RevenueScript` identity
+  because its completion callback slot is mutable. On destruction, stock `Reset_Controlled` and
   `Exit_Building` own the hostile reactivation; restoring full HP and clearing
   Capture's `NotFlaggable` / `NotSpellTarget` bits are requested Zoo behavior.
 

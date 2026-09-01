@@ -80,14 +80,21 @@ Zoo revenue now copies stock `Fairgrounds_Revenue` ownership and timing: a
 declared `RevenueScript` runs every 60,000 ms, reads the building-owned
 participant list, and gives the computed gold to the building so ordinary Tax
 Collectors remain authoritative. The Zoo substitutes `Occupants` for
-Fairgrounds `combatants` and weights each valid captive by its generic stock
+Fairgrounds `combatants` and weights each valid stored occupant by its generic stock
 `ATTRIB_LevelXP` Threat Rank. The current invented balance is 40 gold per rank
 per pulse; an empty Zoo earns nothing.
+
+Initial completion calls stock `Building_Birth` unconditionally, matching
+`Fairgrounds_Birth`, so the declared revenue thread is actually launched.
+Like upgraded stock Marketplaces, the level-two and level-three Zoo prototypes
+also run `Building_Birth` from their upgrade `birthscript`; this replaces the
+revenue thread after `UpgradeAgentAttributes` installs the new prototype.
 
 Ordinary physical and spell attacks call stock `release_occupants` as soon as
 a building is struck. Northern Expansion's function already exempts a living
 Mausoleum and reaches the same function after `building_death` marks it dead.
-The Zoo extends that exact branch shape: a living private Zoo does nothing;
+The Zoo extends that exact branch shape and uses its private `RevenueScript`
+function as stable identity: a living private Zoo does nothing;
 when stock `building_death` calls again after setting `Type = Dead`, each valid
 captive runs the shipped `Reset_Controlled` charm-expiry lifecycle, is healed
 to `MaxHP`, and leaves through stock `Exit_Building`. Other buildings and the
