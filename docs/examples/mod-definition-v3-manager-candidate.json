@@ -1,0 +1,32 @@
+{
+  "schema_version": 3,
+  "mod_id": "{d45a135f-31ca-4b53-b3e4-776e231a328c}",
+  "internal_name": "RestoreAbandonedZoo",
+  "display_name": "Restore Abandoned Zoo",
+  "custom_buildings": [
+    {
+      "local_name": "Restore_Zoo",
+      "controller_base": "MX09",
+      "panel_resource_template": "MX09"
+    }
+  ],
+  "runtime_features": [
+    {
+      "type": "stock.mx09-ap41-reward-panel.v1",
+      "panel_key": "capture-rewards",
+      "parent_building": "Restore_Zoo",
+      "source_dialog_id": "ZC01",
+      "open_command_id": 5001
+    },
+    {
+      "type": "stock.ap41-fl00-hostile-monster-flag.v1",
+      "panel_key": "capture-rewards",
+      "action_key": "capture",
+      "private_mode": "ZCF0",
+      "private_flag_id": "ZCF0",
+      "cursor_ordinal": 38,
+      "availability_attribute_id": "AZ0",
+      "unavailable_alert_text": "Couldn't place reward flag, Zoo is full"
+    }
+  ]
+}

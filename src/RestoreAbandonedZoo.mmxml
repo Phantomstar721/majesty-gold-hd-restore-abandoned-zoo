@@ -9,10 +9,8 @@
 		<DataConfiguration>
 			<Dataset base="Any">
 				<Load>
-					<CAM>Data\restore_zoo_capture_flag_maindata.cam</CAM>
 					<CAM>Data\restore_zoo_maindata.cam</CAM>
 					<CAM>Data\restore_zoo_interfacedata.cam</CAM>
-					<CAM>Data\restore_zoo_rewards_interfacedata.cam</CAM>
 					<CAM>Data\restore_zoo_miscdata.cam</CAM>
 					<CAM>Data\restore_zoo_textdata.cam</CAM>
 					<CAM>Data\restore_zoo_gpltext.cam</CAM>

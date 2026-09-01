@@ -38,7 +38,7 @@ ZOO_CAPTURE_ICON_TILE = (
 TACTICAL_CURSOR_IMAGE = b"CUR1Tactical Cursor"
 STOCK_ATTACK_CURSOR_SET = 1005
 STOCK_EXPLORE_CURSOR_SET = 1006
-PRIVATE_CAPTURE_CURSOR_SET = 1032
+PRIVATE_CAPTURE_CURSOR_SET = 1038
 STOCK_ATTACK_CURSOR_TILE = 27
 STOCK_EXPLORE_CURSOR_TILE = 26
 ZOO_CAPTURE_CURSOR_TILE = (
@@ -415,7 +415,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     patched_advisor_text = patch_indexed_strt(
         advisor_text.data,
         {
-            117: "Capturing a monster",
+            198: "Capturing a monster",
             199: "waiting in the zoo",
         },
     )
@@ -593,13 +593,31 @@ def write_capture_flag_maindata_cam(game_path: Path, data_dir: Path) -> None:
         extra.append(CamEntry(pad_name(name), data))
         return index
 
-    custom_imag = privateize_interface_imag_tiles(
-        stock_imag,
-        tiles,
-        append,
-        CAPTURE_FLAG_IMAGE_TOKEN,
-        overrides,
+    reference_offsets = imag_tile_reference_offsets(stock_imag)
+    ordered_source_indices = (
+        CAPTURE_FLAG_SPECIAL_TILES
+        + CAPTURE_FLAG_MINIMAP_TILES
+        + CAPTURE_FLAG_INTERFACE_TILES
     )
+    if len(reference_offsets) != len(ordered_source_indices):
+        raise ValueError(
+            "Stock ARA2 no longer has the audited 12 Special, 4 Minimap, "
+            "and 4 Interface frame fields"
+        )
+    custom_imag_buffer = bytearray(stock_imag)
+    for tile_offset, source_index in zip(reference_offsets, ordered_source_indices):
+        encoded = u32(stock_imag, tile_offset)
+        private_index = append(
+            CAPTURE_FLAG_IMAGE_TOKEN + f"{source_index:05d}".encode("ascii"),
+            overrides[source_index],
+        )
+        struct.pack_into(
+            "<I",
+            custom_imag_buffer,
+            tile_offset,
+            (encoded & 0xFFFF0000) | private_index,
+        )
+    custom_imag = bytes(custom_imag_buffer)
     if len(extra) != len(expected_indices):
         raise ValueError(
             f"Private Capture Flag IMAG reached {len(extra)} TILEs; expected {len(expected_indices)}"
@@ -728,13 +746,13 @@ def interface_imag_exact_tile_offset(
 def append_tactical_cursor_set(
     imag: bytes,
 ) -> bytes:
-    """Append selector 32 by cloning stock Attack cursor set 1005 literally."""
+    """Append selector 38 by cloning stock Attack cursor set 1005 literally."""
     set_count = u32(imag, 20)
     if set_count <= 0 or 24 + set_count * 8 > len(imag):
         raise ValueError("CUR1 has an invalid animation-set table")
     sets = [struct.unpack_from("<II", imag, 24 + index * 8) for index in range(set_count)]
     if any(set_id == PRIVATE_CAPTURE_CURSOR_SET for set_id, _offset in sets):
-        raise ValueError("Stock CUR1 unexpectedly already contains set 1032")
+        raise ValueError("Stock CUR1 unexpectedly already contains set 1038")
     source_matches = [
         (index, offset)
         for index, (set_id, offset) in enumerate(sets)
@@ -780,35 +798,55 @@ def privateize_tactical_cursor_tiles(
     append,
     custom_capture_tile: bytes,
 ) -> tuple[bytes, set[int]]:
-    """Keep stock CUR1 TILE numbers; append art only for private set 1032."""
+    """Preserve every stock CUR1 frame; replace only Capture's primary art.
+
+    Retail CUR1 uses an end-anchored frame/lane table. Attack set 1005 has
+    three primary TILE-27 frames plus shared cursor-state frames at TILE 24 and
+    TILE 25. The private set must retain those shared frames literally; a
+    fixed offset per direction sees only the primary frames and allows a later
+    consolidated art layer to replace the shared slots with unrelated art.
+    """
     patched = bytearray(imag)
     set_count = u32(imag, 20)
+    sets = [
+        struct.unpack_from("<II", imag, 24 + set_index * 8)
+        for set_index in range(set_count)
+    ]
+    all_reference_offsets = imag_tile_reference_offsets(imag)
     stock_indices: set[int] = set()
     capture_replacement: int | None = None
-    for set_index in range(set_count):
-        set_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
-        direction_count = u32(imag, set_offset)
-        if direction_count <= 0 or direction_count > 32:
-            raise ValueError(f"CUR1 set {set_id} has invalid directions")
-        for direction in range(direction_count):
-            relative = struct.unpack_from(
-                "<i", imag, set_offset + 64 + direction * 4
-            )[0]
-            direction_offset = set_offset + relative + 4
-            tile_offset = direction_offset + 40
-            if tile_offset + 4 > len(imag):
-                raise ValueError(f"CUR1 set {set_id} has a truncated state")
+    for set_index, (set_id, set_offset) in enumerate(sets):
+        set_end = sets[set_index + 1][1] if set_index + 1 < len(sets) else len(imag)
+        set_reference_offsets = tuple(
+            offset
+            for offset in all_reference_offsets
+            if set_offset <= offset < set_end
+        )
+        source_indices = tuple(
+            u32(imag, offset) & 0xFFFF for offset in set_reference_offsets
+        )
+        if set_id in (STOCK_ATTACK_CURSOR_SET, PRIVATE_CAPTURE_CURSOR_SET):
+            if source_indices != (27, 27, 24, 27, 25):
+                raise ValueError(
+                    f"CUR1 set {set_id} no longer matches the complete stock "
+                    "Attack cursor frame topology"
+                )
+        for tile_offset in set_reference_offsets:
             encoded = u32(imag, tile_offset)
             source_index = encoded & 0xFFFF
             if source_index >= len(tiles):
                 raise ValueError(f"CUR1 references missing TILE {source_index}")
-            if set_id == PRIVATE_CAPTURE_CURSOR_SET:
-                if source_index != STOCK_ATTACK_CURSOR_TILE:
-                    raise ValueError("Private CUR1 set 1032 is no longer an Attack clone")
+            if (
+                set_id == PRIVATE_CAPTURE_CURSOR_SET
+                and source_index == STOCK_ATTACK_CURSOR_TILE
+            ):
                 if capture_replacement is None:
                     capture_replacement = append(b"ZCCUCursor", custom_capture_tile)
                 replacement = capture_replacement
             else:
+                # Includes private set 1038's stock common-state TILEs 24/25,
+                # so a later consolidated layer cannot provide other payloads
+                # at those positional slots.
                 stock_indices.add(source_index)
                 replacement = source_index
             if replacement != source_index:
@@ -837,48 +875,104 @@ def privateize_interface_imag_tiles(
     every frame in the private IMAG is redirected to an appended private TILE.
     """
     patched = bytearray(imag)
+    tile_offsets = imag_tile_reference_offsets(imag)
+    replacements: dict[int, int] = {}
+    for tile_offset in tile_offsets:
+        encoded = u32(imag, tile_offset)
+        source_index = encoded & 0xFFFF
+        if source_index >= len(tiles):
+            raise ValueError(f"IMAG references missing TILE {source_index}")
+        if source_index not in replacements:
+            replacements[source_index] = append(
+                name_prefix + f"{source_index:05d}".encode("ascii"),
+                overrides.get(source_index, tiles[source_index].data),
+            )
+        struct.pack_into(
+            "<I",
+            patched,
+            tile_offset,
+            (encoded & 0xFFFF0000) | replacements[source_index],
+        )
+    return bytes(patched)
+
+
+def imag_tile_reference_offsets(imag: bytes) -> tuple[int, ...]:
+    """Return typed IMAG TILE fields using Majesty's end-anchored layout.
+
+    Stock direction records declare frame/lane counts at +4 and store their
+    (metadata, TILE-reference) pairs at the end of each bounded direction
+    record. Variable control words between those regions make a fixed +24
+    frame-table guess unsafe. The 32-direction projectile record is the one
+    audited exception and declares its count at +28.
+    """
     set_count = u32(imag, 20)
     if set_count <= 0 or 24 + set_count * 8 > len(imag):
-        raise ValueError("Interface IMAG has an invalid animation-set table")
-    replacements: dict[int, int] = {}
-    for set_index in range(set_count):
-        table_offset = 24 + set_index * 8
-        set_id, set_offset = struct.unpack_from("<II", imag, table_offset)
-        if set_offset + 68 > len(imag):
-            raise ValueError(f"Interface IMAG set {set_id} is truncated")
+        raise ValueError("IMAG has an invalid animation-set table")
+    sets = [
+        struct.unpack_from("<II", imag, 24 + set_index * 8)
+        for set_index in range(set_count)
+    ]
+    set_offsets = [offset for _set_id, offset in sets]
+    if set_offsets != sorted(set_offsets) or len(set(set_offsets)) != len(set_offsets):
+        raise ValueError("IMAG set offsets are not strictly increasing")
+    if set_offsets[0] < 24 + set_count * 8 or set_offsets[-1] >= len(imag):
+        raise ValueError("IMAG set offsets leave the record")
+
+    result: list[int] = []
+    for set_index, (set_id, set_offset) in enumerate(sets):
+        set_end = sets[set_index + 1][1] if set_index + 1 < len(sets) else len(imag)
+        if set_end - set_offset < 68:
+            raise ValueError(f"IMAG set {set_id} is truncated")
         direction_count = u32(imag, set_offset)
-        if direction_count <= 0 or direction_count > 32:
-            raise ValueError(f"Interface IMAG set {set_id} has invalid directions")
-        for direction in range(direction_count):
-            relative = struct.unpack_from(
-                "<i", imag, set_offset + 64 + direction * 4
-            )[0]
-            direction_offset = set_offset + relative + 4
-            if direction_offset + 28 > len(imag):
-                raise ValueError(f"Interface IMAG set {set_id} has a truncated direction")
-            frame_count = u32(imag, direction_offset) >> 16
-            if frame_count <= 0 or frame_count > 64:
-                raise ValueError(f"Interface IMAG set {set_id} has invalid frames")
-            for frame in range(frame_count):
-                tile_offset = direction_offset + 24 + frame * 8
-                encoded = u32(imag, tile_offset)
-                source_index = encoded & 0xFFFF
-                if source_index >= len(tiles):
+        direction_table_end = set_offset + 64 + direction_count * 4
+        if direction_count <= 0 or direction_count > 32 or direction_table_end > set_end:
+            raise ValueError(f"IMAG set {set_id} has invalid directions")
+        relative_offsets = [
+            struct.unpack_from("<i", imag, set_offset + 64 + direction * 4)[0]
+            for direction in range(direction_count)
+        ]
+        if (
+            relative_offsets != sorted(relative_offsets)
+            or len(set(relative_offsets)) != len(relative_offsets)
+            or any(relative <= 0 for relative in relative_offsets)
+        ):
+            raise ValueError(f"IMAG set {set_id} has unsupported direction offsets")
+        anchors = [set_offset + relative for relative in relative_offsets]
+        if anchors[0] < direction_table_end or anchors[-1] >= set_end:
+            raise ValueError(f"IMAG set {set_id} direction data leaves the set")
+        for direction, anchor in enumerate(anchors):
+            direction_end = anchors[direction + 1] if direction + 1 < len(anchors) else set_end
+            if anchor + 12 > direction_end:
+                raise ValueError(f"IMAG set {set_id} direction {direction} is truncated")
+            count_word = u32(imag, anchor + 4)
+            frame_count = count_word >> 16
+            lane_count = count_word & 0xFFFF
+            field_count = frame_count * lane_count
+            if 0 < field_count <= 4096 and frame_count > 0 and lane_count > 0:
+                table_start = direction_end - field_count * 8
+                minimum = anchor + 8
+            else:
+                if anchor + 36 > direction_end:
+                    raise ValueError(f"IMAG set {set_id} direction {direction} is truncated")
+                projectile_count = u32(imag, anchor + 28)
+                frame_count = projectile_count >> 16
+                lane_count = projectile_count & 0xFFFF
+                field_count = frame_count * lane_count
+                if not (0 < field_count <= 4096 and frame_count > 0 and lane_count > 0):
                     raise ValueError(
-                        f"Interface IMAG references missing TILE {source_index}"
+                        f"IMAG set {set_id} direction {direction} has no audited layout"
                     )
-                if source_index not in replacements:
-                    replacements[source_index] = append(
-                        name_prefix + f"{source_index:05d}".encode("ascii"),
-                        overrides.get(source_index, tiles[source_index].data),
-                    )
-                struct.pack_into(
-                    "<I",
-                    patched,
-                    tile_offset,
-                    (encoded & 0xFFFF0000) | replacements[source_index],
+                table_start = direction_end - field_count * 8
+                minimum = anchor + 32
+            if table_start < minimum or (table_start - anchor) % 4:
+                raise ValueError(
+                    f"IMAG set {set_id} direction {direction} has an invalid frame table"
                 )
-    return bytes(patched)
+            offsets = tuple(table_start + field * 8 + 4 for field in range(field_count))
+            if not offsets or offsets[-1] + 4 > direction_end:
+                raise ValueError(f"IMAG set {set_id} direction {direction} exceeds its boundary")
+            result.extend(offsets)
+    return tuple(result)
 
 
 def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
@@ -1024,6 +1118,85 @@ def prepare_output(output_root: Path) -> tuple[Path, Path]:
     return data_dir, gpl_dir
 
 
+def merge_effective_art_layers(data_dir: Path) -> None:
+    """Materialize the existing art load order as one CAM per domain."""
+
+    def entries(path: Path, extension: bytes) -> tuple[CamEntry, ...]:
+        result = tuple(read_cam_entries(path, extension))
+        if not result:
+            raise ValueError(f"{path} has no {extension.decode('ascii')} section")
+        return result
+
+    def overlay(earlier: tuple[CamEntry, ...], later: tuple[CamEntry, ...]) -> tuple[CamEntry, ...]:
+        output: list[CamEntry] = []
+        for index in range(max(len(earlier), len(later))):
+            early = earlier[index] if index < len(earlier) else None
+            late = later[index] if index < len(later) else None
+            chosen = late if late is not None and late.data else early
+            if chosen is None:
+                chosen = CamEntry(index.to_bytes(4, "little").ljust(20, b"\x00"), b"")
+            output.append(chosen)
+        return tuple(output)
+
+    def union_images(*paths: Path) -> tuple[CamEntry, ...]:
+        output: list[CamEntry] = []
+        by_key: dict[bytes, bytes] = {}
+        for path in paths:
+            for entry in read_cam_entries(path, b"IMAG"):
+                key = entry.name.rstrip(b"\x00")[:4]
+                previous = by_key.get(key)
+                if previous is not None:
+                    if previous != entry.data:
+                        raise ValueError(f"Conflicting private IMAG key {key!r}")
+                    continue
+                by_key[key] = entry.data
+                output.append(entry)
+        return tuple(output)
+
+    capture_main = data_dir / "restore_zoo_capture_flag_maindata.cam"
+    zoo_main = data_dir / "restore_zoo_maindata.cam"
+    write_cam(
+        zoo_main,
+        (
+            CamSection(b"IMAG", union_images(capture_main, zoo_main)),
+            CamSection(
+                b"TILE",
+                overlay(entries(capture_main, b"TILE"), entries(zoo_main, b"TILE")),
+                padding=b"\x01\x00\x00\x00",
+            ),
+            CamSection(
+                b"SPLT",
+                overlay(entries(capture_main, b"SPLT"), entries(zoo_main, b"SPLT")),
+                padding=b"\x01\x00\x00\x00",
+            ),
+        ),
+    )
+    capture_main.unlink()
+
+    visitor_interface = data_dir / "restore_zoo_interfacedata.cam"
+    rewards_interface = data_dir / "restore_zoo_rewards_interfacedata.cam"
+    write_cam(
+        visitor_interface,
+        (
+            CamSection(
+                b"PALT",
+                entries(rewards_interface, b"PALT"),
+                padding=b"\x01\x00\x00\x00",
+            ),
+            CamSection(b"IMAG", union_images(visitor_interface, rewards_interface)),
+            CamSection(
+                b"TILE",
+                overlay(
+                    entries(visitor_interface, b"TILE"),
+                    entries(rewards_interface, b"TILE"),
+                ),
+                padding=b"\x01\x00\x00\x00",
+            ),
+        ),
+    )
+    rewards_interface.unlink()
+
+
 def build(game_path: Path, output_root: Path) -> None:
     game_path = game_path.resolve()
     compiler = game_path / "SDK" / "Gplbcc.exe"
@@ -1037,6 +1210,7 @@ def build(game_path: Path, output_root: Path) -> None:
 
     data_dir, gpl_dir = prepare_output(output_root)
     shutil.copy2(SOURCE_ROOT / "RestoreAbandonedZoo.mmxml", output_root / "RestoreAbandonedZoo.mmxml")
+    shutil.copy2(SOURCE_ROOT / "mod-definition.json", output_root / "mod-definition.json")
     shutil.copy2(SOURCE_ROOT / "Data" / "restore_zoo_units.xml", data_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Building_Data.dat", gpl_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat", gpl_dir)
@@ -1049,6 +1223,7 @@ def build(game_path: Path, output_root: Path) -> None:
     write_capture_flag_maindata_cam(game_path, data_dir)
     write_interfacedata_cam(game_path, data_dir)
     write_zoo_rewards_interfacedata_cam(game_path, data_dir)
+    merge_effective_art_layers(data_dir)
     write_miscdata_cam(game_path, data_dir)
     write_text_cams(game_path, data_dir)
     result = subprocess.run(

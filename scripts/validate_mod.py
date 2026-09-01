@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import struct
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
 MAGIC = b"CYLBPC  \x01\x00\x01\x00"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def cam_names(path: Path) -> set[tuple[bytes, bytes]]:
@@ -100,53 +103,149 @@ def compact_interface_imag_set_tile_index(imag: bytes, set_id: int) -> int:
 
 
 def tactical_cursor_set_tile_indices(imag: bytes, set_id: int) -> list[int]:
-    """Return every state TILE from one stock CUR1 cursor set."""
+    """Return every frame/lane TILE from one end-anchored CUR1 set."""
     set_count = struct.unpack_from("<I", imag, 20)[0]
-    for set_index in range(set_count):
-        current_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+    sets = [
+        struct.unpack_from("<II", imag, 24 + index * 8)
+        for index in range(set_count)
+    ]
+    for set_index, (current_id, set_offset) in enumerate(sets):
         if current_id != set_id:
             continue
+        set_end = sets[set_index + 1][1] if set_index + 1 < len(sets) else len(imag)
         direction_count = struct.unpack_from("<I", imag, set_offset)[0]
         if direction_count <= 0 or direction_count > 32:
             raise ValueError(f"Tactical cursor set {set_id} has invalid states")
+        relative_offsets = [
+            struct.unpack_from("<i", imag, set_offset + 64 + direction * 4)[0]
+            for direction in range(direction_count)
+        ]
+        anchors = [set_offset + relative for relative in relative_offsets]
         result: list[int] = []
-        for direction in range(direction_count):
-            relative = struct.unpack_from(
-                "<i", imag, set_offset + 64 + direction * 4
-            )[0]
-            direction_offset = set_offset + relative + 4
-            result.append(
-                struct.unpack_from("<I", imag, direction_offset + 40)[0] & 0xFFFF
+        for direction, anchor in enumerate(anchors):
+            direction_end = (
+                anchors[direction + 1]
+                if direction + 1 < len(anchors)
+                else set_end
             )
+            count_word = struct.unpack_from("<I", imag, anchor + 4)[0]
+            frame_count = count_word >> 16
+            lane_count = count_word & 0xFFFF
+            total = frame_count * lane_count
+            table_start = direction_end - total * 8
+            if (
+                frame_count <= 0
+                or lane_count <= 0
+                or total > 256
+                or table_start < anchor + 8
+                or (table_start - anchor) % 4
+            ):
+                raise ValueError(
+                    f"Tactical cursor set {set_id} state {direction} has an "
+                    "invalid end-anchored frame table"
+                )
+            for field in range(total):
+                result.append(
+                    struct.unpack_from("<I", imag, table_start + field * 8 + 4)[0]
+                    & 0xFFFF
+                )
         return result
     raise ValueError(f"Tactical cursor IMAG has no set {set_id}")
 
 
 def single_direction_imag_tile_indices(imag: bytes) -> list[int]:
-    """Return every TILE reached by the stock one-direction overlay layout."""
+    """Return every TILE reached through Majesty's end-anchored IMAG layout."""
     if len(imag) < 24:
         raise ValueError("Overlay IMAG is truncated")
     set_count = struct.unpack_from("<I", imag, 20)[0]
     if set_count <= 0 or 24 + set_count * 8 > len(imag):
         raise ValueError("Overlay IMAG has an invalid set table")
+    sets = [
+        struct.unpack_from("<II", imag, 24 + set_index * 8)
+        for set_index in range(set_count)
+    ]
+    set_offsets = [offset for _set_id, offset in sets]
+    if set_offsets != sorted(set_offsets) or len(set(set_offsets)) != len(set_offsets):
+        raise ValueError("Overlay IMAG has invalid set offsets")
     result: list[int] = []
-    for set_index in range(set_count):
-        _set_id, set_offset = struct.unpack_from("<II", imag, 24 + set_index * 8)
+    for set_index, (set_id, set_offset) in enumerate(sets):
+        set_end = sets[set_index + 1][1] if set_index + 1 < len(sets) else len(imag)
         direction_count = struct.unpack_from("<I", imag, set_offset)[0]
-        if direction_count <= 0 or direction_count > 32:
+        direction_table_end = set_offset + 64 + direction_count * 4
+        if direction_count <= 0 or direction_count > 32 or direction_table_end > set_end:
             raise ValueError("Overlay IMAG has an invalid direction count")
-        for direction in range(direction_count):
-            relative = struct.unpack_from("<i", imag, set_offset + 64 + direction * 4)[0]
-            direction_offset = set_offset + relative + 4
-            frame_count = struct.unpack_from("<I", imag, direction_offset)[0] >> 16
-            if frame_count <= 0 or frame_count > 64:
-                raise ValueError("Overlay IMAG has an invalid frame count")
-            for frame in range(frame_count):
-                encoded = struct.unpack_from(
-                    "<I", imag, direction_offset + 24 + frame * 8
-                )[0]
+        relative_offsets = [
+            struct.unpack_from("<i", imag, set_offset + 64 + direction * 4)[0]
+            for direction in range(direction_count)
+        ]
+        anchors = [set_offset + relative for relative in relative_offsets]
+        if (
+            relative_offsets != sorted(relative_offsets)
+            or len(set(relative_offsets)) != len(relative_offsets)
+            or any(relative <= 0 for relative in relative_offsets)
+            or anchors[0] < direction_table_end
+            or anchors[-1] >= set_end
+        ):
+            raise ValueError(f"Overlay IMAG set {set_id} has invalid direction offsets")
+        for direction, anchor in enumerate(anchors):
+            direction_end = anchors[direction + 1] if direction + 1 < len(anchors) else set_end
+            count_word = struct.unpack_from("<I", imag, anchor + 4)[0]
+            frame_count = count_word >> 16
+            lane_count = count_word & 0xFFFF
+            field_count = frame_count * lane_count
+            if not (0 < field_count <= 4096 and frame_count > 0 and lane_count > 0):
+                if anchor + 36 > direction_end:
+                    raise ValueError("Overlay IMAG direction is truncated")
+                count_word = struct.unpack_from("<I", imag, anchor + 28)[0]
+                frame_count = count_word >> 16
+                lane_count = count_word & 0xFFFF
+                field_count = frame_count * lane_count
+                if not (0 < field_count <= 4096 and frame_count > 0 and lane_count > 0):
+                    raise ValueError("Overlay IMAG has an unsupported direction layout")
+                minimum = anchor + 32
+            else:
+                minimum = anchor + 8
+            table_start = direction_end - field_count * 8
+            if table_start < minimum or (table_start - anchor) % 4:
+                raise ValueError("Overlay IMAG has an invalid end-anchored frame table")
+            for field in range(field_count):
+                encoded = struct.unpack_from("<I", imag, table_start + field * 8 + 4)[0]
                 result.append(encoded & 0xFFFF)
     return result
+
+
+def returns_nested_in_foreach(source: str) -> list[int]:
+    """Find GPL returns executed from a foreach body.
+
+    Beta2's GPL evaluator can null-write when a function result is returned
+    while foreach owns the active evaluator frame. Stock Check_Mausoleum
+    collects legal candidates in-loop and returns only after the loop.
+    """
+
+    blocks: list[str] = []
+    pending_foreach = False
+    bad_lines: list[int] = []
+    for line_number, raw_line in enumerate(source.splitlines(), start=1):
+        code = raw_line.split("//", 1)[0].strip().lower()
+        if not code:
+            continue
+        if code.startswith("foreach "):
+            pending_foreach = True
+            continue
+        if code == "begin":
+            blocks.append("foreach" if pending_foreach else "block")
+            pending_foreach = False
+            continue
+        if code.startswith("return"):
+            if pending_foreach or "foreach" in blocks:
+                bad_lines.append(line_number)
+            pending_foreach = False
+            continue
+        if code.startswith("end"):
+            if blocks:
+                blocks.pop()
+            pending_foreach = False
+    return bad_lines
 
 
 def indexed_strt_record(data: bytes, index: int) -> tuple[int, str]:
@@ -163,11 +262,10 @@ def validate(root: Path) -> list[str]:
     errors: list[str] = []
     required = (
         "RestoreAbandonedZoo.mmxml",
+        "mod-definition.json",
         "Data/restore_zoo_units.xml",
         "Data/restore_zoo_maindata.cam",
-        "Data/restore_zoo_capture_flag_maindata.cam",
         "Data/restore_zoo_interfacedata.cam",
-        "Data/restore_zoo_rewards_interfacedata.cam",
         "Data/restore_zoo_miscdata.cam",
         "Data/restore_zoo_textdata.cam",
         "Data/restore_zoo_gpltext.cam",
@@ -187,6 +285,49 @@ def validate(root: Path) -> list[str]:
         return errors
 
     manifest = ET.parse(root / "RestoreAbandonedZoo.mmxml").getroot()
+    definition = json.loads((root / "mod-definition.json").read_text(encoding="utf-8"))
+    expected_definition = {
+        "schema_version": 3,
+        "mod_id": "{d45a135f-31ca-4b53-b3e4-776e231a328c}",
+        "internal_name": "RestoreAbandonedZoo",
+        "display_name": "Restore Abandoned Zoo",
+        "custom_buildings": [
+            {
+                "local_name": "Restore_Zoo",
+                "controller_base": "MX09",
+                "panel_resource_template": "MX09",
+            }
+        ],
+        "runtime_features": [
+            {
+                "type": "stock.mx09-ap41-reward-panel.v1",
+                "panel_key": "capture-rewards",
+                "parent_building": "Restore_Zoo",
+                "source_dialog_id": "ZC01",
+                "open_command_id": 5001,
+            },
+            {
+                "type": "stock.ap41-fl00-hostile-monster-flag.v1",
+                "panel_key": "capture-rewards",
+                "action_key": "capture",
+                "private_mode": "ZCF0",
+                "private_flag_id": "ZCF0",
+                "cursor_ordinal": 38,
+                "availability_attribute_id": "AZ0",
+                "unavailable_alert_text": "Couldn't place reward flag, Zoo is full",
+            },
+        ],
+    }
+    if definition != expected_definition:
+        errors.append("mod-definition.json does not match the Zoo schema-v3 standalone metadata")
+    candidate_path = (
+        REPO_ROOT / "docs" / "examples" / "mod-definition-v3-manager-candidate.json"
+    )
+    expected_candidate = expected_definition
+    if not candidate_path.is_file():
+        errors.append("Reviewed schema-v3 manager candidate definition is missing")
+    elif json.loads(candidate_path.read_text(encoding="utf-8")) != expected_candidate:
+        errors.append("Reviewed schema-v3 manager candidate definition changed")
     units = ET.parse(root / "Data" / "restore_zoo_units.xml").getroot()
     descriptions = units.findall("Description")
     if [item.get("Name") for item in descriptions] != [
@@ -225,10 +366,8 @@ def validate(root: Path) -> list[str]:
         ]:
             errors.append("Manifest must load only the Zoo building descriptions")
         if [item.text for item in load.findall("CAM")] != [
-            "Data\\restore_zoo_capture_flag_maindata.cam",
             "Data\\restore_zoo_maindata.cam",
             "Data\\restore_zoo_interfacedata.cam",
-            "Data\\restore_zoo_rewards_interfacedata.cam",
             "Data\\restore_zoo_miscdata.cam",
             "Data\\restore_zoo_textdata.cam",
             "Data\\restore_zoo_gpltext.cam",
@@ -329,14 +468,14 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo main-data CAM lacks the positional stock TILE table")
     if not any(extension == b"SPLT" for extension, _ in art_names):
         errors.append("Zoo main-data CAM lacks the stock palette table")
-    capture_art_path = root / "Data" / "restore_zoo_capture_flag_maindata.cam"
+    capture_art_path = root / "Data" / "restore_zoo_maindata.cam"
     capture_art_names = cam_names(capture_art_path)
     capture_images = {
         name for extension, name in capture_art_names if extension == b"IMAG"
     }
-    if capture_images != {b"ZCA2Capture flag"}:
+    if b"ZCA2Capture flag" not in capture_images:
         errors.append(
-            f"Private Capture Flag CAM has unexpected IMAG records: {sorted(capture_images)}"
+            f"Combined Zoo main-art CAM lacks private ZCA2: {sorted(capture_images)}"
         )
     capture_imag = cam_entry_data(
         capture_art_path,
@@ -351,8 +490,6 @@ def validate(root: Path) -> list[str]:
             f"Private Capture Flag CAM has {len(capture_tiles)} TILE slots; expected {private_start + 20}"
         )
     else:
-        if any(data for _name, data in capture_tiles[:private_start]):
-            errors.append("Private Capture Flag CAM replaces a stock TILE slot")
         private_tiles = capture_tiles[private_start:]
         if any(not data for _name, data in private_tiles):
             errors.append("Private Capture Flag CAM has an empty private TILE")
@@ -389,7 +526,7 @@ def validate(root: Path) -> list[str]:
             )
     if not any(extension == b"TILE" for extension, _ in interface_names):
         errors.append("Zoo interface-data CAM lacks the positional stock TILE table")
-    rewards_interface = root / "Data" / "restore_zoo_rewards_interfacedata.cam"
+    rewards_interface = root / "Data" / "restore_zoo_interfacedata.cam"
     rewards_interface_names = cam_names(rewards_interface)
     rewards_interface_images = {
         name for extension, name in rewards_interface_names if extension == b"IMAG"
@@ -399,13 +536,13 @@ def validate(root: Path) -> list[str]:
         not data for _name, data in rewards_palettes
     ):
         errors.append("Zoo rewards interface CAM must carry all seven stock PALT entries")
-    if rewards_interface_images != {
+    if not {
         b"ZOBGbuilding dialog",
         b"ZCICItem Icons",
         b"CUR1Tactical Cursor",
-    }:
+    } <= rewards_interface_images:
         errors.append(
-            f"Zoo rewards interface CAM has unexpected IMAG records: {sorted(rewards_interface_images)}"
+            f"Combined Zoo interface CAM lacks private reward art: {sorted(rewards_interface_images)}"
         )
     if not any(extension == b"TILE" for extension, _ in rewards_interface_names):
         errors.append("Zoo rewards interface CAM lacks its private positional TILE table")
@@ -454,10 +591,10 @@ def validate(root: Path) -> list[str]:
         stock_cursor_indices = [
             tile_index
             for set_id in cursor_set_ids
-            if set_id != 1032
+            if set_id != 1038
             for tile_index in tactical_cursor_set_tile_indices(cursor_imag, set_id)
         ]
-        capture_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1032)
+        capture_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1038)
         all_cursor_indices = stock_cursor_indices + capture_cursor_indices
         if any(
             tile_index >= 2624
@@ -466,12 +603,10 @@ def validate(root: Path) -> list[str]:
         ):
             errors.append("Every stock CUR1 state must retain a populated original TILE")
         elif any(
-            tile_index < 2624
-            or tile_index >= len(rewards_tiles)
-            or not rewards_tiles[tile_index][1]
+            tile_index >= len(rewards_tiles) or not rewards_tiles[tile_index][1]
             for tile_index in capture_cursor_indices
         ):
-            errors.append("Private CUR1 set 1032 must reference a nonempty appended TILE")
+            errors.append("Private CUR1 set 1038 references a missing TILE")
         else:
             for tile_index in set(all_cursor_indices):
                 cursor_tile = rewards_tiles[tile_index][1]
@@ -488,21 +623,22 @@ def validate(root: Path) -> list[str]:
                     break
         attack_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1005)
         explore_cursor_indices = tactical_cursor_set_tile_indices(cursor_imag, 1006)
-        if any(len(indices) != 3 or len(set(indices)) != 1 for indices in (
-            attack_cursor_indices,
-            explore_cursor_indices,
-            capture_cursor_indices,
-        )):
-            errors.append("CUR1 cursor states do not share one TILE per cursor set")
-        elif attack_cursor_indices != [27, 27, 27]:
-            errors.append("Extended CUR1 changed stock Attack cursor TILE 27")
-        elif explore_cursor_indices != [26, 26, 26]:
-            errors.append("Extended CUR1 changed stock Explore cursor TILE 26")
-        elif capture_cursor_indices[0] in {
-            attack_cursor_indices[0],
-            explore_cursor_indices[0],
-        }:
-            errors.append("Private Capture cursor reuses a stock cursor TILE")
+        if attack_cursor_indices != [27, 27, 24, 27, 25]:
+            errors.append("Extended CUR1 changed the complete stock Attack cursor topology")
+        elif explore_cursor_indices != [26, 26, 24, 26, 25]:
+            errors.append("Extended CUR1 changed the complete stock Explore cursor topology")
+        elif not (
+            len(capture_cursor_indices) == 5
+            and capture_cursor_indices[0] == capture_cursor_indices[1]
+            and capture_cursor_indices[1] == capture_cursor_indices[3]
+            and capture_cursor_indices[0] >= 2624
+            and capture_cursor_indices[2] == 24
+            and capture_cursor_indices[4] == 25
+        ):
+            errors.append(
+                "Private Capture cursor must replace only Attack's three primary "
+                "frames and retain stock common-state TILEs 24/25"
+            )
         else:
             capture_cursor_index = capture_cursor_indices[0]
             capture_cursor_tile = rewards_tiles[capture_cursor_index][1]
@@ -512,6 +648,16 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo Capture cursor is not a V3 TILE")
             elif struct.unpack_from("<HH", capture_cursor_tile, 2) != (40, 39):
                 errors.append("Private Zoo Capture cursor changed stock 39x40 geometry")
+        expected_common_cursor_hashes = {
+            24: "3e946afa4b2edb01dd4d10f4c37045c4527bf8b1709b844748e6ceef8aabc357",
+            25: "b375dce052dcc28061dfd4c509041315d5131c66ef2ee18243b16c06e9460da3",
+        }
+        for tile_index, expected_hash in expected_common_cursor_hashes.items():
+            actual_hash = hashlib.sha256(rewards_tiles[tile_index][1]).hexdigest()
+            if actual_hash != expected_hash:
+                errors.append(
+                    f"CUR1 common-state TILE {tile_index} is not the exact stock payload"
+                )
     help_names = cam_names(root / "Data" / "restore_zoo_gpltext.cam")
     if not {(b"STRT", b"AITX"), (b"STRT", b"HPTX")} <= help_names:
         errors.append("Zoo GPL text CAM lacks STRT/AITX or STRT/HPTX")
@@ -519,10 +665,10 @@ def validate(root: Path) -> list[str]:
         intent_data = cam_entry_data(
             root / "Data" / "restore_zoo_gpltext.cam", b"STRT", b"AITX"
         )
-        intent_record = indexed_strt_record(intent_data, 117)
-        if intent_record != (117, "Capturing a monster"):
+        intent_record = indexed_strt_record(intent_data, 198)
+        if intent_record != (198, "Capturing a monster"):
             errors.append(
-                "Intent 117 must change only its text to Capturing a monster"
+                "Reserved intent 198 must contain the Capture action text"
             )
         zoo_occupant_intent = indexed_strt_record(intent_data, 199)
         if zoo_occupant_intent != (199, "waiting in the zoo"):
@@ -574,6 +720,15 @@ def validate(root: Path) -> list[str]:
     capture = (root / "GPL" / "RestoreAbandonedZoo_Capture.gpl").read_text(
         encoding="utf-8"
     )
+    for gpl_path in sorted((root / "GPL").glob("*.gpl")):
+        nested_returns = returns_nested_in_foreach(
+            gpl_path.read_text(encoding="utf-8")
+        )
+        if nested_returns:
+            rendered = ", ".join(str(line) for line in nested_returns)
+            errors.append(
+                f"{gpl_path.name} returns from inside foreach at line(s) {rendered}"
+            )
     required_capture_contract = (
         "function Restore_Capture_Flag_Birth",
         "function Restore_Zoo_Visitor_Limit",
@@ -607,8 +762,11 @@ def validate(root: Path) -> list[str]:
         'visitors = zoo\'s "Occupants"',
         '$Restore_Zoo_Pending_Reservations ( zoo )',
         'if ( occupied < limit )',
+        'legal_zoos << zoo',
+        'zoo = $ListMember ( legal_zoos, 1 )',
         'zoo = thisagent\'s "Target"',
         "expression #intent_waiting_in_zoo 199",
+        "expression #intent_capturing_monster 198",
         "function Restore_Controlled_To_Hooligan",
         "function Restore_Begin_Stock_Zoo_Control",
         "$Control_Monster ( hero, thisagent )",
@@ -625,7 +783,7 @@ def validate(root: Path) -> list[str]:
         "valid_heroes << hero",
         "hero = $ListMember ( valid_heroes, 1 )",
         'thisagent\'s "leader" = hero',
-        "$SpecifyIntent ( hero, #intent_arresting_hooligan )",
+        "$SpecifyIntent ( hero, #intent_capturing_monster )",
         'hero\'s "Target" = thisagent',
         'hero\'s "ActiveScript" = $Arrest_Hooligan',
         'hero\'s "ActiveScript" != $Arrest_Hooligan',
@@ -668,13 +826,11 @@ def validate(root: Path) -> list[str]:
         "function Restore_Capture_Flag_Poll",
         "function Restore_Capture_Flag_Death_Callback",
         "function Restore_Capture_Flag_Death",
-        "function Restore_Get_Attached_Capture_Flag",
         '"RewardFlag", -1, flags, #RewardFlags',
         'flag\'s "SubType" == "Capture_Flag"',
         "function monster_gravestone",
         'deadflag = TRUE',
-        '$Restore_Stock_Zoo_Flag_Check (',
-        'thisagent, zoo_agent ) == TRUE',
+        '$Restore_Stock_Zoo_Flag_Check ( thisagent ) == TRUE',
         'thisagent\'s "Type" = "Dead"',
         'thisagent\'s "ActiveScript" = $be_dead_2',
         '"basic_death", thisagent',
@@ -688,6 +844,9 @@ def validate(root: Path) -> list[str]:
     stock_check_start = capture.index("function Restore_Stock_Zoo_Flag_Check")
     stock_check = capture[stock_check_start:]
     for snippet in (
+        "zoo_agent = $NullAgent ()",
+        '$ListObjects ( thisagent, "RewardFlag", -1, flags, #RewardFlags )',
+        'zoo_agent = flag',
         "$Restore_Find_Completed_Zoo ( zoo_agent )",
         "$Restore_Begin_Stock_Zoo_Control (",
     ):
@@ -704,15 +863,15 @@ def validate(root: Path) -> list[str]:
     gravestone_end = capture.index("function Restore_Capture_Flag_Birth", gravestone_start)
     gravestone = capture[gravestone_start:gravestone_end]
     grave_stop = gravestone.find("$StopMoving ( thisagent )")
-    grave_lookup = gravestone.find("$Restore_Get_Attached_Capture_Flag")
-    grave_check = gravestone.find("$Restore_Stock_Zoo_Flag_Check (")
+    grave_check = gravestone.find("$Restore_Stock_Zoo_Flag_Check ( thisagent )")
     grave_gold = gravestone.find("$DropGoldInRadius (")
     grave_dead = gravestone.find('thisagent\'s "Type" = "Dead"')
     grave_action = gravestone.find('$PerformAction ( thisagent, "basic_death", thisagent )')
-    if not (0 <= grave_stop < grave_lookup < grave_check < grave_gold < grave_dead < grave_action):
+    if not (0 <= grave_stop < grave_check < grave_gold < grave_dead < grave_action):
         errors.append("Monster gravestone must preserve the stock Zoo gate and death-tail ordering")
     forbidden_capture_contract = (
         "function monster_birth",
+        "function Restore_Get_Attached_Capture_Flag",
         "function Restore_Get_Capture_Flag",
         "function Restore_Continue_Original_Monster_Death",
         "function Restore_Capture_Target_Death",

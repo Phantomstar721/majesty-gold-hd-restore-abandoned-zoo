@@ -47,9 +47,9 @@ description, not the separate private `ZCA2` art identifier.
 The hover and completion gates both reject a monster that already carries that
 relation, so no second Capture Flag is created and no additional gold is spent.
 
-While placing the private flag, ZCF0 uses tactical-cursor selector 32. The
+While placing the private flag, ZCF0 uses tactical-cursor selector 38. The
 loaded `CUR1Tactical Cursor` is a literal stock clone with one appended set
-1032, derived from Attack cursor set 1005 but repainted with the Zoo paw flag.
+1038, derived from Attack cursor set 1005 but repainted with the Zoo paw flag.
 Stock selectors 5/1005 and 6/1006 remain unchanged for Palace Attack and
 Explore placement.
 
@@ -91,9 +91,11 @@ lethal event instead of storing it in an unavailable field.
 
 GPLMx `zoo_flag_check` reads the expansion-only `Monster.zoo_agent`; Original
 declares no such field. At the same `monster_gravestone` boundary, the
-compatibility clone uses stock RewardFlag enumeration and the engine-owned
-`TargetID` relation to recover the still-attached private Capture Flag. It does
-not retain a registry or write borrowed state onto the monster.
+compatibility clone calls one boolean Zoo check directly, just as GPLMx does.
+That check uses stock RewardFlag enumeration and the engine-owned `TargetID`
+relation to recover the still-attached private Capture Flag locally. It does
+not use an agent-valued helper return at lethal damage, retain a registry, or
+write borrowed state onto the monster.
 
 The active `monster_gravestone` is the literal GPLMx Zoo gate followed by the
 literal stock monster-death tail. With no matching flag or after a failed roll,
@@ -166,7 +168,9 @@ shape, with the adaptations required by private single-owner arrests:
 
 The flag-side query uses the Capture Flag's player ownership and copies stock
 `Check_Mausoleum`: list completed buildings, inspect each generic `Occupants`
-list, and take the first one below its limit. The limit comes from the stock
+list, append every legal candidate during `foreach`, and select the first only
+after that loop ends. No function result is returned from inside `foreach`.
+The limit comes from the stock
 building `Level` field and is 4 / 6 / 8 for Zoo levels 1 / 2 / 3. A captured
 Hooligan keeps its selected Zoo in the ordinary Monster `Target` field, but it
 consumes pending capacity only after the stock arrest handoff is real: its

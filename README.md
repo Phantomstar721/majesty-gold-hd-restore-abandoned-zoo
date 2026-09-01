@@ -39,8 +39,8 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   repeats that exact lookup for Capture description relation `ZCF0`, both while
   hovering and again at click completion, so one monster can carry at most one
   Capture Flag;
-- that placement clone selects private tactical-cursor selector 32, backed by
-  an appended `CUR1` set 1032 repaint of stock Attack cursor set 1005;
+- that placement clone selects private tactical-cursor selector 38, backed by
+  an appended `CUR1` set 1038 repaint of stock Attack cursor set 1005;
 - the private flag retains the stock Attack Flag animation topology but selects
   private `ZCA2` Zoo art: a forest-green flag with an aged-gold paw emblem,
   four stock-shaped player-color interface variants, and private minimap art;
@@ -51,8 +51,8 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   durability values;
 - the capture trigger runs at the literal GPLMx `monster_gravestone` boundary,
   before the stock corpse transition; Original's missing `Monster.zoo_agent`
-  field is replaced by a one-shot stock RewardFlag/TargetID lookup for the
-  still-attached private Capture Flag;
+  field is replaced inside the same direct boolean Zoo check by a one-shot
+  stock RewardFlag/TargetID lookup for the still-attached private Capture Flag;
 - the abandoned reward formula is active: `50 * sqrt((reward / 20) / MaxHP)`,
   capped at 95%, and is evaluated directly at capture time so it works without
   GPLMx-only flag fields under Original rules;
@@ -137,6 +137,11 @@ powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1
 The installed package is
 `Documents\My Games\MajestyHD\Mods\RestoreAbandonedZoo`. Re-running the command
 replaces only that exact package and verifies every deployed file by SHA-256.
+The executable dispatcher explicitly supports both maintained Steam builds:
+default Public `1.5.2.24` and beta2 Multiplayer Support `1.5.2.28`. It selects
+the profile from the executable's stock PE timestamp and validates the complete
+profile-specific reward-panel and Attack Flag byte guards before writing. An
+unknown or mismatched executable fails closed.
 The same command also installs a private read/execute `.mzoo` code section and
 a four-byte, non-executable read/write `.mzdt` state section. Two
 guarded redirects let only `MX09` open `ZC01` and let only `ZC01` use Majesty's
@@ -159,10 +164,43 @@ Enable **Restore Abandoned Zoo** in Majesty's Mods screen before starting a new
 game. Workshop metadata and publishing are intentionally not part of this local
 development setup.
 
+## CAM Merge Manager status
+
+The package is compatible with the CAM Merge Manager's schema-version-3
+contract. It does not reserve a `CGxx` DialogID or require the manager to
+special-case the Zoo's UUID, name, or shipped `MX09` identity. Its complete
+BDEP, GPL, Descriptions, private intent strings, consolidated main/interface
+art, `ZC01` Capture panel, and `ZCF0` flag-placement mode are composed through
+the manager's generic semantic pipeline.
+
+The shipped definition declares the reusable
+`stock.mx09-ap41-reward-panel.v1` and
+`stock.ap41-fl00-hostile-monster-flag.v1` recipes. Their stock lifecycle and
+package contract are recorded in
+[`docs/manager-v3-capture-feature-proposal.md`](docs/manager-v3-capture-feature-proposal.md),
+and the retained example definition mirrors the shipping manifest in
+[`docs/examples/mod-definition-v3-manager-candidate.json`](docs/examples/mod-definition-v3-manager-candidate.json).
+
+For a local package that will be launched through the CAM Merge Manager, deploy
+content without the standalone executable dispatcher:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1 -ContentOnly
+```
+
 ## Validate
 
 ```powershell
 python scripts/validate_mod.py dist/RestoreAbandonedZoo
+```
+
+The executable profile regression test installs and restores the dispatcher on
+both real branch fixtures and requires each restored SHA-256 to match its input:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\Test-ZooRewardDispatcherProfiles.ps1 `
+  -PublicExe <path-to-public-1.5.2.24-MajestyHD.exe> `
+  -Beta2Exe <path-to-beta2-1.5.2.28-MajestyHD.exe>
 ```
 
 The validator checks the package structure, XML links, private standalone GPL,
@@ -203,5 +241,5 @@ produces review previews beside them. It also repaints stock `INTC` set 1011's
 25x25 Attack button and `CUR1` set 1005's 39x40 tactical cursor as matching
 green-and-gold paw flags. The build clones the ARA2 IMAG as private
 `ZCA2Capture flag`, clones the button resource as private `ZCICItem Icons`, and
-appends CUR1 set 1032. Existing ARA2 Attack, ARA4 Explore, INTC, and CUR1 sets
+appends CUR1 set 1038. Existing ARA2 Attack, ARA4 Explore, INTC, and CUR1 sets
 remain visually and behaviorally unchanged.

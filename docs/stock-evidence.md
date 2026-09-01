@@ -107,10 +107,12 @@ placement state, timer, callback, cancellation branch, or reward accounting.
 AP41 does not store reward amounts on the dialog object. Stock routine
 `0x004A9100` reads Attack from process-global `0x007C17A4` and Explore from
 `0x007C17A8`, normalizes negative values to `#RewardDelta`, rounds/caps them
-against available gold, enables the four +/- controls, and paints amount
-controls 8 and `0x138C`. Stock handler `0x004A92F0` mutates those same slots
-for controls 10/11 and `0x1388`/`0x1389`, then passes the selected value to
-`SetFlagMode`. Reusing AP41 unchanged therefore made ZC01 and Palace Attack
+against available gold, enables the four +/- controls, and paints Attack amount
+control 8, Explore amount control `0x138C`, and gold display control `0x1F4D`
+(8013). Stock handler `0x004A92F0` mutates Attack through decrease/increase
+controls 10/11 and Explore through controls `0x1388`/`0x1389`; Attack action
+control `0x138A` (5002) then passes the selected value to `SetFlagMode`.
+Reusing AP41 unchanged therefore made ZC01 and Palace Attack
 share `0x007C17A4` even though their modes and flag prototypes were private.
 
 The private data section now exposes a second DWORD initialized to -1, matching
@@ -143,6 +145,13 @@ substitution is its prototype-name pointer:
 `Flag_Attack` becomes `Restore_Capture_Flag`. Target validation, mouse state,
 gold checks, successful placement, cancellation, and panel return remain in
 stock order.
+
+The Fl00 registration begins with `push 0x20` before stock `operator new`; that
+literal is the placement-mode allocation size and the private clone preserves
+it unchanged. A later `0x20` stack-state marker at registration offset `0x14`
+is a different field. The standalone clone advances only that later marker to
+`0x22`; it must never be mistaken for permission to allocate a 0x22-byte mode
+object.
 
 The private validation callback first calls the complete stock Fl00 validator
 at `0x0045D360` and returns its insufficient-gold or invalid result unchanged.
@@ -213,18 +222,23 @@ paths, so Palace Attack Flags are isolated from Zoo capture.
 The stock Fl00 registration constructor receives eight arguments. Its second
 argument is cursor selector 5; adjacent Fl01 passes selector 6 with otherwise
 the same cursor-selection shape. `CUR1Tactical Cursor` maps those selectors to
-animation sets 1005 and 1006, which reference Attack TILE 27 and Explore TILE
-26 respectively in all three cursor states. CUR1 already contains selectors
+animation sets 1005 and 1006. Their complete stock frame sequences are
+`[27, 27, 24, 27, 25]` and `[26, 26, 24, 26, 25]`: the three primary frames
+use Attack TILE 27 or Explore TILE 26, while interface transitions share common
+state TILEs 24 and 25. CUR1 already contains selectors
 through 31. The private registration therefore changes only its cloned second
-argument to selector 32, while a literal CUR1 clone appends set 1032 by copying
-set 1005's three-state record and redirecting its TILE reference to the private
-Capture cursor. All 28 original sets retain their original TILE numbers; the
-package populates those exact positional entries with byte-for-byte stock TILEs
-rather than relocating cursor art to appended indices. CUR1 TILEs mix embedded
+argument to selector 38, while a literal CUR1 clone appends set 1038 by copying
+set 1005's three-state record and redirecting only its three primary TILE-27
+references to the private Capture cursor. Its common-state 24/25 references
+remain literal. All 28 original sets retain their original TILE numbers; the
+package populates every referenced positional entry—including 24 and 25—with
+byte-for-byte stock TILEs rather than relocating cursor art to appended
+indices. CUR1 TILEs mix embedded
 palettes with references into `interfacedata.cam`'s seven-entry `PALT` section,
 so the private interface CAM carries that literal table as well. This preserves
 the index-sensitive cursor mask path used when flag placement returns control
-to interface or window chrome; only set 1032 uses an appended TILE.
+to interface or window chrome; only set 1038's primary frames use an appended
+TILE.
 
 `Restore_Capture_Flag` clones the stock overlay description and GPL
 `Flag_Attack` prototype. It retains shipped `AP46`,
@@ -260,6 +274,12 @@ canvas, hotspots, frame order, and wave motion while selecting stock palette
 793, which already contains the Explore family's green, gold, and player-blue
 range. The minimap frames preserve their 7x7 canvases; the four interface
 directions preserve ARA2's player-color order: blue, green, orange, magenta.
+Frame references are parsed from Majesty's authoritative end-anchored
+frame/lane table, not from a fixed offset after the direction header. This is
+material for set 300: its four private Minimap frames resolve to appended TILEs
+17236–17239; the older fixed-offset interpretation silently left those typed
+fields pointing at TILEs 0, 2, 100, and 0. The package validator repeats the
+end-anchored parse and requires the complete private sequence 17224–17243.
 Indexed-v3 render art requires its palette table in the emitting maindata
 package. Following the proven Alchemist and Haunt packaging shape, the private
 CAM therefore carries literal base palettes 0–793 and loads before the MX Zoo
@@ -334,12 +354,13 @@ leaving monsters half-dead; the current gate never reads those fields.
 
 The direct `zoo_agent` read is recovered, not inferred, but it cannot be used
 under Original rules: `Monster` there declares no such field. The compatibility
-clone instead performs stock RewardFlag enumeration at the earlier
-`monster_gravestone` boundary and selects only subtype `Capture_Flag` whose
-engine-owned `TargetID` resolves to the dying monster. This adds no persistent
-state. Its `Flag_Attack` title remains unchanged because stock hero evaluation
-checks that title. The later overlay callback is the literal abandoned
-`zoo_flag_death_callback` and only deletes the flag.
+clone keeps GPLMx's direct boolean call from `monster_gravestone`; inside that
+check it performs stock RewardFlag enumeration and selects only subtype
+`Capture_Flag` whose engine-owned `TargetID` resolves to the dying monster.
+This avoids an agent-valued helper return at the lethal boundary and adds no
+persistent state. Its `Flag_Attack` title remains unchanged because stock hero
+evaluation checks that title. The later overlay callback is the literal
+abandoned `zoo_flag_death_callback` and only deletes the flag.
 
 The surviving `Set_Subdue_Chance` contains a definite field-name mismatch: it
 writes `subdue_percentage`, while `zoo_flag_check` reads
@@ -396,10 +417,12 @@ runtime in an unrelated scenario left it owning the hero's reset lifecycle.
 The mod now copies only those successful-branch writes and leaves every native
 hero script field unchanged.
 
-`#intent_arresting_hooligan` is stock intent number 117. The matching indexed
-record is `STRT/AITX[117]`, whose shipped text is “Arresting a hooligan.” The
-mod packages the complete stock AITX table with only that record's text changed
-to “Capturing a monster”; the GPL continues to call the same stock intent.
+Stock `#intent_arresting_hooligan` remains intent number 117 and its shipped
+text remains “Arresting a hooligan.” The mod packages the complete stock AITX
+table with expansion placeholder row 198 changed from `empty` to “Capturing a
+monster,” declares private `#intent_capturing_monster 198`, and uses that
+private intent only for Zoo capture. The merge manager can therefore privatize
+the package-added row without replacing stock Hooligan wording globally.
 
 The abandoned Zoo's shipped `zoo_flag_poll` treats a hero as having abandoned
 its monster when `hero.Target` no longer equals the flag target; it removes that
@@ -431,6 +454,12 @@ copies each building's generic `Occupants` list, compares `$ListSize` with
 that exact query/list/first-legal shape. The requested Zoo values replace the
 fixed Mausoleum constant: the stock building `Level` field selects 4, 6, or 8
 visitors at levels 1, 2, or 3.
+
+`Check_Mausoleum` does not return from its `foreach`: it appends each legal
+building to `legal_mausoleums`, then selects `$ListMember(..., 1)` after the
+loop. `Restore_Find_Available_Zoo` preserves that control flow with
+`legal_zoos`. This is required on beta2 because returning a function result
+while `foreach` owns the evaluator frame can fault the GPL interpreter.
 
 Mausoleum interment hides and stores synchronously, but a Zoo captive travels
 with a hero. The captive uses its already-declared Monster `Target` field for
@@ -575,6 +604,23 @@ the original idle/guardian behavior. At dead-Zoo release, each valid living
 captive runs `Reset_Controlled`, receives `MaxHP`, clears the two Capture-only
 target prohibitions, and then runs stock `Exit_Building`, which resets tasks,
 unhides it, and plays the normal exit effect.
+
+## Executable profiles
+
+The private `ZC01`/`ZCF0` dispatcher is traced independently in both maintained
+Steam executables: default Public `1.5.2.24` (PE timestamp `0x5897B72F`) and
+beta2 Multiplayer Support `1.5.2.28` (`0x5A8A11D5`). The beta2 map follows the
+same stock lifecycle but does not use a blanket address delta: the Palace
+command handler, dialog factory, AP41 controller, flag-mode registry,
+validation/callback path, display classifier, attached-relation lookup, system
+alert path, globals, and vtable slots each use their separately matched beta2
+location. Install and restore share one profile table, validate profile-specific
+stock byte guards before mutation, and reject unknown timestamps.
+
+`tests/Test-ZooRewardDispatcherProfiles.ps1` copies both real executable
+fixtures, installs the private sections and redirects, restores the stock
+routes, and requires the final SHA-256 to equal the original fixture. This also
+checks that unrelated executable patches survive the round trip.
 
 ## Original-design interview
 

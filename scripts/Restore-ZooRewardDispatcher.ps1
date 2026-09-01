@@ -20,21 +20,16 @@ $PrivateVtableOffset = 0x160
 $ModeRegistrationOffset = 0x1C0
 $CaptureCallbackOffset = 0x240
 $CapturePrototypeNameOffset = 0x420
-$FactoryHookOffset = 0x10A020
-$FactoryHookVa = 0x0050AC20
-$FactoryResumeVa = 0x0050AC26
-$Ap41FactoryVa = 0x0050AF8F
-$OpenDialogVa = 0x004B03F0
-$PalaceDispatchVa = 0x004A5440
-$DispatchSlotOffset = 0x33DFA8
-$ModeRegistryHookOffset = 0x5D8E4
-$ModeRegistryHookVa = 0x0045E4E4
+$profileScript = Join-Path $PSScriptRoot "ZooRewardDispatcherProfiles.ps1"
+if (-not (Test-Path -LiteralPath $profileScript -PathType Leaf)) {
+    throw "Zoo reward-dispatcher profile table was not found: $profileScript"
+}
+. $profileScript
+
 [byte[]]$StockFactoryHook = @(0x8B, 0x4C, 0x24, 0x14, 0x33, 0xC0)
 [byte[]]$StockModeRegistryHook = @(
     0x8B,0x4C,0x24,0x10,0x64,0x89,0x0D,0x00,0x00,0x00,0x00
 )
-[byte[]]$StockDispatchSlot = @(0x80, 0xD2, 0x4B, 0x00) # 0x004BD280
-[byte[]]$LegacyPalaceDispatchSlot = @(0x40, 0x54, 0x4A, 0x00) # checkpoint aaa9753
 
 function Read-U16 { param([byte[]]$Bytes, [int]$Offset) [BitConverter]::ToUInt16($Bytes, $Offset) }
 function Read-U32 { param([byte[]]$Bytes, [int]$Offset) [BitConverter]::ToUInt32($Bytes, $Offset) }
@@ -125,6 +120,8 @@ $exePath = Join-Path $resolvedGamePath "MajestyHD.exe"
 if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Could not find MajestyHD.exe at $exePath." }
 [byte[]]$bytes = [IO.File]::ReadAllBytes($exePath)
 $pe = Get-PeInfo $bytes
+$executableProfile = Get-ZooRewardDispatcherProfile $bytes
+Use-ZooRewardDispatcherProfile $executableProfile
 $section = $pe.Sections | Where-Object Name -eq $SectionName | Select-Object -First 1
 $dataSection = $pe.Sections | Where-Object Name -eq $DataSectionName | Select-Object -First 1
 $dataSectionIsCompatible = -not $dataSection -or
@@ -189,6 +186,7 @@ $trailingPrivateSections = $sectionIsLast -or $sectionPairIsLast
 $needsLegacyRestore = -not $section -and $dispatchIsLegacy
 $needsWork = $installed -or $legacyInstalled -or $needsLegacyRestore -or ($inert -and $trailingPrivateSections)
 Write-Host "Majesty Gold HD Restore Abandoned Zoo private Capture Flag restore"
+Write-Host "Executable profile: $ExecutableProfileId"
 if (-not $needsWork) {
     Write-Host "MajestyHD.exe: the stock MX09/factory routes are already restored."
 }

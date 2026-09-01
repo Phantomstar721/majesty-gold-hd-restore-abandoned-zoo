@@ -55,8 +55,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   because the stock amount field uses transparent palette index 0 and normally
   borrows its darkness from the Palace panel beneath it.
 - `ZOBGbuilding dialog`, the `ZOBG` resource token, the generated 202x245
-  backing TILE, and `restore_zoo_rewards_interfacedata.cam` are new private art
-  integration. Their scope is only `SMNU/ZC01`; the stock `INBg` resource and
+  backing TILE, and its layer in the consolidated
+  `restore_zoo_interfacedata.cam` are new private art integration. Their scope
+  is only `SMNU/ZC01`; the stock `INBg` resource and
   all other dialogs are untouched. This is presentation-only and does not
   alter reward values, flag placement, callbacks, or cleanup.
 - The Capture Flag's `ZCA2` art family is newly created presentation art; no
@@ -81,16 +82,20 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   set table and redirects only set 1011 to one appended embedded-palette V1
   TILE. The stock teal button frame is preserved while its tiny red
   crossed-blade flag is repainted green with a gold paw.
-- The Capture placement cursor's selector 32, `CUR1` set 1032, and 39x40
+- The Capture placement cursor's selector 38, `CUR1` set 1038, and 39x40
   green-and-gold paw-flag TILE are new private presentation content. Stock
   `Fl00` passes selector 5, which maps to CUR1 set 1005/TILE 27; stock `Fl01`
   passes selector 6, mapping to set 1006/TILE 26. Because the tactical cursor
   renderer fixes the resource token to `CUR1`, the mod emits a complete literal
-  CUR1 clone with only set 1032 appended and changes only ZCF0's cloned cursor
-  argument from 5 to 32. Because a CAM-local IMAG cannot safely refer through
+  CUR1 clone with only set 1038 appended and changes only ZCF0's cloned cursor
+  argument from 5 to 38. Because a CAM-local IMAG cannot safely refer through
   empty positional TILE slots, every stock TILE referenced by CUR1 is populated
   at its original index with literal stock bytes; all 28 original CUR1 sets
-  retain their original TILE numbers. Only set 1032 points to appended new art.
+  retain their original TILE numbers. Set 1038 changes only Attack's three
+  primary TILE-27 frames to appended new art and retains the cloned stock
+  common-state frames at TILEs 24 and 25. The package explicitly carries exact
+  stock payloads for those shared positions so consolidated visitor art cannot
+  replace them.
   The same CAM carries the literal seven stock `PALT` entries required by
   non-embedded CUR1 TILEs. Palace selectors and their rendered art remain
   unchanged. This is the narrow stock-shaped extension necessary for a Zoo-only
@@ -174,9 +179,11 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   `RewardFlag.charm_percentage`. A focused saved-state trace proved that the
   first missing-field write aborted private flag Birth. A second focused trace
   proved RewardFlag enumeration loses the overlay by the later engine overlay
-  callback. The earlier stock `monster_gravestone` boundary now performs a
-  one-shot stock RewardFlag enumeration and matches the engine-owned TargetID;
-  this is the sole invented replacement for `Monster.zoo_agent`. The new private
+  callback. The stock-shaped `monster_gravestone` now calls one boolean Zoo
+  check directly; that check performs a one-shot stock RewardFlag enumeration
+  and matches the engine-owned TargetID locally. It does not cross the lethal
+  boundary through an agent-valued helper return. This lookup is the sole
+  invented replacement for `Monster.zoo_agent`. The new private
   `Capture_Flag` subtype distinguishes the clone while its `Flag_Attack` title
   remains stock for hero evaluation. The recovered chance formula is evaluated
   directly at the lethal event. No timer, watcher, resurrection, custom
@@ -208,10 +215,11 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   deletes the infinite charm effector, decrements the temporary follower count
   using stock controlled-monster death cleanup, substitutes `Hooligan` for
   `Controlled`, and appends the existing arrest handoff.
-- The stock intent remains `#intent_arresting_hooligan` (numeric slot 117), but
-  this mod replaces only its `STRT/AITX` display string, “Arresting a
-  hooligan,” with the invented Zoo-facing wording “Capturing a monster.” No
-  intent number or GPL behavior changes.
+- Stock `#intent_arresting_hooligan` and its numeric slot 117 are unchanged.
+  The invented Zoo-facing wording “Capturing a monster” occupies shipped empty
+  expansion placeholder row 198 and is selected through private expression
+  `#intent_capturing_monster`. The merge manager may remap that package-added
+  row, so no live stock intent string or behavior is replaced globally.
 - Wizard's Curse reaches `Arrest_Hooligan` through a quest-wide `Be_Dumb`
   wrapper. Installing that wrapper permanently on a normal scenario hero was
   an incorrect integration choice and stranded heroes after delivery. The mod
@@ -256,7 +264,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   callback to a living Hooligan is new integration behavior.
 - Visitor capacity is requested invented design: 4 at Zoo level 1, 6 at level
   2, and 8 at level 3. Admission copies stock `Check_Mausoleum`'s completed
-  player-building query, `Occupants` size comparison, and first-legal choice.
+  player-building query, `Occupants` size comparison, in-loop legal-candidate
+  collection, and post-loop first-legal choice. It never returns a function
+  result from inside `foreach`.
   Unlike immediate Mausoleum interment, Zoo escort adds travel time, so a
   captured Hooligan records its selected Zoo in the stock Monster `Target`
   field. Pending capacity counts only a real stock arrest pairing: a live

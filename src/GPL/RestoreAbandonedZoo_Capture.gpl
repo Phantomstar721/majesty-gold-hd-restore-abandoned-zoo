@@ -11,6 +11,7 @@
 // shipped placeholders for the Zoo occupant intent without replacing a live
 // stock intent or quest message.
 expression #intent_waiting_in_zoo 199
+expression #intent_capturing_monster 198
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -319,7 +320,7 @@ function Restore_Find_Available_Zoo ( agent thisagent ) is agent
 // legal building. Pending travel reservations fill the timing gap that the
 // Mausoleum does not have because it hides and stores immediately.
 declare
-	list zoos, visitors;
+	list zoos, visitors, legal_zoos;
 	agent zoo;
 	integer occupied, limit;
 begin
@@ -334,7 +335,16 @@ begin
 			limit = $Restore_Zoo_Visitor_Limit ( zoo );
 
 			if ( occupied < limit )
-				return zoo;
+				legal_zoos << zoo;
+		end
+
+	// Literal Check_Mausoleum control flow: build the legal list during
+	// foreach, then select the first candidate only after the loop has ended.
+	// Returning an agent result from inside foreach faults beta2's GPL evaluator.
+	if ( $ListSize ( legal_zoos ) > 0 )
+		begin
+			zoo = $ListMember ( legal_zoos, 1 );
+			return zoo;
 		end
 
 	return $NullAgent ();
@@ -458,7 +468,7 @@ begin
 		begin
 			hero = $ListMember ( valid_heroes, 1 );
 			thisagent's "leader" = hero;
-			$SpecifyIntent ( hero, #intent_arresting_hooligan );
+			$SpecifyIntent ( hero, #intent_capturing_monster );
 			hero's "Target" = thisagent;
 			hero's "Counter" = 0;
 			hero's "ActiveScript" = $Arrest_Hooligan;
@@ -669,46 +679,18 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Get_Attached_Capture_Flag ( agent thisagent ) is agent
-///////////////////////////////////////////////////////////////////////////////
-// GPLMx stored the Zoo flag directly in Monster.zoo_agent. Original does not
-// declare that expansion-only field. At the same monster_gravestone boundary,
-// use the stock reward enumeration and TargetID relation to recover only the
-// private flag that is still attached to this monster.
-declare
-	list flags;
-	agent flag;
-begin
-	$ListObjects ( thisagent, "RewardFlag", -1, flags, #RewardFlags );
-	foreach flag in flags do
-		begin
-			if ( flag's "SubType" == "Capture_Flag" )
-				if ( $AgentNumber (
-						$GetAttribute ( flag, #ATTRIB_TargetID )) == thisagent )
-					return flag;
-		end
-
-	return $NullAgent ();
-end
-
-///////////////////////////////////////////////////////////////////////////////
 function monster_gravestone ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Literal GPLMx monster_gravestone Zoo interception and stock failure tail.
-// The sole Original compatibility seam replaces Monster.zoo_agent with the
-// private attached-flag lookup above.
+// As in GPLMx, the lethal boundary calls one boolean Zoo check directly.
 declare
 	boolean deadflag;
-	agent zoo_agent;
 begin
 	deadflag = TRUE;
 	$StopMoving ( thisagent );
 
-	zoo_agent = $Restore_Get_Attached_Capture_Flag ( thisagent );
-	if ( $IsValidGamePiece ( zoo_agent ))
-		if ( $Restore_Stock_Zoo_Flag_Check (
-			thisagent, zoo_agent ) == TRUE )
-			deadflag = FALSE;
+	if ( $Restore_Stock_Zoo_Flag_Check ( thisagent ) == TRUE )
+		deadflag = FALSE;
 
 	if ( deadflag == TRUE )
 		begin
@@ -824,14 +806,13 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-function Restore_Stock_Zoo_Flag_Check (
-	agent thisagent, agent zoo_agent ) is boolean
+function Restore_Stock_Zoo_Flag_Check ( agent thisagent ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
 declare
-	agent hero, zoo;
+	agent zoo_agent, flag, hero, zoo;
 	boolean subdueflag;
 	integer cash, target_strength, charm_percentage;
-	list heroes, valid_heroes;
+	list flags, heroes, valid_heroes;
 begin
 	subdueflag = FALSE;
 
@@ -844,6 +825,20 @@ begin
 		return FALSE;
 	if ( $GetUnitPlayerNumber ( thisagent ) != #Monster_Player )
 		return FALSE;
+
+	// GPLMx reads Monster.zoo_agent here. Original does not declare that field,
+	// so recover its value inside the same boolean check from the stock
+	// RewardFlag list and engine-owned TargetID attachment. Keeping the lookup
+	// local avoids the non-stock agent-return call at the lethal boundary.
+	zoo_agent = $NullAgent ();
+	$ListObjects ( thisagent, "RewardFlag", -1, flags, #RewardFlags );
+	foreach flag in flags do
+		begin
+			if ( flag's "SubType" == "Capture_Flag" )
+				if ( $AgentNumber (
+						$GetAttribute ( flag, #ATTRIB_TargetID )) == thisagent )
+					zoo_agent = flag;
+		end
 
 	if ( $IsValidGamePiece ( zoo_agent ))
 		begin
