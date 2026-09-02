@@ -109,6 +109,9 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   minute with an effective 5% breakout chance; a successful roll
   restores full HP and hostile stock behavior, while ordinary damage to a
   living Zoo still releases nobody;
+- delivery clears the completed arrest pairing and points all three resettable
+  task slots at the stored-occupant lifecycle, preventing a generic task reset
+  from restarting Hooligan delivery for a monster already inside the Zoo;
 - successfully capturing a quest-critical monster suppresses
   that monster's stock death callback, exactly like the abandoned expansion
   hook, and may therefore prevent a quest's expected death event.

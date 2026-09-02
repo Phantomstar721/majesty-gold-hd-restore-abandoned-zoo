@@ -820,6 +820,8 @@ def validate(root: Path) -> list[str]:
         "#Restore_Zoo_Breakout_Threshold",
         '$Restore_Zoo_Release_Captive ( thisagent, zoo )',
         'thisagent\'s "ActiveScript" = $Restore_Zoo_Breakout_Check',
+        'thisagent\'s "BasicScript" = $Restore_Zoo_Breakout_Check',
+        'thisagent\'s "BackScript" = $Restore_Zoo_Breakout_Check',
         '#Restore_Zoo_Breakout_Period',
         "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
         "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
@@ -1001,11 +1003,17 @@ def validate(root: Path) -> list[str]:
     storage_intent = capture.index(
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )"
     )
-    storage_breakout = capture.index(
-        'thisagent\'s "ActiveScript" = $Restore_Zoo_Breakout_Check'
-    )
     storage_interval = capture.index(
         'thisagent\'s "ActiveScript", #Restore_Zoo_Breakout_Period'
+    )
+    storage_basic = capture.index(
+        'thisagent\'s "BasicScript" = $Restore_Zoo_Breakout_Check'
+    )
+    storage_back = capture.index(
+        'thisagent\'s "BackScript" = $Restore_Zoo_Breakout_Check'
+    )
+    storage_breakout = capture.index(
+        'thisagent\'s "ActiveScript" = $Restore_Zoo_Breakout_Check'
     )
     hidden_arrival = capture.index("if ( $IsHidden ( thisagent ))")
     final_capacity = capture.index("if ( $ListSize ( visitors ) >= limit )")
@@ -1016,12 +1024,15 @@ def validate(root: Path) -> list[str]:
         < storage_enter
         < owner_reset
         < storage_intent
-        < storage_breakout
         < storage_interval
+        < storage_basic
+        < storage_back
+        < storage_breakout
     ):
         errors.append(
             "Zoo storage must final-check capacity, enter, release its owner, "
-            "set occupant intent, then enter the periodic breakout task"
+            "set occupant intent, delay the first check, then seal every task "
+            "pointer into the periodic breakout lifecycle"
         )
     release_captive_start = capture.index("function Restore_Zoo_Release_Captive")
     breakout_start = capture.index("function Restore_Zoo_Breakout_Check")

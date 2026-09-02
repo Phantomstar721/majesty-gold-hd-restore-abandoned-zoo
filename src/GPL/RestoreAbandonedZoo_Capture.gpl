@@ -674,12 +674,26 @@ begin
 				if ( $IsDead ( owner ) == FALSE )
 					$Reset_Tasks ( owner );
 
+			// The delivered Hooligan no longer has an arrest owner or an active
+			// capture reservation. Clear both pieces of stock Hooligan ownership
+			// state before installing its occupant lifecycle.
+			thisagent's "leader" = $NullAgent ();
+			thisagent's "Special_Boolean" = FALSE;
 			thisagent's "Target" = $NullAgent ();
 			$SpecifyIntent ( thisagent, #intent_waiting_in_zoo );
 			$Restore_Refresh_Zoo_Capacity ( zoo );
-			thisagent's "ActiveScript" = $Restore_Zoo_Breakout_Check;
+
+			// Stock timed building visits set the current task's next interval
+			// before changing ActiveScript. Also replace BasicScript and
+			// BackScript: leaving either on Restore_Hooligan_Basic lets an
+			// ordinary task reset restart arrest/delivery for an agent that is
+			// already present in the Occupants list. Reset_Controlled restores all
+			// three original monster scripts before any legitimate release.
 			$SetThreadInterval (
 				thisagent's "ActiveScript", #Restore_Zoo_Breakout_Period );
+			thisagent's "BasicScript" = $Restore_Zoo_Breakout_Check;
+			thisagent's "BackScript" = $Restore_Zoo_Breakout_Check;
+			thisagent's "ActiveScript" = $Restore_Zoo_Breakout_Check;
 		end
 end
 

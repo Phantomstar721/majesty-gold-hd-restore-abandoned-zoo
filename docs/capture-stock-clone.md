@@ -244,6 +244,15 @@ release helper. The current values are one roll every 60 seconds with threshold
 6, which is an effective 5% chance for the stock 1..100 roll. There
 is no manual release command in this checkpoint.
 
+Delivery clears the completed `leader` / `Special_Boolean` arrest pairing and
+installs the occupant function in `BasicScript`, `BackScript`, and
+`ActiveScript`. This closes a persistent-integration hole absent from stock
+Hooligans, which are deleted at Palace delivery: a generic task reset could
+otherwise restart `Restore_Hooligan_Basic` for a monster already registered in
+the Zoo. The first occupant check uses the stock timed-building ordering—set
+the current task interval first, then replace `ActiveScript`—so a new visitor
+cannot make its first breakout roll at the instant of admission.
+
 ## Hero handoff
 
 Wizard's Curse installs the quest-wide `Be_Dumb` wrapper during `hero_birth`.

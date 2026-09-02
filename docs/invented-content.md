@@ -357,6 +357,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   same 1..100 strict-less-than roll, and exits through the established hostile
   release path on success. The 60-second period and threshold 6 (effective 5%)
   are best-guess balance values, not recovered Zoo balance.
+- Unlike stock Hooligans, Zoo Hooligans persist after delivery. Their completed
+  arrest owner is cleared and all three resettable task pointers are assigned
+  to the stored-occupant function so a generic task reset cannot restart the
+  capture lifecycle inside the Zoo. Stock timed building visits provide the
+  interval-before-`ActiveScript` ordering; applying that ordering and sealing
+  `BasicScript` / `BackScript` are new persistence glue. `Reset_Controlled`
+  restores all three stock monster scripts before breakout or destruction
+  release.
 
 ## Surviving placeholder content
 
