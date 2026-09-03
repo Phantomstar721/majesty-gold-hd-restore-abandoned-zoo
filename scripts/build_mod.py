@@ -20,10 +20,13 @@ VISITORS_CONTROL_ID = 0x1F55
 ZOO_PLACE_REWARD_CONTROL_ID = 0x2293
 PALACE_REWARDS_CONTROL_ID = 0x1389
 ZOO_REWARDS_DIALOG_ID = b"ZC01"
+ZOO_TAME_DIALOG_ID = b"ZT01"
+ZOO_TAME_OPEN_COMMAND_ID = 0x2A30
 ZOO_REWARDS_BACKGROUND_SOURCE = b"INBgbuilding dialog"
 ZOO_REWARDS_BACKGROUND_CUSTOM = b"ZOBGbuilding dialog"
 ZOO_REWARDS_BACKGROUND_TOKEN = b"ZOBG"
 ZOO_REWARDS_BACKGROUND_SET = 1019
+ZOO_TAME_BACKGROUND_SET = 1013
 ZOO_REWARDS_TILE = (
     REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel.tile"
 )
@@ -68,6 +71,13 @@ AP41_EXPLORE_CONTROLS = (
 STOCK_HIDDEN_CONTROL_COORDINATE = 1500
 AP41_ATTACK_ICON_CONTROL_START = 0x0660
 AP41_ATTACK_ICON_CONTROL_END = 0x06B8
+AP10_SECONDARY_CONTROL_START = 0x0D2C
+AP10_SECONDARY_CONTROL_END = 0x0DF0
+AP10_SECONDARY_CONTROL_RECT = (103, 162, 93, 26)
+ZOO_TAME_CONTROL_RECT = (7, 217, 93, 26)
+AP10_SECONDARY_LABEL_INDEX_OFFSET = 0x30
+AP10_SECONDARY_TOOLTIP_INDEX_OFFSET = 0x38
+AP10_SECONDARY_COMMAND_OFFSET = 0x88
 
 
 @dataclass(frozen=True)
@@ -253,6 +263,23 @@ def patch_indexed_strt(data: bytes, replacements: dict[int, str]) -> bytes:
     return encode_strt(version, records)
 
 
+def append_indexed_strt(data: bytes, additions: tuple[str, ...]) -> bytes:
+    count = struct.unpack_from("<H", data, 0)[0]
+    version = data[2:4]
+    offsets = struct.unpack_from(f"<{count}I", data, 4)
+    records: list[tuple[int, bytes]] = []
+    for offset in offsets:
+        string_id = u32(data, offset)
+        end = data.index(b"\x00", offset + 4)
+        records.append((string_id, data[offset + 4 : end]))
+    next_id = max((string_id for string_id, _text in records), default=-1) + 1
+    records.extend(
+        (next_id + index, text.encode("cp1252"))
+        for index, text in enumerate(additions)
+    )
+    return encode_strt(version, records)
+
+
 def encode_strt(version: bytes, records: list[tuple[int, bytes]]) -> bytes:
     output = bytearray(struct.pack("<H", len(records)) + version)
     output += b"\x00\x00\x00\x00" * len(records)
@@ -311,6 +338,49 @@ def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
     return bytes(patched)
 
 
+def add_zoo_tame_control(zoo_menu: bytes, ap10_menu: bytes) -> bytes:
+    """Append AP10's complete secondary-panel opener at Brewing's final rect."""
+    if zoo_menu[-8:] != b"\xff" * 8:
+        raise ValueError("Stock MX09 no longer has its two-word terminal marker")
+    source = bytearray(
+        ap10_menu[AP10_SECONDARY_CONTROL_START:AP10_SECONDARY_CONTROL_END]
+    )
+    if len(source) != 0xC4 or source[-4:] != b"\xff" * 4:
+        raise ValueError("Stock AP10 secondary-panel control boundary changed")
+    if struct.unpack_from("<4I", source, 0x08) != AP10_SECONDARY_CONTROL_RECT:
+        raise ValueError("Stock AP10 secondary-panel rectangle changed")
+    if u32(source, AP10_SECONDARY_COMMAND_OFFSET) != 0x1F49:
+        raise ValueError("Stock AP10 secondary-panel command changed")
+    if zoo_menu.count(struct.pack("<I", ZOO_TAME_OPEN_COMMAND_ID)):
+        raise ValueError("Stock MX09 unexpectedly contains the private Tame command")
+
+    struct.pack_into("<4I", source, 0x08, *ZOO_TAME_CONTROL_RECT)
+    struct.pack_into("<I", source, AP10_SECONDARY_LABEL_INDEX_OFFSET, 26)
+    struct.pack_into("<I", source, AP10_SECONDARY_TOOLTIP_INDEX_OFFSET, 27)
+    struct.pack_into(
+        "<I", source, AP10_SECONDARY_COMMAND_OFFSET, ZOO_TAME_OPEN_COMMAND_ID
+    )
+    # The first of MX09's final two FFFFFFFF words terminates its last real
+    # control; only the second is the stream terminator. Preserve the former
+    # in place and insert the complete AP10 record before the latter.
+    return zoo_menu[:-4] + bytes(source) + zoo_menu[-4:]
+
+
+def privatize_zoo_tame_menu(mausoleum_menu: bytes) -> bytes:
+    """Clone MX05's selected-occupant action panel with Zoo backing art."""
+    if mausoleum_menu[-8:] != b"\xff" * 8:
+        raise ValueError("Stock MX05 no longer has its two-word terminal marker")
+    if mausoleum_menu.count(b"INBg") != 2:
+        raise ValueError("Stock MX05 no longer has exactly two INBg references")
+    if mausoleum_menu.count(struct.pack("<I", 0x1388)) != 1:
+        raise ValueError("Stock MX05 occupant-list control changed")
+    if mausoleum_menu.count(struct.pack("<I", 0x138B)) != 1:
+        raise ValueError("Stock MX05 selected-action control changed")
+    if mausoleum_menu.count(struct.pack("<I", 0x1F46)) != 1:
+        raise ValueError("Stock MX05 selected-cost control changed")
+    return mausoleum_menu.replace(b"INBg", ZOO_REWARDS_BACKGROUND_TOKEN)
+
+
 def privatize_zoo_rewards_menu(palace_rewards_menu: bytes) -> bytes:
     """Clone AP41 and move its Explore controls to stock's hidden position."""
     if palace_rewards_menu.count(b"INBg") != 1:
@@ -359,18 +429,31 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     stock_blacksmith_menu = read_cam_entry(base_textdata, b"SMNU", b"AP02")
     stock_palace_menu = read_cam_entry(base_textdata, b"SMNU", b"AP39")
     stock_palace_rewards_menu = read_cam_entry(base_textdata, b"SMNU", b"AP41")
+    stock_ap10_menu = read_cam_entry(base_textdata, b"SMNU", b"AP10")
+    stock_mausoleum_action_menu = read_cam_entry(
+        expansion_textdata, b"SMNU", b"MX05"
+    )
+    stock_mausoleum_action_strings = read_cam_entry(
+        expansion_textdata, b"STRT", b"MX05"
+    )
     stock_palace_rewards_strings = read_cam_entry(base_textdata, b"STRT", b"AP41")
     stock_strings = read_cam_entry(expansion_textdata, b"STRT", b"MX09")
     unit_names = read_cam_entry(base_textdata, b"STRT", b"UNTN")
     advisor_text = read_cam_entry(gpltext, b"STRT", b"AITX")
     help_text = read_cam_entry(gpltext, b"STRT", b"HPTX")
 
-    patched_strings = patch_indexed_strt(
-        stock_strings.data,
-        {
-            0: "A completed Zoo makes Attack Flags on living monsters trigger the stock Hooligan return lifecycle.",
-            4: "Destroy this Zoo.",
-        },
+    patched_strings = append_indexed_strt(
+        patch_indexed_strt(
+            stock_strings.data,
+            {
+                0: "A completed Zoo makes Capture Flags on living monsters trigger the stock Hooligan return lifecycle.",
+                4: "Destroy this Zoo.",
+            },
+        ),
+        (
+            "TAME BEAST",
+            "Open the Zoo's Tame Beast panel.",
+        ),
     )
     zoo_rewards_strings = patch_indexed_strt(
         stock_palace_rewards_strings.data,
@@ -382,6 +465,20 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
             11: "Decrease Capture Flag reward amount.",
             12: "Increase Capture Flag reward amount.",
             13: "Return to the Zoo's Main Window.",
+        },
+    )
+    zoo_tame_strings = patch_indexed_strt(
+        stock_mausoleum_action_strings.data,
+        {
+            0: "Captured monsters available for taming.",
+            1: "ZOO",
+            2: "Return to the Zoo's Main Window.",
+            5: "Zoom the Main Map to the selected monster.",
+            6: "CAPTURED MONSTERS",
+            7: "TAME BEAST",
+            8: "Release the selected monster to guard your kingdom.",
+            9: "500",
+            10: "Cost to tame the selected monster",
         },
     )
     patched_names = patch_keyed_strt(
@@ -428,16 +525,23 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                 (
                     CamEntry(
                         pad_name(b"MX09"),
-                        restore_zoo_visitors_control(
-                            restore_zoo_reward_dispatch(
-                                stock_menu.data, stock_palace_menu.data
+                        add_zoo_tame_control(
+                            restore_zoo_visitors_control(
+                                restore_zoo_reward_dispatch(
+                                    stock_menu.data, stock_palace_menu.data
+                                ),
+                                stock_blacksmith_menu.data,
                             ),
-                            stock_blacksmith_menu.data,
+                            stock_ap10_menu.data,
                         ),
                     ),
                     CamEntry(
                         pad_name(ZOO_REWARDS_DIALOG_ID),
                         privatize_zoo_rewards_menu(stock_palace_rewards_menu.data),
+                    ),
+                    CamEntry(
+                        pad_name(ZOO_TAME_DIALOG_ID),
+                        privatize_zoo_tame_menu(stock_mausoleum_action_menu.data),
                     ),
                 ),
             ),
@@ -449,6 +553,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                     CamEntry(
                         pad_name(ZOO_REWARDS_DIALOG_ID), zoo_rewards_strings
                     ),
+                    CamEntry(pad_name(ZOO_TAME_DIALOG_ID), zoo_tame_strings),
                 ),
             ),
         ),
@@ -995,8 +1100,16 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         stock_imag, ZOO_REWARDS_BACKGROUND_SET
     )
     source_index = u32(stock_imag, source_offset) & 0xFFFF
+    tame_source_offset = interface_imag_set_tile_offset(
+        stock_imag, ZOO_TAME_BACKGROUND_SET
+    )
+    tame_source_index = u32(stock_imag, tame_source_offset) & 0xFFFF
     if source_index >= len(tiles):
         raise ValueError("Stock AP41 backing references a missing TILE")
+    if tame_source_index >= len(tiles):
+        raise ValueError("Stock MX05 backing references a missing TILE")
+    if tame_source_index == source_index:
+        raise ValueError("Stock AP41 and MX05 unexpectedly share one backing TILE")
     if not ZOO_REWARDS_TILE.is_file():
         raise FileNotFoundError(
             f"Generated Zoo rewards TILE is missing: {ZOO_REWARDS_TILE}"
@@ -1008,6 +1121,8 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         raise ValueError("Zoo rewards art must retain stock 202x245 geometry")
     if custom_tile == tiles[source_index].data:
         raise ValueError("Zoo rewards art is still identical to the stock AP41 backing")
+    if custom_tile == tiles[tame_source_index].data:
+        raise ValueError("Zoo tame art is still identical to the stock MX05 backing")
     icon_offset = interface_imag_exact_tile_offset(
         stock_icon_imag,
         ZOO_CAPTURE_ICON_SET,
@@ -1053,11 +1168,17 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         tiles,
         append,
         ZOO_REWARDS_BACKGROUND_TOKEN,
-        {source_index: custom_tile},
+        {
+            source_index: custom_tile,
+            tame_source_index: custom_tile,
+        },
     )
     private_source_index = u32(custom_imag, source_offset) & 0xFFFF
     if private_source_index < len(tiles):
         raise ValueError("Private Zoo rewards backing was not moved to an appended TILE")
+    private_tame_source_index = u32(custom_imag, tame_source_offset) & 0xFFFF
+    if private_tame_source_index < len(tiles):
+        raise ValueError("Private Zoo tame backing was not moved to an appended TILE")
     private_icon_index = append(ZOO_CAPTURE_ICON_TOKEN + b"Button", custom_icon_tile)
     custom_icon_imag = bytearray(stock_icon_imag)
     encoded_icon = u32(stock_icon_imag, icon_offset)

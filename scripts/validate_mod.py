@@ -307,6 +307,15 @@ def validate(root: Path) -> list[str]:
                 "open_command_id": 5001,
             },
             {
+                "type": "stock.mx04-mx05-occupant-action-panel.v1",
+                "panel_key": "taming",
+                "parent_building": "Restore_Zoo",
+                "source_dialog_id": "ZT01",
+                "open_command_id": 10800,
+                "cost_callback_symbol": "Restore_Zoo_Tame_Cost",
+                "action_callback_symbol": "Restore_Zoo_Tame_Beast",
+            },
+            {
                 "type": "stock.ap41-fl00-hostile-monster-flag.v1",
                 "panel_key": "capture-rewards",
                 "action_key": "capture",
@@ -385,8 +394,10 @@ def validate(root: Path) -> list[str]:
     if not {
         (b"SMNU", b"MX09"),
         (b"SMNU", b"ZC01"),
+        (b"SMNU", b"ZT01"),
         (b"STRT", b"MX09"),
         (b"STRT", b"ZC01"),
+        (b"STRT", b"ZT01"),
         (b"STRT", b"UNTN"),
     } <= text_names:
         errors.append(f"Zoo text CAM has unexpected entries: {sorted(text_names)}")
@@ -399,10 +410,25 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo panel must contain exactly one stock Palace REWARDS command")
     if zoo_menu.count(struct.pack("<I", 0x2293)) != 0:
         errors.append("Zoo panel must not retain its orphaned Place Reward command")
+    if zoo_menu.count(struct.pack("<I", 0x2A30)) != 1:
+        errors.append("Zoo panel must contain exactly one private Tame Beast opener")
+    if zoo_menu[0x09C0:0x09C4] != b"\xff" * 4:
+        errors.append("Zoo panel must preserve the preceding control terminator")
+    tame_control = zoo_menu[0x09C4:0x0A88]
+    if (
+        len(tame_control) != 0xC4
+        or struct.unpack_from("<4I", tame_control, 0x08) != (7, 217, 93, 26)
+        or struct.unpack_from("<I", tame_control, 0x30)[0] != 26
+        or struct.unpack_from("<I", tame_control, 0x38)[0] != 27
+        or struct.unpack_from("<I", tame_control, 0x88)[0] != 0x2A30
+    ):
+        errors.append("Zoo Tame Beast opener is not the audited AP10 control clone")
+    if zoo_menu[-8:] != b"\xff" * 8:
+        errors.append("Zoo panel must terminate the Tame control and dialog stream")
     if zoo_menu[0x08A8:0x08AC] != struct.pack("<I", 0x1389):
         errors.append("Zoo Place Reward control must dispatch the stock Palace REWARDS command")
-    if len(zoo_menu) != 2504:
-        errors.append("Zoo panel must restore AP02's complete Visitors control")
+    if len(zoo_menu) != 2700:
+        errors.append("Zoo panel must contain the restored Visitors and Tame controls")
     zoo_rewards_menu = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"ZC01"
     )
@@ -444,6 +470,20 @@ def validate(root: Path) -> list[str]:
             )
     if len(zoo_rewards_menu) != 1720:
         errors.append("Private Zoo rewards panel must retain AP41's complete dialog stream")
+    zoo_tame_menu = cam_entry_data(
+        root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"ZT01"
+    )
+    if len(zoo_tame_menu) != 1452:
+        errors.append("Private Zoo tame panel must retain MX05's complete dialog stream")
+    if zoo_tame_menu.count(b"ZOBG") != 2 or b"INBg" in zoo_tame_menu:
+        errors.append("Private Zoo tame panel must select only private ZOBG art")
+    for control_id, label in (
+        (0x1388, "occupant list"),
+        (0x138B, "selected action"),
+        (0x1F46, "selected cost"),
+    ):
+        if zoo_tame_menu.count(struct.pack("<I", control_id)) != 1:
+            errors.append(f"Private Zoo tame panel lacks its stock {label} control")
     zoo_rewards_strings = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"STRT", b"ZC01"
     )
@@ -459,6 +499,19 @@ def validate(root: Path) -> list[str]:
     for index, expected_text in expected_zoo_reward_strings.items():
         if indexed_strt_record(zoo_rewards_strings, index)[1] != expected_text:
             errors.append(f"Private Zoo rewards string {index} is not {expected_text!r}")
+    zoo_tame_strings = cam_entry_data(
+        root / "Data" / "restore_zoo_textdata.cam", b"STRT", b"ZT01"
+    )
+    expected_zoo_tame_strings = {
+        1: "ZOO",
+        6: "CAPTURED MONSTERS",
+        7: "TAME BEAST",
+        8: "Release the selected monster to guard your kingdom.",
+        10: "Cost to tame the selected monster",
+    }
+    for index, expected_text in expected_zoo_tame_strings.items():
+        if indexed_strt_record(zoo_tame_strings, index)[1] != expected_text:
+            errors.append(f"Private Zoo tame string {index} is not {expected_text!r}")
     art_names = cam_names(root / "Data" / "restore_zoo_maindata.cam")
     image_names = {name for extension, name in art_names if extension == b"IMAG"}
     for prefix in (b"ABn1", b"ABn2", b"ABn3"):
@@ -551,7 +604,9 @@ def validate(root: Path) -> list[str]:
             rewards_interface, b"IMAG", b"ZOBGbuilding dialog"
         )
         rewards_tiles = cam_section_entries(rewards_interface, b"TILE")
+        rewards_tile = None
         rewards_tile_index = interface_imag_set_tile_index(rewards_imag, 1019)
+        tame_tile_index = interface_imag_set_tile_index(rewards_imag, 1013)
         if rewards_tile_index >= len(rewards_tiles):
             errors.append("Private ZOBG set 1019 references a missing TILE")
         else:
@@ -560,6 +615,16 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo rewards backing is not a V1 TILE")
             elif struct.unpack_from("<HH", rewards_tile, 2) != (245, 202):
                 errors.append("Private Zoo rewards backing is not stock 202x245 geometry")
+        if tame_tile_index >= len(rewards_tiles):
+            errors.append("Private ZOBG set 1013 references a missing TILE")
+        else:
+            tame_tile = rewards_tiles[tame_tile_index][1]
+            if len(tame_tile) < 26 or struct.unpack_from("<H", tame_tile, 0)[0] != 1:
+                errors.append("Private Zoo tame backing is not a V1 TILE")
+            elif struct.unpack_from("<HH", tame_tile, 2) != (245, 202):
+                errors.append("Private Zoo tame backing is not stock 202x245 geometry")
+            elif rewards_tile is not None and tame_tile != rewards_tile:
+                errors.append("Zoo Capture and Tame panels must share the Zoo-themed backing")
         capture_icon_imag = cam_entry_data(
             rewards_interface, b"IMAG", b"ZCICItem Icons"
         )
@@ -967,9 +1032,7 @@ def validate(root: Path) -> list[str]:
         'target\'s "zoo_agent"',
         '"charm_percentage"',
         "Restore_Zoo_Get_Completed_Zoo",
-        "ClearEngineDeathFlags",
         "CreateEffector",
-        "Resurrect",
         "TEMPORARY ROLLBACK LOAD PROBE",
         "$ListPalaces (",
         "$Hooligan_Goto_Palace",
@@ -993,6 +1056,37 @@ def validate(root: Path) -> list[str]:
     for snippet in forbidden_capture_contract:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
+    tame_cost_start = capture.index("function Restore_Zoo_Tame_Cost")
+    tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
+    tame_action_end = capture.index("function Restore_Zoo_Revenue")
+    tame_cost = capture[tame_cost_start:tame_action_start]
+    tame_action = capture[tame_action_start:tame_action_end]
+    if "return $Restore_Zoo_Threat_Rank ( visitor ) * 500" not in tame_cost:
+        errors.append("Tame Beast cost must remain 500 gold per Threat Rank")
+    tame_order = tuple(
+        tame_action.find(snippet)
+        for snippet in (
+            "$GetBuildingContainer ( thisagent )",
+            "$ClearEngineDeathFlags ( thisagent )",
+            '$KillThread ( thisagent\'s "ActiveScript" )',
+            'zoo\'s "Occupants" -= thisagent',
+            "$Unhide ( thisagent )",
+            'thisagent\'s "Type" = "Hero"',
+            'thisagent\'s "EnemyType" = "Monster"',
+            'thisagent\'s "Guardian_Mod" = 2',
+            'thisagent\'s "coord_home" = $LocationOf ( zoo )',
+            'thisagent\'s "BasicScript" = $Guardian',
+            'thisagent\'s "BackScript" = $Guardian',
+            'thisagent\'s "ActiveScript" = $Guardian',
+            "$NewThread ( thisagent's \"ActiveScript\", #Normal_Cycle, thisagent )",
+            "$Restore_Refresh_Zoo_Capacity ( zoo )",
+        )
+    )
+    if -1 in tame_order or tame_order != tuple(sorted(tame_order)):
+        errors.append(
+            "Tame Beast must preserve the Mausoleum removal/start ordering and "
+            "stock controlled-Varg Guardian state"
+        )
     if "upgradescript2" in gpl:
         errors.append(
             "Generic Building does not declare upgradescript2; Zoo upgrade polling must use its declared completion slot"

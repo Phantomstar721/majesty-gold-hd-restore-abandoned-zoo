@@ -81,6 +81,18 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   flag, Zoo is full” through Majesty's native system-alert path;
 - delivered monsters use the stock occupant-intent field so their visitor rows
   read “is waiting in the zoo” rather than the default “is Thinking”;
+- a new **Tame Beast** control at the same lower-left position as the
+  Alchemist Laboratory's Brewing control opens a private Zoo-themed clone of
+  the stock Mausoleum selected-occupant panel;
+- that panel reads the Zoo's existing `Occupants` list directly and uses the
+  shared Generic Visitor Lists painter, so every stored monster remains
+  generic while displaying its stock icon, Threat Rank, name, action, and HP;
+- selecting a monster displays a taming price of `500 * Threat Rank`
+  (500-4000 gold), and **Tame Beast** uses the stock Mausoleum payment/action
+  lifecycle to remove that exact occupant;
+- a tamed monster keeps its player-side charm and copies the expansion's stock
+  controlled-Varg `Guardian` state: it returns to the Zoo's area, wanders
+  nearby, and engages enemies through the ordinary monster combat evaluator;
 - each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
   minute and deposits `40 * Threat Rank` gold per valid stored occupant into its own
   coffers for ordinary Tax Collector pickup; Threat Rank reads the monster's
@@ -118,6 +130,7 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 
 See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
 contract](docs/capture-stock-clone.md), the [visitor stock trace](docs/visitor-stock-trace.md),
+the [Tame Beast stock clone](docs/tame-beast-stock-clone.md),
 and the complete [invented-content ledger](docs/invented-content.md) before
 changing gameplay.
 
@@ -136,12 +149,17 @@ somewhere else.
 
 ## Local Steam test install
 
-Build, validate, and install into the default Steam user's local Majesty mod
-directory with one command:
+Build, validate, and install the package content into the default Steam user's
+local Majesty mod directory with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1
+powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1 -ContentOnly
 ```
+
+Then select **Restore Abandoned Zoo** in the CAM Merge Manager and launch the
+game through the Manager. Tame Beast depends on the Manager's generic
+MX04/MX05 occupant-action recipe; the legacy standalone Zoo dispatcher covers
+Capture only and cannot open or execute this panel.
 
 The installed package is
 `Documents\My Games\MajestyHD\Mods\RestoreAbandonedZoo`. Re-running the command
@@ -184,8 +202,9 @@ the manager's generic semantic pipeline.
 
 The shipped definition declares the reusable
 `stock.mx09-ap41-reward-panel.v1` and
-`stock.ap41-fl00-hostile-monster-flag.v1` recipes. Their stock lifecycle and
-package contract are recorded in
+`stock.ap41-fl00-hostile-monster-flag.v1` recipes, plus the generic
+`stock.mx04-mx05-occupant-action-panel.v1` selected-occupant purchase recipe
+for Tame Beast. Their stock lifecycle and package contract are recorded in
 [`docs/manager-v3-capture-feature-proposal.md`](docs/manager-v3-capture-feature-proposal.md),
 and the retained example definition mirrors the shipping manifest in
 [`docs/examples/mod-definition-v3-manager-candidate.json`](docs/examples/mod-definition-v3-manager-candidate.json).

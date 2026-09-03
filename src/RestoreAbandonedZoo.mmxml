@@ -4,7 +4,7 @@
 		<DisplayName lang="en_US">Restore Abandoned Zoo</DisplayName>
 		<Description lang="en_US">
 			<Short>Restores the abandoned three-level Zoo building.</Short>
-			<Long>Restores the surviving Zoo building, abandoned lethal capture attempt, and Hooligan return into Zoo visitors.</Long>
+			<Long>Restores the surviving Zoo building, monster capture and visitor systems, breakout risk, and stock-shaped Tame Beast guardian release.</Long>
 		</Description>
 		<DataConfiguration>
 			<Dataset base="Any">

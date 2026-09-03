@@ -7,6 +7,11 @@ schema-v3 records. The manager accepts the shipping Zoo definition and the
 matching retained example in
 [`examples/mod-definition-v3-manager-candidate.json`](examples/mod-definition-v3-manager-candidate.json).
 
+Those two records cover Capture only. The shipping definition also declares
+the independent generic MX04/MX05 selected-occupant recipe used by Tame Beast;
+its stock trace and GPL adaptation are documented in
+[`tame-beast-stock-clone.md`](tame-beast-stock-clone.md).
+
 The proposed records contain no Zoo UUID, package name, executable address,
 private DLL, command, callback hook, or filesystem path. Logical keys remain
 package-local and are owner-qualified by the manager.

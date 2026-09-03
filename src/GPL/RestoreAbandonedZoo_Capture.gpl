@@ -51,6 +51,65 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Tame_Cost ( agent visitor ) is integer
+///////////////////////////////////////////////////////////////////////////////
+// Stock Mausoleum_Resurrect_Cost is a selected-occupant cost callback. The Zoo
+// uses the same callback boundary, replacing hero level with the generic
+// LevelXP-derived Threat Rank already used by the visitor display and revenue.
+// The 500-gold step is invented Zoo balance: ranks 1-8 cost 500-4000 gold.
+declare
+begin
+	return $Restore_Zoo_Threat_Rank ( visitor ) * 500;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Tame_Beast ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Mausoleum resurrection removes the selected agent from its containing
+// building, unhides it, restores its live task slots, and starts the new active
+// thread. The controlled Varg in Epic_Quest_Scripts is the stock state model
+// for the released beast: Hero/Controlled classification, Monster EnemyType,
+// Guardian in every task slot, Guardian_Mod 2, and a fixed home coordinate.
+declare
+	agent zoo;
+begin
+	zoo = $GetBuildingContainer ( thisagent );
+	if ( $IsValidGamePiece ( zoo ) == FALSE )
+		return;
+	if ( zoo's "Title" != "Zoo" )
+		return;
+	if ( $AgentInList ( thisagent, zoo's "Occupants" ) == FALSE )
+		return;
+
+	$SpecifyIntent ( thisagent, #intent_patrolling_city );
+	$ClearEngineDeathFlags ( thisagent );
+	$KillThread ( thisagent's "ActiveScript" );
+	zoo's "Occupants" -= thisagent;
+	$Unhide ( thisagent );
+
+	thisagent's "Type" = "Hero";
+	thisagent's "Original_Type" = "Hero";
+	thisagent's "SubType" = "Controlled";
+	thisagent's "EnemyType" = "Monster";
+	thisagent's "Guardian_Mod" = 2;
+	thisagent's "coord_home" = $LocationOf ( zoo );
+	thisagent's "leader" = $NullAgent ();
+	thisagent's "Target" = $NullAgent ();
+	$ClearList ( thisagent's "Hostiles" );
+	$SetUnitPlayerNumber ( thisagent, $GetUnitPlayerNumber ( zoo ));
+	$SetAttribute (
+		thisagent, #ATTRIB_HP, $GetAttribute ( thisagent, #ATTRIB_MaxHP ));
+	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
+	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
+
+	thisagent's "BasicScript" = $Guardian;
+	thisagent's "BackScript" = $Guardian;
+	thisagent's "ActiveScript" = $Guardian;
+	$NewThread ( thisagent's "ActiveScript", #Normal_Cycle, thisagent );
+	$Restore_Refresh_Zoo_Capacity ( zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Revenue ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Stock Fairgrounds_Revenue reads a building-owned participant list, computes

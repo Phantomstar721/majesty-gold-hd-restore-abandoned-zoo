@@ -19,6 +19,15 @@
       "open_command_id": 5001
     },
     {
+      "type": "stock.mx04-mx05-occupant-action-panel.v1",
+      "panel_key": "taming",
+      "parent_building": "Restore_Zoo",
+      "source_dialog_id": "ZT01",
+      "open_command_id": 10800,
+      "cost_callback_symbol": "Restore_Zoo_Tame_Cost",
+      "action_callback_symbol": "Restore_Zoo_Tame_Beast"
+    },
+    {
       "type": "stock.ap41-fl00-hostile-monster-flag.v1",
       "panel_key": "capture-rewards",
       "action_key": "capture",

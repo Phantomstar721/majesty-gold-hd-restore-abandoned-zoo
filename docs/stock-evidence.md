@@ -632,6 +632,31 @@ replaces only the ordinary exit with its already-proven hostile captive release
 helper. Killing or suspending the captive task at delivery left correct script
 pointers on release but no running monster behavior after `Exit_Building`.
 
+## Tame Beast
+
+Expansion `SMNU/MX04` opens the Mausoleum's `SMNU/MX05` selected-occupant
+panel. `MX05` populates control `0x1388` directly from the parent building's
+`Occupants` list with no hero filter, refreshes cost control `0x1F46` from
+`Mausoleum_Resurrect_Cost`, and queues the paid action from control `0x138B`
+to `Mausoleum_Resurrect_Begin`. The stock GPL action obtains the selected
+agent's building container, removes that agent from `Occupants`, unhides it,
+then restores live scripts. The private Zoo panel clones this complete flow;
+the CAM Merge Manager privatizes its dialog, open command, queued command, and
+two GPL callback symbols so stock Mausoleums remain untouched.
+
+Static tracing on beta2 confirms MX05 setup reaches the same shared row painter
+used by the ordinary Visitors controller. The existing Generic Visitor Lists
+hook therefore supplies monster icon and Threat Rank rendering to both views;
+the Tame panel requires no second renderer or monster-title table.
+
+Expansion `Epic_Quest_Scripts.gpl` supplies the released-monster analogue. Its
+controlled Varg is classified as `Hero` / `Controlled`, keeps `Monster` as its
+enemy type, sets `Guardian_Mod = 2`, and assigns stock `Guardian` to all three
+task slots. `Guardian` wanders around `coord_home`, uses the normal monster
+enemy evaluator and attack functions, and abandons pursuit outside its home
+radius. Tame Beast copies those fields and substitutes only the Zoo location
+for `coord_home`.
+
 ## Executable profiles
 
 The private `ZC01`/`ZCF0` dispatcher is traced independently in both maintained
