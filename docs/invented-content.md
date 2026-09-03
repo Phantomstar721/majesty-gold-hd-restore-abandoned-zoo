@@ -368,11 +368,13 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Tame Beast combines two stock lifecycles that were never connected in the
   shipped game. Its selected-occupant purchase flow is cloned from the
   Mausoleum, while the released unit copies the expansion quest's controlled
-  Varg `Guardian` state and uses the Zoo as its home coordinate. The unit stays
-  player-owned, keeps its charm effector, patrols through stock `Guardian`, and
-  uses the normal controlled-monster death callback. The price is invented as
-  `500 * Threat Rank`, or 500-4000 gold across ranks 1-8; Majesty contains no
-  surviving Zoo taming-price table.
+  Varg `Guardian` state. Using the player's Palace as that guardian's home
+  coordinate is new Zoo behavior chosen to make the tame useful to the wider
+  kingdom; the Zoo is the no-Palace fallback. The unit stays player-owned,
+  keeps its charm effector, patrols through stock `Guardian`, and uses the
+  normal controlled-monster death callback. The price is invented as `500 *
+  Threat Rank`, or 500-4000 gold across ranks 1-8; Majesty contains no surviving
+  Zoo taming-price table.
 
 ## Surviving placeholder content
 

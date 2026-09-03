@@ -1081,7 +1081,7 @@ def imag_tile_reference_offsets(imag: bytes) -> tuple[int, ...]:
 
 
 def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
-    """Package ZC01 art plus a stock-shaped private Capture cursor set."""
+    """Package private Capture/Tame backing plus a private Capture cursor set."""
     source = game_path / "Data" / "interfacedata.cam"
     stock_imag = read_cam_entry(
         source, b"IMAG", ZOO_REWARDS_BACKGROUND_SOURCE
@@ -1121,8 +1121,6 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         raise ValueError("Zoo rewards art must retain stock 202x245 geometry")
     if custom_tile == tiles[source_index].data:
         raise ValueError("Zoo rewards art is still identical to the stock AP41 backing")
-    if custom_tile == tiles[tame_source_index].data:
-        raise ValueError("Zoo tame art is still identical to the stock MX05 backing")
     icon_offset = interface_imag_exact_tile_offset(
         stock_icon_imag,
         ZOO_CAPTURE_ICON_SET,
@@ -1170,7 +1168,6 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         ZOO_REWARDS_BACKGROUND_TOKEN,
         {
             source_index: custom_tile,
-            tame_source_index: custom_tile,
         },
     )
     private_source_index = u32(custom_imag, source_offset) & 0xFFFF

@@ -91,8 +91,9 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   (500-4000 gold), and **Tame Beast** uses the stock Mausoleum payment/action
   lifecycle to remove that exact occupant;
 - a tamed monster keeps its player-side charm and copies the expansion's stock
-  controlled-Varg `Guardian` state: it returns to the Zoo's area, wanders
-  nearby, and engages enemies through the ordinary monster combat evaluator;
+  controlled-Varg `Guardian` state: it patrols around the player's Palace and
+  engages enemies through the ordinary monster combat evaluator, using the Zoo
+  as its home only when no valid Palace exists;
 - each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
   minute and deposits `40 * Threat Rank` gold per valid stored occupant into its own
   coffers for ordinary Tax Collector pickup; Threat Rank reads the monster's

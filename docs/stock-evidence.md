@@ -654,8 +654,10 @@ controlled Varg is classified as `Hero` / `Controlled`, keeps `Monster` as its
 enemy type, sets `Guardian_Mod = 2`, and assigns stock `Guardian` to all three
 task slots. `Guardian` wanders around `coord_home`, uses the normal monster
 enemy evaluator and attack functions, and abandons pursuit outside its home
-radius. Tame Beast copies those fields and substitutes only the Zoo location
-for `coord_home`.
+radius. Tame Beast copies those fields and uses the player's true Palace as
+`coord_home`, falling back to the Zoo only if that Palace is invalid. The
+Palace substitution is Zoo-specific balance; the coordinate field and patrol
+lifecycle remain the literal stock Guardian mechanism.
 
 ## Executable profiles
 

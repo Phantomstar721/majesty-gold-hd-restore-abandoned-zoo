@@ -30,9 +30,16 @@ stock match for a friendly monster that independently guards an area. It sets:
 
 Stock `Guardian` wanders around `coord_home`, evaluates enemies with the normal
 monster combat helpers, pursues a target only within its guardian radius, and
-returns home afterward. Tame Beast copies this state literally, uses the Zoo's
-location as `coord_home`, preserves player ownership and the existing charm
-effector, restores full health, and starts `Guardian` at `#Normal_Cycle`.
+returns home afterward. Tame Beast copies this state literally and uses the
+player's Palace as `coord_home`, making the creature a kingdom-core guardian
+instead of tethering it to the Zoo grounds. The Zoo is used only if no valid
+Palace exists. It preserves player ownership and the existing charm effector,
+restores full health, and starts `Guardian` at `#Normal_Cycle`.
+
+The private child dialog retains MX05's own list/action backing and chrome.
+Only its resource identity and text are private. Reusing the Capture rewards
+backing here is invalid because that set paints its amount field and plus/minus
+buttons underneath MX05's visitor rows.
 
 This avoids a custom patrol timer, watcher, target scanner, or combat state
 machine. The monster's original `StartingScript` remains intact for the stock

@@ -623,8 +623,10 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo tame backing is not a V1 TILE")
             elif struct.unpack_from("<HH", tame_tile, 2) != (245, 202):
                 errors.append("Private Zoo tame backing is not stock 202x245 geometry")
-            elif rewards_tile is not None and tame_tile != rewards_tile:
-                errors.append("Zoo Capture and Tame panels must share the Zoo-themed backing")
+            elif rewards_tile is not None and tame_tile == rewards_tile:
+                errors.append(
+                    "Zoo Tame panel must retain MX05 list/action chrome, not Capture-panel art"
+                )
         capture_icon_imag = cam_entry_data(
             rewards_interface, b"IMAG", b"ZCICItem Icons"
         )
@@ -1074,6 +1076,8 @@ def validate(root: Path) -> list[str]:
             'thisagent\'s "Type" = "Hero"',
             'thisagent\'s "EnemyType" = "Monster"',
             'thisagent\'s "Guardian_Mod" = 2',
+            "palace = $GetTruePalace ( zoo )",
+            'thisagent\'s "coord_home" = $LocationOf ( palace )',
             'thisagent\'s "coord_home" = $LocationOf ( zoo )',
             'thisagent\'s "BasicScript" = $Guardian',
             'thisagent\'s "BackScript" = $Guardian',
