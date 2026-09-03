@@ -372,9 +372,12 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   coordinate is new Zoo behavior chosen to make the tame useful to the wider
   kingdom; the Zoo is the no-Palace fallback. The unit stays player-owned,
   keeps its charm effector, patrols through stock `Guardian`, and uses the
-  normal controlled-monster death callback. The price is invented as `500 *
-  Threat Rank`, or 500-4000 gold across ranks 1-8; Majesty contains no surviving
-  Zoo taming-price table.
+  normal controlled-monster death callback. Generic tames use the stock
+  Monster Data norm `Guardian_Mod = 5` rather than the quest Varg's special
+  override of 2, and use the expansion Palace guard's sight 250 as a minimum;
+  applying those stock values to every tame is new Zoo balance. The price is
+  invented as `500 * Threat Rank`, or 500-4000 gold across ranks 1-8; Majesty
+  contains no surviving Zoo taming-price table.
 
 ## Surviving placeholder content
 

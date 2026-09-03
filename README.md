@@ -93,7 +93,9 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 - a tamed monster keeps its player-side charm and copies the expansion's stock
   controlled-Varg `Guardian` state: it patrols around the player's Palace and
   engages enemies through the ordinary monster combat evaluator, using the Zoo
-  as its home only when no valid Palace exists;
+  as its home only when no valid Palace exists; the role uses stock monsters'
+  usual `Guardian_Mod = 5` and the expansion Palace guard's 250-point sight as
+  a minimum, preserving any stronger native sight value;
 - each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
   minute and deposits `40 * Threat Rank` gold per valid stored occupant into its own
   coffers for ordinary Tax Collector pickup; Threat Rank reads the monster's

@@ -1075,7 +1075,9 @@ def validate(root: Path) -> list[str]:
             "$Unhide ( thisagent )",
             'thisagent\'s "Type" = "Hero"',
             'thisagent\'s "EnemyType" = "Monster"',
-            'thisagent\'s "Guardian_Mod" = 2',
+            'thisagent\'s "Guardian_Mod" = 5',
+            "#ATTRIB_SightRange ) < 250",
+            "$SetAttribute ( thisagent, #ATTRIB_SightRange, 250 )",
             "palace = $GetTruePalace ( zoo )",
             'thisagent\'s "coord_home" = $LocationOf ( palace )',
             'thisagent\'s "coord_home" = $LocationOf ( zoo )',
@@ -1089,7 +1091,7 @@ def validate(root: Path) -> list[str]:
     if -1 in tame_order or tame_order != tuple(sorted(tame_order)):
         errors.append(
             "Tame Beast must preserve the Mausoleum removal/start ordering and "
-            "stock controlled-Varg Guardian state"
+            "stock controlled-monster Guardian state"
         )
     if "upgradescript2" in gpl:
         errors.append(

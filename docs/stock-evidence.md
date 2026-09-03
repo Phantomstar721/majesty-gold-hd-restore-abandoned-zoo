@@ -651,13 +651,22 @@ the Tame panel requires no second renderer or monster-title table.
 
 Expansion `Epic_Quest_Scripts.gpl` supplies the released-monster analogue. Its
 controlled Varg is classified as `Hero` / `Controlled`, keeps `Monster` as its
-enemy type, sets `Guardian_Mod = 2`, and assigns stock `Guardian` to all three
-task slots. `Guardian` wanders around `coord_home`, uses the normal monster
+enemy type, and assigns stock `Guardian` to all three task slots. `Guardian`
+wanders around `coord_home`, uses the normal monster
 enemy evaluator and attack functions, and abandons pursuit outside its home
 radius. Tame Beast copies those fields and uses the player's true Palace as
 `coord_home`, falling back to the Zoo only if that Palace is invalid. The
 Palace substitution is Zoo-specific balance; the coordinate field and patrol
 lifecycle remain the literal stock Guardian mechanism.
+
+The special quest Varg overrides `Guardian_Mod` to 2, whereas nearly every
+entry in expansion `mx_Monster_Data.dat`—including the White Wolf's native
+prototype—uses the generic guardian value 5. Tame Beast uses that stock generic
+value. `Guardian_Eval_Enemies` searches only raw `#ATTRIB_SightRange`; it does
+not multiply acquisition by `Guardian_Mod`. Expansion Epic Quest Palace guards
+are spawned with sight 250, so Tame Beast applies 250 as a minimum and leaves
+any stronger monster value unchanged. Applying those inputs to all Zoo tames
+is balance glue; no Guardian targeting or movement code is replaced.
 
 ## Executable profiles
 

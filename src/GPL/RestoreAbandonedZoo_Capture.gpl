@@ -69,7 +69,9 @@ function Restore_Zoo_Tame_Beast ( agent thisagent )
 // building, unhides it, restores its live task slots, and starts the new active
 // thread. The controlled Varg in Epic_Quest_Scripts is the stock state model
 // for the released beast: Hero/Controlled classification, Monster EnemyType,
-// Guardian in every task slot, Guardian_Mod 2, and a fixed home coordinate.
+// Guardian in every task slot, and a fixed home coordinate. Stock monster data
+// normally supplies Guardian_Mod 5; expansion Palace guards use combat sight
+// 250. Those stock inputs make the generic tame useful outside one doorstep.
 // The Palace is the kingdom-wide defensive anchor; the Zoo remains the safe
 // fallback if its player has no valid Palace.
 declare
@@ -93,7 +95,9 @@ begin
 	thisagent's "Original_Type" = "Hero";
 	thisagent's "SubType" = "Controlled";
 	thisagent's "EnemyType" = "Monster";
-	thisagent's "Guardian_Mod" = 2;
+	thisagent's "Guardian_Mod" = 5;
+	if ( $GetAttribute ( thisagent, #ATTRIB_SightRange ) < 250 )
+		$SetAttribute ( thisagent, #ATTRIB_SightRange, 250 );
 	palace = $GetTruePalace ( zoo );
 	if ( $IsValidGamePiece ( palace ))
 		thisagent's "coord_home" = $LocationOf ( palace );

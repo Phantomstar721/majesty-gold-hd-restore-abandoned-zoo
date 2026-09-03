@@ -25,7 +25,6 @@ stock match for a friendly monster that independently guards an area. It sets:
 
 - `Type = Hero` and `SubType = Controlled`;
 - `EnemyType = Monster`;
-- `Guardian_Mod = 2`;
 - `ActiveScript`, `BackScript`, and `BasicScript` to stock `Guardian`.
 
 Stock `Guardian` wanders around `coord_home`, evaluates enemies with the normal
@@ -35,6 +34,16 @@ player's Palace as `coord_home`, making the creature a kingdom-core guardian
 instead of tethering it to the Zoo grounds. The Zoo is used only if no valid
 Palace exists. It preserves player ownership and the existing charm effector,
 restores full health, and starts `Guardian` at `#Normal_Cycle`.
+
+The quest Varg overrides `Guardian_Mod` to `2`, but that special leash proved
+too small when applied to arbitrary Zoo monsters. Expansion Monster Data uses
+`Guardian_Mod = 5` for nearly every ordinary monster, including the Varg's
+native White Wolf prototype, so the tame role uses that generic stock value.
+`Guardian` acquires enemies using unmodified `SightRange`, not `Guardian_Mod`.
+The expansion also spawns Palace guards with sight 250; Tame Beast applies that
+stock combat-guard value as a minimum while preserving monsters with stronger
+native sight. The state machine, target selection, pursuit, and return-home
+logic remain stock `Guardian`.
 
 The private child dialog retains MX05's own list/action backing and chrome.
 Only its resource identity and text are private. Reusing the Capture rewards
