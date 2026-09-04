@@ -316,6 +316,18 @@ def validate(root: Path) -> list[str]:
                 "action_callback_symbol": "Restore_Zoo_Tame_Beast",
             },
             {
+                "type": "stock.mx22-building-open-toggle.v1",
+                "toggle_key": "hero-rentals",
+                "parent_building": "Restore_Zoo",
+                "open_command_id": 10801,
+                "close_command_id": 10802,
+            },
+            {
+                "type": "stock.gplmx-purchase-bazaar-tail.v1",
+                "callback_key": "zoo-rental",
+                "callback_symbol": "Restore_Zoo_Rental_Check",
+            },
+            {
                 "type": "stock.ap41-fl00-hostile-monster-flag.v1",
                 "panel_key": "capture-rewards",
                 "action_key": "capture",
@@ -412,9 +424,13 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo panel must not retain its orphaned Place Reward command")
     if zoo_menu.count(struct.pack("<I", 0x2A30)) != 1:
         errors.append("Zoo panel must contain exactly one private Tame Beast opener")
-    if zoo_menu[0x09C0:0x09C4] != b"\xff" * 4:
+    if zoo_menu.count(struct.pack("<I", 0x2A31)) != 1:
+        errors.append("Zoo panel must contain exactly one private rental-open command")
+    if zoo_menu.count(struct.pack("<I", 0x2A32)) != 1:
+        errors.append("Zoo panel must contain exactly one private rental-close command")
+    if zoo_menu[0x09C8:0x09CC] != b"\xff" * 4:
         errors.append("Zoo panel must preserve the preceding control terminator")
-    tame_control = zoo_menu[0x09C4:0x0A88]
+    tame_control = zoo_menu[0x09CC:0x0A90]
     if (
         len(tame_control) != 0xC4
         or struct.unpack_from("<4I", tame_control, 0x08) != (7, 217, 93, 26)
@@ -423,12 +439,45 @@ def validate(root: Path) -> list[str]:
         or struct.unpack_from("<I", tame_control, 0x88)[0] != 0x2A30
     ):
         errors.append("Zoo Tame Beast opener is not the audited AP10 control clone")
+    close_rental_control = zoo_menu[0x0A90:0x0B20]
+    open_rental_control = zoo_menu[0x0B20:0x0BB0]
+    rental_specs = (
+        (close_rental_control, 0x2A32, 28, 29),
+        (open_rental_control, 0x2A31, 30, 31),
+    )
+    for control, command, label, tooltip in rental_specs:
+        if (
+            len(control) != 0x90
+            or struct.unpack_from("<4I", control, 0x08) != (106, 190, 89, 22)
+            or struct.unpack_from("<I", control, 0x1C)[0] != label
+            or struct.unpack_from("<I", control, 0x24)[0] != tooltip
+            or struct.unpack_from("<I", control, 0x5C)[0] != command
+            or control[-4:] != b"\xff" * 4
+        ):
+            errors.append(
+                f"Zoo rental toggle {command:#x} is not the audited AP39 half-width presentation clone"
+            )
     if zoo_menu[-8:] != b"\xff" * 8:
-        errors.append("Zoo panel must terminate the Tame control and dialog stream")
-    if zoo_menu[0x08A8:0x08AC] != struct.pack("<I", 0x1389):
+        errors.append("Zoo panel must terminate the rental control and dialog stream")
+    if zoo_menu.count(b"\xff" * 8) != 1:
+        errors.append("Zoo panel must not terminate before its appended controls")
+    if zoo_menu[0x08A0:0x08A4] != struct.pack("<I", 0x1389):
         errors.append("Zoo Place Reward control must dispatch the stock Palace REWARDS command")
-    if len(zoo_menu) != 2700:
-        errors.append("Zoo panel must contain the restored Visitors and Tame controls")
+    place_reward_control = zoo_menu[0x0844:0x08D4]
+    if (
+        len(place_reward_control) != 0x90
+        or struct.unpack_from("<4I", place_reward_control, 0x08)
+        != (7, 190, 89, 22)
+        or struct.unpack_from("<I", place_reward_control, 0x1C)[0] != 22
+        or struct.unpack_from("<I", place_reward_control, 0x24)[0] != 23
+        or struct.unpack_from("<I", place_reward_control, 0x5C)[0] != 0x1389
+        or place_reward_control[-4:] != b"\xff" * 4
+    ):
+        errors.append("Zoo reward opener is not the audited AP39 half-width control clone")
+    if len(zoo_menu) != 2996:
+        errors.append(
+            "Zoo panel must contain the restored Visitors, Tame, and rental controls"
+        )
     zoo_rewards_menu = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"ZC01"
     )
@@ -484,6 +533,22 @@ def validate(root: Path) -> list[str]:
     ):
         if zoo_tame_menu.count(struct.pack("<I", control_id)) != 1:
             errors.append(f"Private Zoo tame panel lacks its stock {label} control")
+    zoo_strings = cam_entry_data(
+        root / "Data" / "restore_zoo_textdata.cam", b"STRT", b"MX09"
+    )
+    expected_zoo_control_strings = {
+        22: "REWARD",
+        23: "Open the Zoo's Capture reward panel.",
+        26: "TAME BEAST",
+        27: "Open the Zoo's Tame Beast panel.",
+        28: "RENT OPEN",
+        29: "Close the Zoo to hero rentals.",
+        30: "RENT CLOSED",
+        31: "Open the Zoo to hero rentals.",
+    }
+    for index, expected_text in expected_zoo_control_strings.items():
+        if indexed_strt_record(zoo_strings, index)[1] != expected_text:
+            errors.append(f"Zoo control string {index} is not {expected_text!r}")
     zoo_rewards_strings = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"STRT", b"ZC01"
     )
@@ -732,6 +797,9 @@ def validate(root: Path) -> list[str]:
         intent_data = cam_entry_data(
             root / "Data" / "restore_zoo_gpltext.cam", b"STRT", b"AITX"
         )
+        rental_intent = indexed_strt_record(intent_data, 197)
+        if rental_intent != (197, "Renting a beast"):
+            errors.append("Reserved intent 197 must contain the rental action text")
         intent_record = indexed_strt_record(intent_data, 198)
         if intent_record != (198, "Capturing a monster"):
             errors.append(
@@ -770,6 +838,29 @@ def validate(root: Path) -> list[str]:
         )
     if gpl.count("(upgradescript Restore_Zoo_Upgrade)") != 3:
         errors.append("Every Zoo level must queue through the stock upgrade callback")
+    if gpl.count("(Visited_Script Restore_Zoo_Visited)") != 3:
+        errors.append("Every Zoo level must dispatch visits through the rental wrapper")
+
+    rental_fixture = (root / "GPL" / "RestoreAbandonedZoo_DealDemon_Test.gpl").read_text(
+        encoding="utf-8"
+    )
+    required_rental_fixture = (
+        "function Restore_Zoo_Prepare_Rental_Test_Hero",
+        "$Advance_To_Level ( thisagent, 20 )",
+        "$SetAttribute ( thisagent, #ATTRIB_Gold, 50000 )",
+        "$SetAttribute ( thisagent, #ATTRIB_Armor_Struct_Bonus, 3 )",
+        "$SetAttribute ( thisagent, #ATTRIB_Weapon_Struct_Bonus, 3 )",
+        "$SetAttribute ( thisagent, #ATTRIB_Armor_Magic_Bonus, 3 )",
+        "$SetAttribute ( thisagent, #ATTRIB_Weapon_Magic_Bonus, 3 )",
+        "$SetAttribute ( thisagent, #ATTRIB_NumHealingPotions, #Max_Heal_Potions )",
+        '$SpawnUnit ( palace, "Warrior",',
+        '$SpawnUnit ( palace, "Ranger",',
+        '$SpawnUnit ( palace, "Rogue",',
+        '$SpawnUnit ( palace, "Wizard",',
+    )
+    for snippet in required_rental_fixture:
+        if snippet not in rental_fixture:
+            errors.append(f"Deal with a Demon rental fixture lacks: {snippet}")
 
     flag_gpl = (root / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat").read_text(
         encoding="utf-8"
@@ -877,7 +968,7 @@ def validate(root: Path) -> list[str]:
         "$StopMoving ( thisagent )",
         "$Reset_Tasks ( owner )",
         'visitors = zoo\'s "Occupants"',
-        "if ( $ListSize ( visitors ) >= limit )",
+        "if ( $Restore_Zoo_Captive_Count ( zoo ) >= limit )",
         "$Enter_Building ( thisagent, zoo )",
         "$SpecifyIntent ( thisagent, #intent_waiting_in_zoo )",
         "expression #Restore_Zoo_Breakout_Threshold 6",
@@ -924,6 +1015,22 @@ def validate(root: Path) -> list[str]:
         'if ( $HasAttribute ( "RevenueScript", thisagent ))',
         'thisagent\'s "RevenueScript" == $Restore_Zoo_Revenue',
         "private_zoo = TRUE",
+        "expression #intent_renting_beast 197",
+        "function Restore_Zoo_Is_Stored_Captive",
+        "function Restore_Zoo_Captive_Count",
+        "function Restore_Zoo_Find_Rentable_Captive",
+        "function Restore_Zoo_Rental_Check",
+        "#ATTRIB_EmbassyActiveFlag",
+        "#Percent_Chance_To_Buy_Stats",
+        'thisagent\'s "TaskName" = "Rent_Beast"',
+        "$SpecifyIntent ( thisagent, #intent_renting_beast )",
+        "function Restore_Zoo_Visited",
+        "function Restore_Zoo_Complete_Rental",
+        "function Restore_Zoo_Finish_Rental",
+        "function Restore_Zoo_Start_Rented_Beast",
+        "$Spend_Gold ( thisagent, zoo, cost )",
+        "$Control_Monster ( buyer, captive )",
+        '$NewThread ( captive\'s "ActiveScript", #Normal_Cycle, captive )',
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -1083,10 +1190,13 @@ def validate(root: Path) -> list[str]:
     tame_action = capture[tame_action_start:tame_action_end]
     if "return $Restore_Zoo_Threat_Rank ( visitor ) * 500" not in tame_cost:
         errors.append("Tame Beast cost must remain 500 gold per Threat Rank")
+    if 'visitor\'s "Original_Type" != "Monster"' not in tame_cost:
+        errors.append("Tame Beast cost must reject a transient hero visitor")
     tame_order = tuple(
         tame_action.find(snippet)
         for snippet in (
             "$GetBuildingContainer ( thisagent )",
+            "$Restore_Zoo_Is_Stored_Captive ( thisagent, zoo ) == FALSE",
             "$ClearEngineDeathFlags ( thisagent )",
             '$KillThread ( thisagent\'s "ActiveScript" )',
             'zoo\'s "Occupants" -= thisagent',
@@ -1111,6 +1221,100 @@ def validate(root: Path) -> list[str]:
             "Tame Beast must preserve the Mausoleum removal/start ordering and "
             "stock controlled-monster Guardian state"
         )
+    rental_check_start = capture.index("function Restore_Zoo_Rental_Check")
+    rental_start = capture.index("function Restore_Zoo_Start_Rented_Beast")
+    rental_complete_start = capture.index("function Restore_Zoo_Complete_Rental")
+    rental_finish_start = capture.index("function Restore_Zoo_Finish_Rental")
+    rental_visit_start = capture.index("function Restore_Zoo_Visited")
+    tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
+    rental_check = capture[rental_check_start:rental_start]
+    rental_release = capture[rental_start:rental_complete_start]
+    rental_complete = capture[rental_complete_start:rental_finish_start]
+    rental_finish = capture[rental_finish_start:rental_visit_start]
+    rental_visit = capture[rental_visit_start:tame_action_start]
+    rental_check_order = tuple(
+        rental_check.find(snippet)
+        for snippet in (
+            'thisagent\'s "Num_Followers" > 0',
+            "$RandomNumber ( 100 ) + 1 >= #Percent_Chance_To_Buy_Stats",
+            '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
+            "#ATTRIB_EmbassyActiveFlag",
+            "$Restore_Zoo_Find_Rentable_Captive (",
+            '$Loyalty_Mod_Pick_Closest (',
+            'thisagent\'s "TaskName" = "Rent_Beast"',
+            "$SpecifyIntent ( thisagent, #intent_renting_beast )",
+        )
+    )
+    if -1 in rental_check_order or rental_check_order != tuple(
+        sorted(rental_check_order)
+    ):
+        errors.append(
+            "Rental shopping must preserve the stock chance/search/selection/task order"
+        )
+    rental_release_order = tuple(
+        rental_release.find(snippet)
+        for snippet in (
+            "$ClearEngineDeathFlags ( captive )",
+            '$KillThread ( captive\'s "ActiveScript" )',
+            'zoo\'s "Occupants" -= captive',
+            "$Unhide ( captive )",
+            "#ATTRIB_MaxHP",
+            "$Control_Monster ( buyer, captive )",
+            '$NewThread ( captive\'s "ActiveScript", #Normal_Cycle, captive )',
+            "$Restore_Refresh_Zoo_Capacity ( zoo )",
+        )
+    )
+    if -1 in rental_release_order or rental_release_order != tuple(
+        sorted(rental_release_order)
+    ):
+        errors.append(
+            "Rented beasts must leave storage through Mausoleum ordering before "
+            "stock Control_Monster and a fresh active thread"
+        )
+    rental_complete_order = tuple(
+        rental_complete.find(snippet)
+        for snippet in (
+            "#ATTRIB_EmbassyActiveFlag",
+            'thisagent\'s "Num_Followers" == 0',
+            "$Restore_Zoo_Find_Rentable_Captive (",
+            "$Total_Gold ( thisagent ) >= cost",
+            "$Spend_Gold ( thisagent, zoo, cost )",
+            "$Restore_Zoo_Start_Rented_Beast (",
+            'thisagent\'s "ActiveScript" = $Restore_Zoo_Finish_Rental',
+        )
+    )
+    if -1 in rental_complete_order or rental_complete_order != tuple(
+        sorted(rental_complete_order)
+    ):
+        errors.append(
+            "Rental completion must revalidate before stock hero payment and release"
+        )
+    if not (
+        rental_finish.find("$Exit_Building ( thisagent, zoo )")
+        < rental_finish.find("$Restore_Refresh_Zoo_Capacity ( zoo )")
+    ):
+        errors.append("Rental finish must exit the hero before refreshing Zoo capacity")
+    rental_visit_order = tuple(
+        rental_visit.find(snippet)
+        for snippet in (
+            'thisagent\'s "TaskName" == "Rent_Beast"',
+            "$Enter_Building ( thisagent, thisagent's \"Target\" )",
+            "#Upgrade_Equipment_Visit_Duration",
+            'thisagent\'s "ActiveScript" = $Restore_Zoo_Complete_Rental',
+            "$Upgrade_Equipment ( thisagent )",
+        )
+    )
+    if -1 in rental_visit_order or rental_visit_order != tuple(
+        sorted(rental_visit_order)
+    ):
+        errors.append(
+            "Zoo visits must use the stock equipment duration for rentals and "
+            "retain the abandoned fallback"
+        )
+    if "$ListSize ( visitors ) +" in capture:
+        errors.append(
+            "Zoo capacity must exclude heroes temporarily registered by Use_Building"
+        )
     if "upgradescript2" in gpl:
         errors.append(
             "Generic Building does not declare upgradescript2; Zoo upgrade polling must use its declared completion slot"
@@ -1134,7 +1338,9 @@ def validate(root: Path) -> list[str]:
         'thisagent\'s "ActiveScript" = $Restore_Zoo_Breakout_Check'
     )
     hidden_arrival = capture.index("if ( $IsHidden ( thisagent ))")
-    final_capacity = capture.index("if ( $ListSize ( visitors ) >= limit )")
+    final_capacity = capture.index(
+        "if ( $Restore_Zoo_Captive_Count ( zoo ) >= limit )"
+    )
     owner_reset = capture.index("$Reset_Tasks ( owner )", storage_enter)
     if not (
         hidden_arrival

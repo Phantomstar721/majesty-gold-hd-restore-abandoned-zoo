@@ -12,6 +12,7 @@
 // stock intent or quest message.
 expression #intent_waiting_in_zoo 199
 expression #intent_capturing_monster 198
+expression #intent_renting_beast 197
 
 // Stock Garrison_Scan_Or_Leave rolls 1..100 with a strict less-than
 // comparison. A threshold of 6 therefore gives an effective 5% chance on each
@@ -59,7 +60,229 @@ function Restore_Zoo_Tame_Cost ( agent visitor ) is integer
 // The 500-gold step is invented Zoo balance: ranks 1-8 cost 500-4000 gold.
 declare
 begin
+	if ( $IsValidGamePiece ( visitor ) == FALSE )
+		return 0;
+	if ( visitor's "Original_Type" != "Monster" )
+		return 0;
+
 	return $Restore_Zoo_Threat_Rank ( visitor ) * 500;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Is_Stored_Captive (
+	agent visitor, agent zoo ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// Use the stock Original_Type discriminator to separate subdued monsters from
+// ordinary heroes temporarily visiting the Zoo through Use_Building.
+declare
+begin
+	if ( $IsValidGamePiece ( visitor ))
+		if ( visitor's "Original_Type" == "Monster" )
+			if ( $GetBuildingContainer ( visitor ) == zoo )
+				if ( $AgentInList ( visitor, zoo's "Occupants" ))
+					return TRUE;
+
+	return FALSE;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Captive_Count ( agent zoo ) is integer
+///////////////////////////////////////////////////////////////////////////////
+// Rental visits add the visiting hero to Occupants through the literal stock
+// Use_Building lifecycle. Count only the monster occupants owned by the Zoo.
+declare
+	list visitors;
+	agent visitor;
+	integer count;
+begin
+	visitors = zoo's "Occupants";
+	count = 0;
+
+	foreach visitor in visitors do
+		begin
+			if ( $Restore_Zoo_Is_Stored_Captive ( visitor, zoo ))
+				count ++;
+		end
+
+	return count;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Find_Rentable_Captive (
+	agent zoo, agent buyer ) is agent
+///////////////////////////////////////////////////////////////////////////////
+// Stock shopping selects from affordable offers before committing to a visit.
+// Among the Zoo's affordable occupants, select the highest priced (and thus
+// highest Threat Rank) captive so a wealthier hero can obtain a stronger ally.
+declare
+	list visitors;
+	agent visitor, selected;
+	integer available_gold, cost, selected_cost;
+begin
+	visitors = zoo's "Occupants";
+	available_gold = $Total_Gold ( buyer );
+	selected = $NullAgent ();
+	selected_cost = 0;
+
+	foreach visitor in visitors do
+		begin
+			if ( $Restore_Zoo_Is_Stored_Captive ( visitor, zoo ))
+				if ( $IsDead ( visitor ) == FALSE )
+					begin
+						cost = $Restore_Zoo_Tame_Cost ( visitor );
+						if ( cost <= available_gold && cost > selected_cost )
+							begin
+								selected = visitor;
+								selected_cost = cost;
+							end
+					end
+		end
+
+	return selected;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Rental_Check ( agent thisagent ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// This callback belongs at the final false branch of stock Purchase_Bazaar.
+// Heroes therefore consider all ordinary equipment, permanent upgrades, and
+// Magic Bazaar items first. Its random decision copies Stat_Boost_Check's
+// shipped 1..100 comparison and percentage constant.
+declare
+	list zoos, rentable_zoos;
+	agent zoo, captive;
+	integer search_dist;
+begin
+	// Stock Control_Monster accounts for followers on the hero. Ordinary heroes
+	// may rent one beast; existing Cultist/Priestess followers keep them out.
+	if ( thisagent's "Num_Followers" > 0 )
+		return FALSE;
+
+	if ( $RandomNumber ( 100 ) + 1 >= #Percent_Chance_To_Buy_Stats )
+		return FALSE;
+
+	search_dist = $GetAttribute ( thisagent, #ATTRIB_SightRange ) *
+		( $GetAttribute ( thisagent, #ATTRIB_Intelligence ) / 2 );
+	$ListObjects ( thisagent, "building", search_dist, zoos,
+		#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1 );
+
+	foreach zoo in zoos do
+		begin
+			if ( $GetAttribute ( zoo, #ATTRIB_EmbassyActiveFlag ) != 0 )
+				begin
+					captive = $Restore_Zoo_Find_Rentable_Captive (
+						zoo, thisagent );
+					if ( $IsValidGamePiece ( captive ))
+						rentable_zoos << zoo;
+				end
+		end
+
+	if ( $ListSize ( rentable_zoos ) > 0 )
+		begin
+			thisagent's "Target" = $Loyalty_Mod_Pick_Closest (
+				thisagent, rentable_zoos );
+			thisagent's "TaskName" = "Rent_Beast";
+			$SpecifyIntent ( thisagent, #intent_renting_beast );
+			return TRUE;
+		end
+
+	return FALSE;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Start_Rented_Beast (
+	agent captive, agent buyer, agent zoo )
+///////////////////////////////////////////////////////////////////////////////
+// Mausoleum_Resurrect_Begin supplies the stored-agent removal boundary;
+// Mausoleum_Resurrect_Finish supplies the new ActiveScript thread start. The
+// released monster then enters the literal stock Cultist Control_Monster path.
+declare
+begin
+	$SpecifyIntent ( captive, #Intent_Thinking );
+	$ClearEngineDeathFlags ( captive );
+	$KillThread ( captive's "ActiveScript" );
+	zoo's "Occupants" -= captive;
+	$Unhide ( captive );
+
+	$SetAttribute (
+		captive, #ATTRIB_HP, $GetAttribute ( captive, #ATTRIB_MaxHP ));
+	$SetAttribute ( captive, #ATTRIB_NotFlaggable, 0 );
+	$SetAttribute ( captive, #ATTRIB_NotSpellTarget, 0 );
+	captive's "leader" = $NullAgent ();
+	captive's "Target" = $NullAgent ();
+	captive's "Special_Boolean" = FALSE;
+
+	$Control_Monster ( buyer, captive );
+	$NewThread ( captive's "ActiveScript", #Normal_Cycle, captive );
+	$Restore_Refresh_Zoo_Capacity ( zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Complete_Rental ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Obtain_Upgrade revalidates and pays after the visit delay, then hands
+// off to a final exit task. Do the same so closing rentals, a breakout, another
+// buyer, or a new follower acquired in transit safely cancels the purchase.
+declare
+	agent zoo, captive;
+	integer cost;
+begin
+	zoo = thisagent's "Target";
+	$SetThreadInterval ( thisagent's "ActiveScript", #Normal_Cycle );
+
+	if ( $IsValidGamePiece ( zoo ))
+		if ( $IsDead ( zoo ) == FALSE )
+			if ( $GetAttribute ( zoo, #ATTRIB_EmbassyActiveFlag ) != 0 )
+				if ( thisagent's "Num_Followers" == 0 )
+					begin
+						captive = $Restore_Zoo_Find_Rentable_Captive (
+							zoo, thisagent );
+						if ( $IsValidGamePiece ( captive ))
+							begin
+								cost = $Restore_Zoo_Tame_Cost ( captive );
+								if ( $Total_Gold ( thisagent ) >= cost )
+									begin
+										$Spend_Gold ( thisagent, zoo, cost );
+										$Restore_Zoo_Start_Rented_Beast (
+											captive, thisagent, zoo );
+									end
+							end
+					end
+
+	thisagent's "ActiveScript" = $Restore_Zoo_Finish_Rental;
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Finish_Rental ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Literal Done_Enhancing_Equipment exit/reset shape without its blacksmith
+// effects or Palace trip counter.
+declare
+	agent zoo;
+begin
+	zoo = thisagent's "Target";
+	$Exit_Building ( thisagent, zoo );
+	if ( $IsValidGamePiece ( zoo ))
+		$Restore_Refresh_Zoo_Capacity ( zoo );
+end
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Visited ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Use_Building dispatches through the target's Visited_Script. Rental keeps the
+// exact Upgrade_Equipment visit-duration shape; any non-rental visit retains
+// the abandoned Zoo's shipped Upgrade_Equipment callback.
+declare
+begin
+	if ( thisagent's "TaskName" == "Rent_Beast" )
+		begin
+			$Enter_Building ( thisagent, thisagent's "Target" );
+			$SetThreadInterval (
+				thisagent's "ActiveScript", #Upgrade_Equipment_Visit_Duration );
+			thisagent's "ActiveScript" = $Restore_Zoo_Complete_Rental;
+		end
+	else
+		$Upgrade_Equipment ( thisagent );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -82,7 +305,7 @@ begin
 		return;
 	if ( zoo's "Title" != "Zoo" )
 		return;
-	if ( $AgentInList ( thisagent, zoo's "Occupants" ) == FALSE )
+	if ( $Restore_Zoo_Is_Stored_Captive ( thisagent, zoo ) == FALSE )
 		return;
 
 	$SpecifyIntent ( thisagent, #intent_patrolling_city );
@@ -141,7 +364,8 @@ begin
 			visitors = thisagent's "Occupants";
 			foreach visitor in visitors do
 				begin
-					if ( $IsValidGamePiece ( visitor ))
+					if ( $Restore_Zoo_Is_Stored_Captive (
+						visitor, thisagent ))
 						revenue += thisagent's "Revenue_Amount" *
 							$Restore_Zoo_Threat_Rank ( visitor );
 				end
@@ -221,8 +445,14 @@ begin
 									begin
 										if ( $IsValidGamePiece ( guy ))
 											begin
-												$Restore_Zoo_Release_Captive (
-													guy, thisagent );
+												if ( $Restore_Zoo_Is_Stored_Captive (
+													guy, thisagent ))
+													$Restore_Zoo_Release_Captive (
+														guy, thisagent );
+												else if ( $IsDead ( guy ) == FALSE )
+													$Exit_Building ( guy, thisagent );
+												else
+													$Be_Dead ( guy );
 
 												thisagent's "Occupants" -= guy;
 											end
@@ -353,7 +583,7 @@ begin
 		return;
 
 	visitors = zoo's "Occupants";
-	occupied = $ListSize ( visitors ) +
+	occupied = $Restore_Zoo_Captive_Count ( zoo ) +
 		$Restore_Zoo_Pending_Reservations ( zoo );
 	limit = $Restore_Zoo_Visitor_Limit ( zoo );
 
@@ -445,7 +675,7 @@ begin
 	foreach zoo in zoos do
 		begin
 			visitors = zoo's "Occupants";
-			occupied = $ListSize ( visitors ) +
+			occupied = $Restore_Zoo_Captive_Count ( zoo ) +
 				$Restore_Zoo_Pending_Reservations ( zoo );
 			limit = $Restore_Zoo_Visitor_Limit ( zoo );
 
@@ -557,7 +787,7 @@ begin
 	// used by the private placement gate; the unlatched current captive is not
 	// yet part of Restore_Zoo_Pending_Reservations.
 	visitors = zoo's "Occupants";
-	committed = $ListSize ( visitors ) +
+	committed = $Restore_Zoo_Captive_Count ( zoo ) +
 		$Restore_Zoo_Pending_Reservations ( zoo );
 	limit = $Restore_Zoo_Visitor_Limit ( zoo );
 	if ( committed >= limit )
@@ -721,7 +951,7 @@ begin
 			// allow a delivered captive to overfill the Zoo.
 			visitors = zoo's "Occupants";
 			limit = $Restore_Zoo_Visitor_Limit ( zoo );
-			if ( $ListSize ( visitors ) >= limit )
+			if ( $Restore_Zoo_Captive_Count ( zoo ) >= limit )
 				begin
 					if ( $IsValidGamePiece ( owner ))
 						if ( $IsDead ( owner ) == FALSE )

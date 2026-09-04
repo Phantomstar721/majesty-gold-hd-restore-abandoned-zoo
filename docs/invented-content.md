@@ -383,13 +383,59 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   applying those stock values to every tame is new Zoo balance. The price is
   invented as `500 * Threat Rank`, or 500-4000 gold across ranks 1-8; Majesty
   contains no surviving Zoo taming-price table.
+- Hero rental connects three stock lifecycles that were not connected in the
+  abandoned implementation: the Embassy's paired open/close state, the final
+  false branch of `Purchase_Bazaar`, and Cultist `Control_Monster` follower
+  ownership. The Zoo begins closed because the stock
+  `ATTRIB_EmbassyActiveFlag` default is zero. The labels describe the current
+  state as **Rent Closed** and **Rent Open** rather than copying the
+  Embassy's imperative button wording.
+- The Zoo parent-panel layout splits the abandoned Place Reward row into two
+  equal actions: an AP39 half-width reward opener on the left and two
+  overlapping AP39 half-width action controls presenting the MX22-cloned rental
+  state toggle on the right. The shortened labels **REWARD**, **RENT OPEN**, and
+  **RENT CLOSED** are new presentation; the actions and state lifecycle remain
+  the documented stock clones.
+- Rental consideration uses the literal `Stat_Boost_Check` random expression
+  and its shipped `#Percent_Chance_To_Buy_Stats` value. This gives the rental
+  check the same effective 49% decision chance, but applying that stock chance
+  to monster rental is inferred balance. Its position after both the complete
+  equipment chain and Magic Bazaar shopping is requested behavior.
+- A hero can rent only when its stock `Num_Followers` count is zero. This
+  single-follower policy is invented integration balance: it prevents ordinary
+  heroes from accumulating an army and gives Priestess/Cultist summons priority
+  without class-specific title checks. The follower increment, death cleanup,
+  leader ownership, charm delay, following, combat assistance, and reversion
+  after losing the leader are all stock `Control_Monster` behavior.
+- If more than one captive is affordable, the hero rents the highest-cost and
+  therefore highest-Threat-Rank option. That deterministic preference is an
+  invented selection rule intended to make larger hero purses meaningful; no
+  surviving Zoo buyer preference exists. Arrival rechecks open state, follower
+  count, occupant validity, and affordability so races cancel without payment.
+- Rental uses the existing Tame Beast price and restores the purchased captive
+  to full HP before stock control. The full heal is inferred purchase value,
+  matching the existing Tame release but not a recovered rental rule.
+- Stock `Use_Building` temporarily inserts the visiting buyer into the Zoo's
+  `Occupants` list. Capacity, revenue, release, and AI selection now identify
+  real cages through valid `Original_Type == Monster` occupants whose building
+  container is that Zoo. This filter is integration glue needed to preserve the
+  stock visit lifecycle without counting or resetting the visiting hero as a
+  captive.
+- The Deal with a Demon test override now spawns one Warrior, Ranger, Rogue,
+  and Wizard at level 20 with 50,000 personal gold apiece. It uses the stock
+  quest-army `SpawnUnit -> Advance_To_Level -> explicit equipment` pattern,
+  then fills ordinary equipment, healing potion, ring, powerful-item, and stat
+  training gates solely to make the final Zoo-rental shopping branch practical
+  to exercise. These heroes are test-fixture cheats and are not part of normal
+  Zoo gameplay.
 
-## Surviving placeholder content
+## Replaced placeholder content
 
-- `Visited_Script Upgrade_Equipment` is retained in private levels 1 and 2
-  because it is present in the shipped Zoo prototypes. This Blacksmith-derived
-  placeholder remains part of the literal stock clone until basic construction
-  is proven.
+- The shipped levels 1 and 2 use the obvious Blacksmith placeholder
+  `Visited_Script Upgrade_Equipment`; level 3 omits a visit callback. All three
+  private Zoo levels now use `Restore_Zoo_Visited`, which delegates any
+  non-rental visit back to stock `Upgrade_Equipment` and handles only the
+  private `Rent_Beast` task through the new rental transaction.
 
 ## Still deferred
 

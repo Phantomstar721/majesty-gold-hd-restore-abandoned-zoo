@@ -28,6 +28,18 @@
       "action_callback_symbol": "Restore_Zoo_Tame_Beast"
     },
     {
+      "type": "stock.mx22-building-open-toggle.v1",
+      "toggle_key": "hero-rentals",
+      "parent_building": "Restore_Zoo",
+      "open_command_id": 10801,
+      "close_command_id": 10802
+    },
+    {
+      "type": "stock.gplmx-purchase-bazaar-tail.v1",
+      "callback_key": "zoo-rental",
+      "callback_symbol": "Restore_Zoo_Rental_Check"
+    },
+    {
       "type": "stock.ap41-fl00-hostile-monster-flag.v1",
       "panel_key": "capture-rewards",
       "action_key": "capture",

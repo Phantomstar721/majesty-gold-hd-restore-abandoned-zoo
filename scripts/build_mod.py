@@ -22,6 +22,8 @@ PALACE_REWARDS_CONTROL_ID = 0x1389
 ZOO_REWARDS_DIALOG_ID = b"ZC01"
 ZOO_TAME_DIALOG_ID = b"ZT01"
 ZOO_TAME_OPEN_COMMAND_ID = 0x2A30
+ZOO_RENT_OPEN_COMMAND_ID = 0x2A31
+ZOO_RENT_CLOSE_COMMAND_ID = 0x2A32
 ZOO_REWARDS_BACKGROUND_SOURCE = b"INBgbuilding dialog"
 ZOO_REWARDS_BACKGROUND_CUSTOM = b"ZOBGbuilding dialog"
 ZOO_REWARDS_BACKGROUND_TOKEN = b"ZOBG"
@@ -59,8 +61,17 @@ AP02_VISITORS_RECORD_START = 0x013C
 AP02_VISITORS_RECORD_END = 0x01D4
 MX09_VISITORS_RECORD_START = 0x013C
 MX09_VISITORS_RECORD_END = 0x01C4
+MX09_PLACE_REWARD_CONTROL_START = 0x0834
+MX09_PLACE_REWARD_CONTROL_END = 0x08BC
 MX09_PLACE_REWARD_COMMAND_OFFSET = 0x0898
+ZOO_PLACE_REWARD_RECT = (7, 190, 89, 22)
 AP39_REWARDS_COMMAND_OFFSET = 0x0130
+AP39_REWARDS_CONTROL_START = 0x00D4
+AP39_REWARDS_CONTROL_END = 0x0164
+AP39_REWARDS_CONTROL_RECT = (106, 192, 89, 22)
+AP39_ACTION_LABEL_INDEX_OFFSET = 0x1C
+AP39_ACTION_TOOLTIP_INDEX_OFFSET = 0x24
+AP39_ACTION_COMMAND_OFFSET = 0x5C
 AP41_EXPLORE_CONTROLS = (
     (0x00A0, 0x0118, (0x1388,)),  # Increase Explore reward.
     (0x0118, 0x0190, (0x1389,)),  # Decrease Explore reward.
@@ -75,11 +86,10 @@ AP10_SECONDARY_CONTROL_START = 0x0D2C
 AP10_SECONDARY_CONTROL_END = 0x0DF0
 AP10_SECONDARY_CONTROL_RECT = (103, 162, 93, 26)
 ZOO_TAME_CONTROL_RECT = (7, 217, 93, 26)
+ZOO_RENT_CONTROL_RECT = (106, 190, 89, 22)
 AP10_SECONDARY_LABEL_INDEX_OFFSET = 0x30
 AP10_SECONDARY_TOOLTIP_INDEX_OFFSET = 0x38
 AP10_SECONDARY_COMMAND_OFFSET = 0x88
-
-
 @dataclass(frozen=True)
 class CamEntry:
     name: bytes
@@ -316,8 +326,34 @@ def restore_zoo_visitors_control(zoo_menu: bytes, blacksmith_menu: bytes) -> byt
     )
 
 
+def clone_ap39_half_button(
+    palace_menu: bytes,
+    *,
+    rectangle: tuple[int, int, int, int],
+    label_index: int,
+    tooltip_index: int,
+    command_id: int,
+) -> bytes:
+    """Clone AP39's complete half-width REWARDS action control."""
+    source = bytearray(
+        palace_menu[AP39_REWARDS_CONTROL_START:AP39_REWARDS_CONTROL_END]
+    )
+    if len(source) != 0x90 or source[-4:] != b"\xff" * 4:
+        raise ValueError("Stock AP39 REWARDS control boundary changed")
+    if struct.unpack_from("<4I", source, 0x08) != AP39_REWARDS_CONTROL_RECT:
+        raise ValueError("Stock AP39 REWARDS control rectangle changed")
+    if u32(source, AP39_ACTION_COMMAND_OFFSET) != PALACE_REWARDS_CONTROL_ID:
+        raise ValueError("Stock AP39 REWARDS control command changed")
+
+    struct.pack_into("<4I", source, 0x08, *rectangle)
+    struct.pack_into("<I", source, AP39_ACTION_LABEL_INDEX_OFFSET, label_index)
+    struct.pack_into("<I", source, AP39_ACTION_TOOLTIP_INDEX_OFFSET, tooltip_index)
+    struct.pack_into("<I", source, AP39_ACTION_COMMAND_OFFSET, command_id)
+    return bytes(source)
+
+
 def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
-    """Give MX09's orphaned reward button AP39's literal REWARDS command."""
+    """Replace MX09's wide orphan with AP39's stock half-width action control."""
     zoo_command = struct.pack("<I", ZOO_PLACE_REWARD_CONTROL_ID)
     palace_command = struct.pack("<I", PALACE_REWARDS_CONTROL_ID)
     if zoo_menu.count(zoo_command) != 1:
@@ -328,14 +364,23 @@ def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
         MX09_PLACE_REWARD_COMMAND_OFFSET : MX09_PLACE_REWARD_COMMAND_OFFSET + 4
     ] != zoo_command:
         raise ValueError("Stock MX09 Place Reward command offset changed")
-
-    patched = bytearray(zoo_menu)
-    patched[
-        MX09_PLACE_REWARD_COMMAND_OFFSET : MX09_PLACE_REWARD_COMMAND_OFFSET + 4
-    ] = palace_menu[
-        AP39_REWARDS_COMMAND_OFFSET : AP39_REWARDS_COMMAND_OFFSET + 4
+    abandoned = zoo_menu[
+        MX09_PLACE_REWARD_CONTROL_START:MX09_PLACE_REWARD_CONTROL_END
     ]
-    return bytes(patched)
+    if len(abandoned) != 0x88 or abandoned[-4:] != b"\xff" * 4:
+        raise ValueError("Stock MX09 Place Reward control boundary changed")
+    replacement = clone_ap39_half_button(
+        palace_menu,
+        rectangle=ZOO_PLACE_REWARD_RECT,
+        label_index=22,
+        tooltip_index=23,
+        command_id=PALACE_REWARDS_CONTROL_ID,
+    )
+    return (
+        zoo_menu[:MX09_PLACE_REWARD_CONTROL_START]
+        + replacement
+        + zoo_menu[MX09_PLACE_REWARD_CONTROL_END:]
+    )
 
 
 def add_zoo_tame_control(zoo_menu: bytes, ap10_menu: bytes) -> bytes:
@@ -364,6 +409,33 @@ def add_zoo_tame_control(zoo_menu: bytes, ap10_menu: bytes) -> bytes:
     # control; only the second is the stream terminator. Preserve the former
     # in place and insert the complete AP10 record before the latter.
     return zoo_menu[:-4] + bytes(source) + zoo_menu[-4:]
+
+
+def add_zoo_rental_controls(zoo_menu: bytes, palace_menu: bytes) -> bytes:
+    """Append paired AP39 half-width controls for the MX22 toggle lifecycle."""
+    if zoo_menu[-8:] != b"\xff" * 8:
+        raise ValueError("Patched MX09 no longer has its two-word terminal marker")
+    if zoo_menu.count(struct.pack("<I", ZOO_RENT_OPEN_COMMAND_ID)):
+        raise ValueError("MX09 unexpectedly contains the private rental-open command")
+    if zoo_menu.count(struct.pack("<I", ZOO_RENT_CLOSE_COMMAND_ID)):
+        raise ValueError("MX09 unexpectedly contains the private rental-close command")
+
+    specs = (
+        (ZOO_RENT_CLOSE_COMMAND_ID, 28, 29),
+        (ZOO_RENT_OPEN_COMMAND_ID, 30, 31),
+    )
+    records = [
+        clone_ap39_half_button(
+            palace_menu,
+            rectangle=ZOO_RENT_CONTROL_RECT,
+            label_index=label,
+            tooltip_index=tooltip,
+            command_id=command,
+        )
+        for command, label, tooltip in specs
+    ]
+
+    return zoo_menu[:-4] + b"".join(records) + zoo_menu[-4:]
 
 
 def privatize_zoo_tame_menu(mausoleum_menu: bytes) -> bytes:
@@ -448,11 +520,17 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
             {
                 0: "A completed Zoo makes Capture Flags on living monsters trigger the stock Hooligan return lifecycle.",
                 4: "Destroy this Zoo.",
+                22: "REWARD",
+                23: "Open the Zoo's Capture reward panel.",
             },
         ),
         (
             "TAME BEAST",
             "Open the Zoo's Tame Beast panel.",
+            "RENT OPEN",
+            "Close the Zoo to hero rentals.",
+            "RENT CLOSED",
+            "Open the Zoo to hero rentals.",
         ),
     )
     zoo_rewards_strings = patch_indexed_strt(
@@ -495,7 +573,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
             fourcc_id("hZ01"): (
                 "- Restored civic building\n\n"
                 "- May be upgraded twice\n\n"
-                "- Enables Attack Flags to turn living monsters into stock Hooligans\n\n\n"
+                "- Enables Capture Flags to turn living monsters into stock Hooligans\n\n\n"
                 "\x01BCBCFFThese long-abandoned grounds hint at an unfinished royal plan to exhibit Ardania's creatures."
             ),
             fourcc_id("hZ02"): (
@@ -512,6 +590,7 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
     patched_advisor_text = patch_indexed_strt(
         advisor_text.data,
         {
+            197: "Renting a beast",
             198: "Capturing a monster",
             199: "waiting in the zoo",
         },
@@ -525,14 +604,17 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                 (
                     CamEntry(
                         pad_name(b"MX09"),
-                        add_zoo_tame_control(
-                            restore_zoo_visitors_control(
-                                restore_zoo_reward_dispatch(
-                                    stock_menu.data, stock_palace_menu.data
+                        add_zoo_rental_controls(
+                            add_zoo_tame_control(
+                                restore_zoo_visitors_control(
+                                    restore_zoo_reward_dispatch(
+                                        stock_menu.data, stock_palace_menu.data
+                                    ),
+                                    stock_blacksmith_menu.data,
                                 ),
-                                stock_blacksmith_menu.data,
+                                stock_ap10_menu.data,
                             ),
-                            stock_ap10_menu.data,
+                            stock_palace_menu.data,
                         ),
                     ),
                     CamEntry(

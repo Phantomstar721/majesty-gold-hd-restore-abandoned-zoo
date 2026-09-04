@@ -681,6 +681,57 @@ are spawned with sight 250, so Tame Beast applies 250 as a minimum and leaves
 any stronger monster value unchanged. Applying those inputs to all Zoo tames
 is balance glue; no Guardian targeting or movement code is replaced.
 
+## Hero rental
+
+Expansion `SMNU/MX22` supplies the exact paired Embassy controls. Its close
+record occupies bytes `0x40..0xCC` and dispatches `0x22AC`; its open record
+occupies `0x114..0x1A0` and dispatches `0x22AB`. Both are 140-byte records at
+rectangle `(7,219,139,21)` and differ only in their label/tooltip fields, one
+internal presentation word, and command. The native MX22 controller reads
+`ATTRIB_EmbassyActiveFlag` from the selected building, submits order type
+`0x16`, and swaps the two controls on refresh. That order also creates or
+cancels `GS_EmbassyRecruitOrder`, so the Zoo may clone only the state and
+presentation seam—not the order itself.
+
+Base-game `SMNU/AP39` supplies the exact half-width action presentation needed
+for the Zoo's two-column row. Its REWARDS record occupies `0xD4..0x164`, uses
+rectangle `(106,192,89,22)`, stock `INBb` set `0x3F8`, and command `0x1389`.
+The Zoo clones this record for both actions, changing only rectangle, text
+indices, and command. MX22 still supplies the open/closed state and visibility
+lifecycle; AP39 supplies only the stock button presentation.
+
+All expansion hero decision trees call `Purchase_Equipment` after `rest`, then
+call `Purchase_Bazaar`. Within `mx_Purchase_Equipment.gpl`, the final nested
+branch is `Stat_Boost_Check`; only after every gear and consumable check has
+failed does the tree proceed to the Bazaar. `Purchase_Bazaar` considers all six
+researched item slots before its final false return. The rental check is
+composed at that later false boundary. Its search distance and
+completed-player-building query use the same stock shopping expressions. The
+random consideration gate is copied literally from `Stat_Boost_Check`,
+including `#Percent_Chance_To_Buy_Stats`.
+
+Stock `Use_Building` travels to the selected target, hides the hero, adds it to
+that building's `Occupants`, and dispatches the building's `Visited_Script`.
+`Upgrade_Equipment` then supplies the visit-duration handoff;
+`Obtain_Upgrade` demonstrates revalidation/payment through `Spend_Gold`; and
+`Done_Enhancing_Equipment` exits and resets the hero. The Zoo rental callback
+uses the same boundaries, changing only the purchased result.
+
+The result is the literal expansion Cultist path in
+`mx_Control_Monster.gpl` and `mx_Controlled_Monster.gpl`.
+`Control_Monster` increments `Num_Followers`, transfers player ownership,
+creates `Charm_icon`, records the hero as `leader`, and schedules
+`fake_wander`. `Become_Controlled` installs `Controlled_Monster`, which wanders
+near the leader and calls the normal monster enemy evaluator while moving.
+Its death callback decrements the same follower count; its leader-loss path
+removes charm and eventually calls `Reset_Controlled` to restore the immutable
+monster `StartingScript` and hostile owner.
+
+The stored monster's previous breakout task is already running, whereas a
+stock Mausoleum occupant's task was killed at interment. Rental therefore
+kills that old task before removal, then copies `Mausoleum_Resurrect_Finish`'s
+fresh `NewThread` boundary after `Control_Monster` selects `fake_wander`.
+
 ## Executable profiles
 
 The private `ZC01`/`ZCF0` dispatcher is traced independently in both maintained

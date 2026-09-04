@@ -12,6 +12,15 @@ the independent generic MX04/MX05 selected-occupant recipe used by Tame Beast;
 its stock trace and GPL adaptation are documented in
 [`tame-beast-stock-clone.md`](tame-beast-stock-clone.md).
 
+Hero rental adds two more independent generic records: the MX22-derived
+per-building open toggle and the GPLMx `Purchase_Bazaar` tail callback. The
+toggle stores only open/closed state and never invokes Embassy recruitment.
+The purchase recipe composes callbacks at stock's final unclaimed Bazaar
+branch, after equipment shopping has already declined and allowing Zoo rental
+to coexist with other shopping extensions. Their
+trace is documented in
+[`hero-rental-stock-clone.md`](hero-rental-stock-clone.md).
+
 The proposed records contain no Zoo UUID, package name, executable address,
 private DLL, command, callback hook, or filesystem path. Logical keys remain
 package-local and are owner-qualified by the manager.

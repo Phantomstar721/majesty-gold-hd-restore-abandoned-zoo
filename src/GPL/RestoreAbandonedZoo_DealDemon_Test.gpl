@@ -2,15 +2,42 @@
 // Restore Abandoned Zoo: Deal with the Demon test fixture
 //
 // This is the literal stock MX DEAL_DEMON entry point with one completed-
-// building SpawnUnit call added after the first Palace is resolved.
+// building SpawnUnit call and a focused hero-rental test party added after the
+// first Palace is resolved.
 ///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Prepare_Rental_Test_Hero ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Spawn_Elves/Spawn_Dwarves use Advance_To_Level followed by explicit
+// equipment attributes for quest-provided veteran heroes. This test-only helper
+// uses the same shape and pre-fills ordinary purchases so Zoo rental reaches the
+// deliberately last shopping branch quickly.
+declare
+begin
+	$Advance_To_Level ( thisagent, 20 );
+	$SetAttribute ( thisagent, #ATTRIB_Gold, 50000 );
+	$SetAttribute ( thisagent, #ATTRIB_StoredGold, 0 );
+	$SetAttribute ( thisagent, #ATTRIB_Armor_Struct_Bonus, 3 );
+	$SetAttribute ( thisagent, #ATTRIB_Weapon_Struct_Bonus, 3 );
+	$SetAttribute ( thisagent, #ATTRIB_Armor_Magic_Bonus, 3 );
+	$SetAttribute ( thisagent, #ATTRIB_Weapon_Magic_Bonus, 3 );
+	$SetAttribute ( thisagent, #ATTRIB_WeaponPoisoned, 1 );
+	$SetAttribute ( thisagent, #ATTRIB_NumHealingPotions, #Max_Heal_Potions );
+	$SetAttribute ( thisagent, #ATTRIB_Dodge, 95 );
+	$SetAttribute ( thisagent, #ATTRIB_Parry, 95 );
+	$CreateNewInventoryItem ( #MarketItem_Ring_Protection, thisagent );
+	$CreateNewInventoryItem ( #MarketItem_Market3_Item, thisagent );
+	$SetAttribute (
+		thisagent, #ATTRIB_HP, $GetAttribute ( thisagent, #ATTRIB_MaxHP ));
+end
 
 ///////////////////////////////////////////////////////////////////////////////
 // A Deal with the Demon Quest entry point
 function DEAL_DEMON()
 
 declare
-	agent AIRootAgent,palace,guild,lair;
+	agent AIRootAgent,palace,guild,lair,hero;
 	list guilds,palaces,lairs;
 	integer treasury_gold;
 
@@ -28,6 +55,17 @@ begin
 
 	// Stock Dead Heroes event completed-building spawn shape, using Zoo 1.
 	$SpawnUnit (Palace, "Restore_Zoo1", "MaxHP", $RandomCoord (Palace, 200) );
+
+	// Stock Wandering_Heroes/quest-army spawn shape, then the veteran hero
+	// preparation above. All of this remains confined to Deal with the Demon.
+	hero = $SpawnUnit ( palace, "Warrior", $RandomCoord ( palace, 250 ));
+	$Restore_Zoo_Prepare_Rental_Test_Hero ( hero );
+	hero = $SpawnUnit ( palace, "Ranger", $RandomCoord ( palace, 250 ));
+	$Restore_Zoo_Prepare_Rental_Test_Hero ( hero );
+	hero = $SpawnUnit ( palace, "Rogue", $RandomCoord ( palace, 250 ));
+	$Restore_Zoo_Prepare_Rental_Test_Hero ( hero );
+	hero = $SpawnUnit ( palace, "Wizard", $RandomCoord ( palace, 250 ));
+	$Restore_Zoo_Prepare_Rental_Test_Hero ( hero );
 
 	//Start playing music
 	$Setup_Quest_Music (AiRootAgent);

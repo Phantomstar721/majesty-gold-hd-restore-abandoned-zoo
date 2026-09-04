@@ -84,6 +84,10 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 - a new **Tame Beast** control at the same lower-left position as the
   Alchemist Laboratory's Brewing control opens a private Zoo-themed clone of
   the stock Mausoleum selected-occupant panel;
+- the **Place Reward** row is split into two equal actions: reward placement on
+  the left and a paired **Rent Closed** / **Rent Open** toggle on the
+  right; the toggle clones the Embassy's two-control, per-building open state
+  without its unrelated foreign-hero recruitment order;
 - that panel reads the Zoo's existing `Occupants` list directly and uses the
   shared Generic Visitor Lists painter, so every stored monster remains
   generic while displaying its stock icon, Threat Rank, name, action, and HP;
@@ -96,6 +100,17 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   as its home only when no valid Palace exists; the role uses stock monsters'
   usual `Guardian_Mod = 5` and the expansion Palace guard's 250-point sight as
   a minimum, preserving any stronger native sight value;
+- when rentals are open, the final unclaimed branch of stock
+  `Purchase_Bazaar` lets a sufficiently wealthy hero choose a Zoo only after
+  every ordinary equipment, potion, ring, powerful-item, stat-upgrade, and
+  Magic Bazaar check has failed; arrival uses the normal `Use_Building` visit, pays the same
+  `500 * Threat Rank` fee through stock `Spend_Gold`, and releases the strongest
+  captive that hero can afford;
+- the purchased monster then enters the literal Cultist
+  `Control_Monster -> fake_wander -> Become_Controlled -> Controlled_Monster`
+  lifecycle, following its buyer and assisting that hero in combat; a hero may
+  rent only while its stock `Num_Followers` count is zero, so existing
+  Priestess/Cultist followers and a previously rented beast take precedence;
 - each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
   minute and deposits `40 * Threat Rank` gold per valid stored occupant into its own
   coffers for ordinary Tax Collector pickup; Threat Rank reads the monster's
@@ -137,7 +152,8 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 
 See [stock evidence](docs/stock-evidence.md), the [capture stock-clone
 contract](docs/capture-stock-clone.md), the [visitor stock trace](docs/visitor-stock-trace.md),
-the [Tame Beast stock clone](docs/tame-beast-stock-clone.md),
+the [Tame Beast stock clone](docs/tame-beast-stock-clone.md), the [hero rental
+stock clone](docs/hero-rental-stock-clone.md),
 and the complete [invented-content ledger](docs/invented-content.md) before
 changing gameplay.
 
@@ -164,13 +180,18 @@ powershell -ExecutionPolicy Bypass -File scripts\Install-LocalMod.ps1 -ContentOn
 ```
 
 Then select **Restore Abandoned Zoo** in the CAM Merge Manager and launch the
-game through the Manager. Tame Beast depends on the Manager's generic
-MX04/MX05 occupant-action recipe; the legacy standalone Zoo dispatcher covers
-Capture only and cannot open or execute this panel.
+game through the Manager. Tame Beast and hero rentals depend on generic Manager
+recipes; the legacy standalone Zoo dispatcher covers Capture only and cannot
+open or execute these newer panel and shopping paths.
 
 The installed package is
 `Documents\My Games\MajestyHD\Mods\RestoreAbandonedZoo`. Re-running the command
 replaces only that exact package and verifies every deployed file by SHA-256.
+For focused rental testing, the package's Deal with a Demon override begins
+with the completed Zoo, 90,000 sovereign gold, and four level-20 heroes carrying
+50,000 personal gold and completed ordinary shopping upgrades. This test-only
+party is documented in the invented-content ledger and does not affect other
+quests.
 The executable dispatcher explicitly supports both maintained Steam builds:
 default Public `1.5.2.24` and beta2 Multiplayer Support `1.5.2.28`. It selects
 the profile from the executable's stock PE timestamp and validates the complete
@@ -211,7 +232,10 @@ The shipped definition declares the reusable
 `stock.mx09-ap41-reward-panel.v1` and
 `stock.ap41-fl00-hostile-monster-flag.v1` recipes, plus the generic
 `stock.mx04-mx05-occupant-action-panel.v1` selected-occupant purchase recipe
-for Tame Beast. Their stock lifecycle and package contract are recorded in
+for Tame Beast. Hero rental adds the generic
+`stock.mx22-building-open-toggle.v1` state/presentation recipe and the
+`stock.gplmx-purchase-bazaar-tail.v1` low-priority shopping callback. Their
+stock lifecycle and package contract are recorded in
 [`docs/manager-v3-capture-feature-proposal.md`](docs/manager-v3-capture-feature-proposal.md),
 and the retained example definition mirrors the shipping manifest in
 [`docs/examples/mod-definition-v3-manager-candidate.json`](docs/examples/mod-definition-v3-manager-candidate.json).
