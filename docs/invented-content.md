@@ -240,9 +240,12 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Interruption recovery copies the abandoned Zoo's `zoo_flag_poll` ownership
   test: a hero whose Target is no longer the monster has abandoned it. The
   Hooligan stops, clears its stock `Special_Boolean`, returns to its existing
-  Basic lifecycle, and selects one different eligible hero. Applying that flag
-  cancellation rule to a Hooligan and choosing a replacement are new
-  integration behavior; no separate polling thread or controller is added.
+  Basic lifecycle, and selects one different eligible hero. This private seam
+  is restricted to the pre-Hide phase: once stock `Hide` completes, the stock
+  hidden-arrival path takes precedence so a naturally cleared hero task cannot
+  bounce a delivered captive. Applying that flag cancellation rule to a
+  Hooligan and choosing a replacement are new integration behavior; no separate
+  polling thread or controller is added.
 - Stock Hooligans travel independently through `Hide`; stock contains no
   escort-speed synchronization. `ATTRIB_Speed` is an AI comparison rating, not
   a replacement for the unit's movement attachment, so the ineffective
@@ -346,7 +349,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Preventing first-hit ejection copies the shipped living-Mausoleum exception
   at the same global `release_occupants` boundary. The added private-Zoo test is
   integration glue. The branch uses the private Zoo `RevenueScript` identity
-  because its completion callback slot is mutable. On destruction, stock `Reset_Controlled` and
+  because its completion callback slot is mutable, and guards that optional
+  field with stock `HasAttribute` before reading it so unrelated building
+  prototypes are not required to declare the field. On destruction, stock `Reset_Controlled` and
   `Exit_Building` own the hostile reactivation; restoring full HP and clearing
   Capture's `NotFlaggable` / `NotSpellTarget` bits are requested Zoo behavior.
   Captive storage/release uses stock Guardhouse's still-running occupant-task

@@ -201,12 +201,18 @@ function release_occupants ( agent thisagent )
 declare
 	list guys;
 	agent guy;
+	boolean private_zoo;
 begin
 	if ( $HasAttribute ( "Occupants", thisagent ))
 		if ( $ListSize ( thisagent's "Occupants" ) > 0 )
 			begin
-				if ( thisagent's "Title" == "Zoo" &&
-					thisagent's "RevenueScript" == $Restore_Zoo_Revenue )
+				private_zoo = FALSE;
+				if ( thisagent's "Title" == "Zoo" )
+					if ( $HasAttribute ( "RevenueScript", thisagent ))
+						if ( thisagent's "RevenueScript" == $Restore_Zoo_Revenue )
+							private_zoo = TRUE;
+
+				if ( private_zoo )
 					begin
 						if ( $IsDead ( thisagent ))
 							begin
@@ -676,18 +682,24 @@ begin
 	// Literal stock zoo_flag_poll abandonment signal: a seeker that no longer
 	// targets the flag's target has abandoned it.  Return this Hooligan to its
 	// stock Basic lifecycle and reserve it for one different hero.
-	if ( $IsValidGamePiece ( owner ) == FALSE || $IsDead ( owner ) ||
-		owner's "Target" != thisagent ||
-		( owner's "ActiveScript" != $Arrest_Hooligan &&
-		owner's "BackScript" != $Arrest_Hooligan ))
-		begin
-			if ( $IsMoving ( thisagent ))
-				$StopMoving ( thisagent );
-			thisagent's "Special_Boolean" = FALSE;
-			thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
-			$Restore_Assign_Hooligan ( thisagent, owner );
-			return;
-		end
+	// Stock Hooligan_Goto_Palace handles a successful Hide before any other
+	// state transition. The private abandonment seam applies only while the
+	// captive is still outside: Hide can complete between cycles after the hero
+	// has naturally cleared its arrest task, and that completed arrival must not
+	// be mistaken for an interruption and reassigned.
+	if ( $IsHidden ( thisagent ) == FALSE )
+		if ( $IsValidGamePiece ( owner ) == FALSE || $IsDead ( owner ) ||
+			owner's "Target" != thisagent ||
+			( owner's "ActiveScript" != $Arrest_Hooligan &&
+			owner's "BackScript" != $Arrest_Hooligan ))
+			begin
+				if ( $IsMoving ( thisagent ))
+					$StopMoving ( thisagent );
+				thisagent's "Special_Boolean" = FALSE;
+				thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
+				$Restore_Assign_Hooligan ( thisagent, owner );
+				return;
+			end
 
 	// Stock formation tasks converge around their leader by distance.  Here
 	// the destination-owning Hooligan pauses at the stock arrest radius instead,

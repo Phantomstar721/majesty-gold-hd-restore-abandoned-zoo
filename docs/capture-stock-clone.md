@@ -287,11 +287,15 @@ captures.
 
 The surviving Zoo's `zoo_flag_poll` defines abandonment as a living seeker
 whose `Target` is no longer the flagged monster. The Zoo return applies that
-same test in the Hooligan's existing active cycle. When combat, healing, or
-fleeing changes the owner's target, the Hooligan stops, clears
+same test in the Hooligan's existing active cycle while the captive remains
+outside. When combat, healing, or fleeing changes the owner's target before
+stock `Hide` completes, the Hooligan stops, clears
 `Special_Boolean`, returns to `Restore_Hooligan_Basic`, and offers the arrest to
 one different eligible hero. The previous owner remains excluded until a
-replacement accepts it. There is no new thread, watcher, timer, or controller.
+replacement accepts it. Once `Hide` has completed, stock hidden-arrival
+processing takes precedence over abandonment: the hero may naturally clear its
+arrest state between GPL cycles without bouncing the captive back outside.
+There is no new thread, watcher, timer, or controller.
 
 ## Escort pacing
 

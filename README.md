@@ -112,11 +112,15 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 - the mod applies only the successful stock Hooligan-check handoff to one hero,
   leaving that hero's native Basic/Starting scripts untouched so delivery can
   reset cleanly;
-- if combat or fleeing changes that hero's target, the stock Zoo flag
-  abandonment test releases the Hooligan and assigns one different hero;
+- if combat or fleeing changes that hero's target before the captive completes
+  stock `Hide`, the stock Zoo flag abandonment test releases the Hooligan and
+  assigns one different hero; a completed hidden arrival takes precedence so
+  delivery cannot be mistaken for abandonment between GPL cycles;
 - stock attack and spell reactions still call `release_occupants`, but the
   private Zoo is identified by its private revenue function and follows the
-  shipped living-Mausoleum exception, retaining its
+  shipped living-Mausoleum exception; the discriminator first uses stock
+  `HasAttribute` before reading `RevenueScript`, so ordinary buildings without
+  that optional field remain valid. The Zoo retains its
   captives while standing; stock `building_death` reaches the same boundary
   after marking the Zoo dead, at which point every captive is restored to full
   HP through stock `Reset_Controlled` and `Exit_Building` as a hostile monster;

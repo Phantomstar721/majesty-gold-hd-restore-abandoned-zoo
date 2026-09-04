@@ -921,7 +921,9 @@ def validate(root: Path) -> list[str]:
         'thisagent\'s "Familiar" == TRUE',
         "$GetUnitPlayerNumber ( thisagent ) != #Monster_Player",
         "revenue = 0",
+        'if ( $HasAttribute ( "RevenueScript", thisagent ))',
         'thisagent\'s "RevenueScript" == $Restore_Zoo_Revenue',
+        "private_zoo = TRUE",
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -938,6 +940,22 @@ def validate(root: Path) -> list[str]:
     release = capture[release_start:release_end]
     if 'thisagent\'s "birthScript2" == $Restore_Zoo_Building_Birth' in release:
         errors.append("Living-Zoo release protection must not use a mutable callback slot")
+    if 'thisagent\'s "Title" == "Zoo" &&' in release:
+        errors.append(
+            "Living-Zoo release protection must guard the optional RevenueScript "
+            "attribute before reading it"
+        )
+    goto_start = capture.index("function Restore_Hooligan_Goto_Zoo")
+    goto_end = capture.index("function Restore_Begin_Stock_Zoo_Control", goto_start)
+    goto = capture[goto_start:goto_end]
+    prearrival_guard = goto.find("if ( $IsHidden ( thisagent ) == FALSE )")
+    abandonment = goto.find('owner\'s "Target" != thisagent')
+    hidden_arrival = goto.find("if ( $IsHidden ( thisagent ))")
+    if not (0 <= prearrival_guard < abandonment < hidden_arrival):
+        errors.append(
+            "Zoo owner abandonment must apply only before stock Hide completes; "
+            "hidden arrival must retain delivery priority"
+        )
     birth_start = capture.index("function Restore_Zoo_Building_Birth")
     upgrade_complete_start = capture.index("function Restore_Zoo_Upgrade_Complete")
     upgrade_start = capture.index("function Restore_Zoo_Upgrade", upgrade_complete_start + 1)

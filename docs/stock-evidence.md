@@ -428,7 +428,15 @@ The abandoned Zoo's shipped `zoo_flag_poll` treats a hero as having abandoned
 its monster when `hero.Target` no longer equals the flag target; it removes that
 hero from the seeker list. The private Hooligan return uses the same target-loss
 signal to clear the single-owner claim and re-enter its existing Hooligan Basic
-lifecycle, where one different hero can receive the stock arrest handoff.
+lifecycle, where one different hero can receive the stock arrest handoff, but
+only before `Hide` completes. A focused September 3 live trace caught a
+Ratman Catapult alternating between hidden and reassigned ownership without
+ever reaching `Enter_Building`: `Hide` completed between active-script cycles,
+the hero had naturally cleared its arrest state, and the private abandonment
+check incorrectly ran before the stock hidden-arrival branch. Stock
+`Hooligan_Goto_Palace` gives its completed `Hide` lifecycle priority. The Zoo
+clone now does the same; only an outside captive can be abandoned and
+reassigned.
 
 The shipped Hooligan unit description declares `Speed 5`, but GPL uses
 `ATTRIB_Speed` for threat and escape comparisons. Actual travel remains tied
@@ -610,6 +618,11 @@ function so a living building titled `Mausoleum` retains its occupants, while
 a dead Mausoleum processes them. The private GPL symbol is a literal copy of
 that function with one sibling branch gated by `Title == Zoo` and the stable
 private `Restore_Zoo_Revenue` function declared on all three Zoo prototypes.
+Because generic occupant-bearing buildings do not all declare the optional
+`RevenueScript` field, the private discriminator first copies the stock
+`HasAttribute` access pattern before reading it. A focused load trace caught the
+unguarded read against `agent#24`; the guard preserves the ordinary stock
+branch instead of raising a GPL error.
 The earlier `birthScript2` discriminator was not stable because the capacity
 upgrade callback intentionally repoints that function slot. The corrected
 branch returns without action while that Zoo lives and processes captives only
