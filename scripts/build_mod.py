@@ -40,6 +40,29 @@ ZOO_CAPTURE_ICON_SOURCE_TILE = 92
 ZOO_CAPTURE_ICON_TILE = (
     REPO_ROOT / "assets" / "generated" / "capture-flag" / "capture-button-icon-25.tile"
 )
+ZOO_PARENT_BUTTON_SOURCE = b"INBbbuilding frame"
+ZOO_PARENT_BUTTON_CUSTOM = b"ZCBBbuilding frame"
+ZOO_PARENT_BUTTON_TOKEN = b"ZCBB"
+ZOO_PARENT_BUTTON_SET = 1009
+ZOO_PARENT_BUTTON_SOURCE_TILES = (739, 740, 741, 742)
+ZOO_PARENT_BUTTON_TILES = tuple(
+    REPO_ROOT
+    / "assets"
+    / "generated"
+    / "capture-flag"
+    / f"capture-parent-button-{state}.tile"
+    for state in range(4)
+)
+ZOO_TAME_BUTTON_CUSTOM = b"ZTBBbuilding frame"
+ZOO_TAME_BUTTON_TOKEN = b"ZTBB"
+ZOO_TAME_BUTTON_TILES = tuple(
+    REPO_ROOT
+    / "assets"
+    / "generated"
+    / "capture-flag"
+    / f"tame-parent-button-{state}.tile"
+    for state in range(4)
+)
 TACTICAL_CURSOR_IMAGE = b"CUR1Tactical Cursor"
 STOCK_ATTACK_CURSOR_SET = 1005
 STOCK_EXPLORE_CURSOR_SET = 1006
@@ -64,14 +87,8 @@ MX09_VISITORS_RECORD_END = 0x01C4
 MX09_PLACE_REWARD_CONTROL_START = 0x0834
 MX09_PLACE_REWARD_CONTROL_END = 0x08BC
 MX09_PLACE_REWARD_COMMAND_OFFSET = 0x0898
-ZOO_PLACE_REWARD_RECT = (7, 190, 89, 22)
+ZOO_PLACE_REWARD_RECT = (7, 190, 93, 26)
 AP39_REWARDS_COMMAND_OFFSET = 0x0130
-AP39_REWARDS_CONTROL_START = 0x00D4
-AP39_REWARDS_CONTROL_END = 0x0164
-AP39_REWARDS_CONTROL_RECT = (106, 192, 89, 22)
-AP39_ACTION_LABEL_INDEX_OFFSET = 0x1C
-AP39_ACTION_TOOLTIP_INDEX_OFFSET = 0x24
-AP39_ACTION_COMMAND_OFFSET = 0x5C
 AP41_EXPLORE_CONTROLS = (
     (0x00A0, 0x0118, (0x1388,)),  # Increase Explore reward.
     (0x0118, 0x0190, (0x1389,)),  # Decrease Explore reward.
@@ -86,9 +103,11 @@ AP10_SECONDARY_CONTROL_START = 0x0D2C
 AP10_SECONDARY_CONTROL_END = 0x0DF0
 AP10_SECONDARY_CONTROL_RECT = (103, 162, 93, 26)
 ZOO_TAME_CONTROL_RECT = (7, 217, 93, 26)
-ZOO_RENT_CONTROL_RECT = (106, 190, 89, 22)
+ZOO_RENT_CONTROL_RECT = (100, 190, 93, 26)
 AP10_SECONDARY_LABEL_INDEX_OFFSET = 0x30
 AP10_SECONDARY_TOOLTIP_INDEX_OFFSET = 0x38
+AP10_SECONDARY_ART_TOKEN_OFFSET = 0x48
+AP10_SECONDARY_IMAGE_SET_OFFSET = 0x50
 AP10_SECONDARY_COMMAND_OFFSET = 0x88
 @dataclass(frozen=True)
 class CamEntry:
@@ -326,34 +345,50 @@ def restore_zoo_visitors_control(zoo_menu: bytes, blacksmith_menu: bytes) -> byt
     )
 
 
-def clone_ap39_half_button(
-    palace_menu: bytes,
+def clone_ap10_parent_button(
+    ap10_menu: bytes,
     *,
     rectangle: tuple[int, int, int, int],
     label_index: int,
     tooltip_index: int,
     command_id: int,
+    art_token: bytes = b"INBb",
+    image_set: int = ZOO_PARENT_BUTTON_SET,
 ) -> bytes:
-    """Clone AP39's complete half-width REWARDS action control."""
+    """Clone AP10's complete gold-framed 93x26 parent-panel action."""
     source = bytearray(
-        palace_menu[AP39_REWARDS_CONTROL_START:AP39_REWARDS_CONTROL_END]
+        ap10_menu[AP10_SECONDARY_CONTROL_START:AP10_SECONDARY_CONTROL_END]
     )
-    if len(source) != 0x90 or source[-4:] != b"\xff" * 4:
-        raise ValueError("Stock AP39 REWARDS control boundary changed")
-    if struct.unpack_from("<4I", source, 0x08) != AP39_REWARDS_CONTROL_RECT:
-        raise ValueError("Stock AP39 REWARDS control rectangle changed")
-    if u32(source, AP39_ACTION_COMMAND_OFFSET) != PALACE_REWARDS_CONTROL_ID:
-        raise ValueError("Stock AP39 REWARDS control command changed")
+    if len(source) != 0xC4 or source[-4:] != b"\xff" * 4:
+        raise ValueError("Stock AP10 secondary-panel control boundary changed")
+    if struct.unpack_from("<4I", source, 0x08) != AP10_SECONDARY_CONTROL_RECT:
+        raise ValueError("Stock AP10 secondary-panel rectangle changed")
+    if source[
+        AP10_SECONDARY_ART_TOKEN_OFFSET : AP10_SECONDARY_ART_TOKEN_OFFSET + 4
+    ] != b"INBb":
+        raise ValueError("Stock AP10 secondary-panel button art changed")
+    if u32(source, AP10_SECONDARY_IMAGE_SET_OFFSET) != ZOO_PARENT_BUTTON_SET:
+        raise ValueError("Stock AP10 secondary-panel image set changed")
+    if u32(source, AP10_SECONDARY_COMMAND_OFFSET) != 0x1F49:
+        raise ValueError("Stock AP10 secondary-panel command changed")
+    if len(art_token) != 4:
+        raise ValueError("Parent-panel art token must be four bytes")
 
     struct.pack_into("<4I", source, 0x08, *rectangle)
-    struct.pack_into("<I", source, AP39_ACTION_LABEL_INDEX_OFFSET, label_index)
-    struct.pack_into("<I", source, AP39_ACTION_TOOLTIP_INDEX_OFFSET, tooltip_index)
-    struct.pack_into("<I", source, AP39_ACTION_COMMAND_OFFSET, command_id)
+    struct.pack_into("<I", source, AP10_SECONDARY_LABEL_INDEX_OFFSET, label_index)
+    struct.pack_into("<I", source, AP10_SECONDARY_TOOLTIP_INDEX_OFFSET, tooltip_index)
+    source[
+        AP10_SECONDARY_ART_TOKEN_OFFSET : AP10_SECONDARY_ART_TOKEN_OFFSET + 4
+    ] = art_token
+    struct.pack_into("<I", source, AP10_SECONDARY_IMAGE_SET_OFFSET, image_set)
+    struct.pack_into("<I", source, AP10_SECONDARY_COMMAND_OFFSET, command_id)
     return bytes(source)
 
 
-def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
-    """Replace MX09's wide orphan with AP39's stock half-width action control."""
+def restore_zoo_reward_dispatch(
+    zoo_menu: bytes, ap10_menu: bytes, palace_menu: bytes
+) -> bytes:
+    """Replace MX09's wide orphan with AP10's gold-framed action control."""
     zoo_command = struct.pack("<I", ZOO_PLACE_REWARD_CONTROL_ID)
     palace_command = struct.pack("<I", PALACE_REWARDS_CONTROL_ID)
     if zoo_menu.count(zoo_command) != 1:
@@ -369,12 +404,13 @@ def restore_zoo_reward_dispatch(zoo_menu: bytes, palace_menu: bytes) -> bytes:
     ]
     if len(abandoned) != 0x88 or abandoned[-4:] != b"\xff" * 4:
         raise ValueError("Stock MX09 Place Reward control boundary changed")
-    replacement = clone_ap39_half_button(
-        palace_menu,
+    replacement = clone_ap10_parent_button(
+        ap10_menu,
         rectangle=ZOO_PLACE_REWARD_RECT,
         label_index=22,
         tooltip_index=23,
         command_id=PALACE_REWARDS_CONTROL_ID,
+        art_token=ZOO_PARENT_BUTTON_TOKEN,
     )
     return (
         zoo_menu[:MX09_PLACE_REWARD_CONTROL_START]
@@ -387,32 +423,24 @@ def add_zoo_tame_control(zoo_menu: bytes, ap10_menu: bytes) -> bytes:
     """Append AP10's complete secondary-panel opener at Brewing's final rect."""
     if zoo_menu[-8:] != b"\xff" * 8:
         raise ValueError("Stock MX09 no longer has its two-word terminal marker")
-    source = bytearray(
-        ap10_menu[AP10_SECONDARY_CONTROL_START:AP10_SECONDARY_CONTROL_END]
-    )
-    if len(source) != 0xC4 or source[-4:] != b"\xff" * 4:
-        raise ValueError("Stock AP10 secondary-panel control boundary changed")
-    if struct.unpack_from("<4I", source, 0x08) != AP10_SECONDARY_CONTROL_RECT:
-        raise ValueError("Stock AP10 secondary-panel rectangle changed")
-    if u32(source, AP10_SECONDARY_COMMAND_OFFSET) != 0x1F49:
-        raise ValueError("Stock AP10 secondary-panel command changed")
     if zoo_menu.count(struct.pack("<I", ZOO_TAME_OPEN_COMMAND_ID)):
         raise ValueError("Stock MX09 unexpectedly contains the private Tame command")
-
-    struct.pack_into("<4I", source, 0x08, *ZOO_TAME_CONTROL_RECT)
-    struct.pack_into("<I", source, AP10_SECONDARY_LABEL_INDEX_OFFSET, 26)
-    struct.pack_into("<I", source, AP10_SECONDARY_TOOLTIP_INDEX_OFFSET, 27)
-    struct.pack_into(
-        "<I", source, AP10_SECONDARY_COMMAND_OFFSET, ZOO_TAME_OPEN_COMMAND_ID
+    source = clone_ap10_parent_button(
+        ap10_menu,
+        rectangle=ZOO_TAME_CONTROL_RECT,
+        label_index=26,
+        tooltip_index=27,
+        command_id=ZOO_TAME_OPEN_COMMAND_ID,
+        art_token=ZOO_TAME_BUTTON_TOKEN,
     )
     # The first of MX09's final two FFFFFFFF words terminates its last real
     # control; only the second is the stream terminator. Preserve the former
     # in place and insert the complete AP10 record before the latter.
-    return zoo_menu[:-4] + bytes(source) + zoo_menu[-4:]
+    return zoo_menu[:-4] + source + zoo_menu[-4:]
 
 
-def add_zoo_rental_controls(zoo_menu: bytes, palace_menu: bytes) -> bytes:
-    """Append paired AP39 half-width controls for the MX22 toggle lifecycle."""
+def add_zoo_rental_controls(zoo_menu: bytes, ap10_menu: bytes) -> bytes:
+    """Append paired gold HEROES controls for the MX22 toggle lifecycle."""
     if zoo_menu[-8:] != b"\xff" * 8:
         raise ValueError("Patched MX09 no longer has its two-word terminal marker")
     if zoo_menu.count(struct.pack("<I", ZOO_RENT_OPEN_COMMAND_ID)):
@@ -425,12 +453,13 @@ def add_zoo_rental_controls(zoo_menu: bytes, palace_menu: bytes) -> bytes:
         (ZOO_RENT_OPEN_COMMAND_ID, 30, 31),
     )
     records = [
-        clone_ap39_half_button(
-            palace_menu,
+        clone_ap10_parent_button(
+            ap10_menu,
             rectangle=ZOO_RENT_CONTROL_RECT,
             label_index=label,
             tooltip_index=tooltip,
             command_id=command,
+            image_set=1004,
         )
         for command, label, tooltip in specs
     ]
@@ -527,9 +556,9 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
         (
             "TAME BEAST",
             "Open the Zoo's Tame Beast panel.",
-            "RENT OPEN",
+            "RENT ON",
             "Close the Zoo to hero rentals.",
-            "RENT CLOSED",
+            "RENT OFF",
             "Open the Zoo to hero rentals.",
         ),
     )
@@ -608,13 +637,15 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                             add_zoo_tame_control(
                                 restore_zoo_visitors_control(
                                     restore_zoo_reward_dispatch(
-                                        stock_menu.data, stock_palace_menu.data
+                                        stock_menu.data,
+                                        stock_ap10_menu.data,
+                                        stock_palace_menu.data,
                                     ),
                                     stock_blacksmith_menu.data,
                                 ),
                                 stock_ap10_menu.data,
                             ),
-                            stock_palace_menu.data,
+                            stock_ap10_menu.data,
                         ),
                     ),
                     CamEntry(
@@ -1171,6 +1202,9 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
     stock_icon_imag = read_cam_entry(
         source, b"IMAG", ZOO_CAPTURE_ICON_SOURCE
     ).data
+    stock_parent_button_imag = read_cam_entry(
+        source, b"IMAG", ZOO_PARENT_BUTTON_SOURCE
+    ).data
     stock_cursor_imag = read_cam_entry(source, b"IMAG", TACTICAL_CURSOR_IMAGE).data
     tiles = read_cam_entries(source, b"TILE")
     palettes = read_cam_entries(source, b"PALT")
@@ -1219,6 +1253,39 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         raise ValueError("Zoo Capture button art must retain stock 25x25 geometry")
     if custom_icon_tile == tiles[ZOO_CAPTURE_ICON_SOURCE_TILE].data:
         raise ValueError("Zoo Capture button art is still identical to stock Attack")
+    def parent_button_overrides(paths: tuple[Path, ...], label: str) -> dict[int, bytes]:
+        overrides: dict[int, bytes] = {}
+        for parent_source_index, path in zip(
+            ZOO_PARENT_BUTTON_SOURCE_TILES, paths
+        ):
+            if parent_source_index >= len(tiles):
+                raise ValueError("Stock AP10 gold button family references a missing TILE")
+            if not path.is_file():
+                raise FileNotFoundError(
+                    f"Generated Zoo {label} parent-button TILE is missing: {path}"
+                )
+            custom_parent_tile = path.read_bytes()
+            if len(custom_parent_tile) < 26 or struct.unpack_from(
+                "<H", custom_parent_tile, 0
+            )[0] != 3:
+                raise ValueError(f"Zoo {label} parent-button art is not an indexed V3 TILE")
+            if struct.unpack_from("<HH", custom_parent_tile, 2) != (26, 93):
+                raise ValueError(
+                    f"Zoo {label} parent-button art must retain stock 93x26 geometry"
+                )
+            if custom_parent_tile == tiles[parent_source_index].data:
+                raise ValueError(
+                    f"Zoo {label} parent-button art is still identical to stock AP10"
+                )
+            overrides[parent_source_index] = custom_parent_tile
+        return overrides
+
+    capture_parent_button_overrides = parent_button_overrides(
+        ZOO_PARENT_BUTTON_TILES, "Capture"
+    )
+    tame_parent_button_overrides = parent_button_overrides(
+        ZOO_TAME_BUTTON_TILES, "Tame"
+    )
     if not ZOO_CAPTURE_CURSOR_TILE.is_file():
         raise FileNotFoundError(
             f"Generated Zoo Capture cursor TILE is missing: {ZOO_CAPTURE_CURSOR_TILE}"
@@ -1258,6 +1325,20 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
     private_tame_source_index = u32(custom_imag, tame_source_offset) & 0xFFFF
     if private_tame_source_index < len(tiles):
         raise ValueError("Private Zoo tame backing was not moved to an appended TILE")
+    custom_parent_button_imag = privateize_interface_imag_tiles(
+        stock_parent_button_imag,
+        tiles,
+        append,
+        ZOO_PARENT_BUTTON_TOKEN,
+        capture_parent_button_overrides,
+    )
+    custom_tame_button_imag = privateize_interface_imag_tiles(
+        stock_parent_button_imag,
+        tiles,
+        append,
+        ZOO_TAME_BUTTON_TOKEN,
+        tame_parent_button_overrides,
+    )
     private_icon_index = append(ZOO_CAPTURE_ICON_TOKEN + b"Button", custom_icon_tile)
     custom_icon_imag = bytearray(stock_icon_imag)
     encoded_icon = u32(stock_icon_imag, icon_offset)
@@ -1290,6 +1371,14 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
                 (
                     CamEntry(pad_name(ZOO_REWARDS_BACKGROUND_CUSTOM), custom_imag),
                     CamEntry(pad_name(ZOO_CAPTURE_ICON_CUSTOM), bytes(custom_icon_imag)),
+                    CamEntry(
+                        pad_name(ZOO_PARENT_BUTTON_CUSTOM),
+                        custom_parent_button_imag,
+                    ),
+                    CamEntry(
+                        pad_name(ZOO_TAME_BUTTON_CUSTOM),
+                        custom_tame_button_imag,
+                    ),
                     CamEntry(pad_name(TACTICAL_CURSOR_IMAGE), custom_cursor_imag),
                 ),
             ),

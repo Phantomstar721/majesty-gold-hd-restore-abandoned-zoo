@@ -428,53 +428,59 @@ def validate(root: Path) -> list[str]:
         errors.append("Zoo panel must contain exactly one private rental-open command")
     if zoo_menu.count(struct.pack("<I", 0x2A32)) != 1:
         errors.append("Zoo panel must contain exactly one private rental-close command")
-    if zoo_menu[0x09C8:0x09CC] != b"\xff" * 4:
+    if zoo_menu[0x09FC:0x0A00] != b"\xff" * 4:
         errors.append("Zoo panel must preserve the preceding control terminator")
-    tame_control = zoo_menu[0x09CC:0x0A90]
+    tame_control = zoo_menu[0x0A00:0x0AC4]
     if (
         len(tame_control) != 0xC4
         or struct.unpack_from("<4I", tame_control, 0x08) != (7, 217, 93, 26)
         or struct.unpack_from("<I", tame_control, 0x30)[0] != 26
         or struct.unpack_from("<I", tame_control, 0x38)[0] != 27
+        or tame_control[0x48:0x4C] != b"ZTBB"
+        or struct.unpack_from("<I", tame_control, 0x50)[0] != 1009
         or struct.unpack_from("<I", tame_control, 0x88)[0] != 0x2A30
     ):
         errors.append("Zoo Tame Beast opener is not the audited AP10 control clone")
-    close_rental_control = zoo_menu[0x0A90:0x0B20]
-    open_rental_control = zoo_menu[0x0B20:0x0BB0]
+    close_rental_control = zoo_menu[0x0AC4:0x0B88]
+    open_rental_control = zoo_menu[0x0B88:0x0C4C]
     rental_specs = (
         (close_rental_control, 0x2A32, 28, 29),
         (open_rental_control, 0x2A31, 30, 31),
     )
     for control, command, label, tooltip in rental_specs:
         if (
-            len(control) != 0x90
-            or struct.unpack_from("<4I", control, 0x08) != (106, 190, 89, 22)
-            or struct.unpack_from("<I", control, 0x1C)[0] != label
-            or struct.unpack_from("<I", control, 0x24)[0] != tooltip
-            or struct.unpack_from("<I", control, 0x5C)[0] != command
+            len(control) != 0xC4
+            or struct.unpack_from("<4I", control, 0x08) != (100, 190, 93, 26)
+            or struct.unpack_from("<I", control, 0x30)[0] != label
+            or struct.unpack_from("<I", control, 0x38)[0] != tooltip
+            or control[0x48:0x4C] != b"INBb"
+            or struct.unpack_from("<I", control, 0x50)[0] != 1004
+            or struct.unpack_from("<I", control, 0x88)[0] != command
             or control[-4:] != b"\xff" * 4
         ):
             errors.append(
-                f"Zoo rental toggle {command:#x} is not the audited AP39 half-width presentation clone"
+                f"Zoo rental toggle {command:#x} is not the audited AP10 gold HEROES presentation clone"
             )
     if zoo_menu[-8:] != b"\xff" * 8:
         errors.append("Zoo panel must terminate the rental control and dialog stream")
     if zoo_menu.count(b"\xff" * 8) != 1:
         errors.append("Zoo panel must not terminate before its appended controls")
-    if zoo_menu[0x08A0:0x08A4] != struct.pack("<I", 0x1389):
+    if zoo_menu[0x08CC:0x08D0] != struct.pack("<I", 0x1389):
         errors.append("Zoo Place Reward control must dispatch the stock Palace REWARDS command")
-    place_reward_control = zoo_menu[0x0844:0x08D4]
+    place_reward_control = zoo_menu[0x0844:0x0908]
     if (
-        len(place_reward_control) != 0x90
+        len(place_reward_control) != 0xC4
         or struct.unpack_from("<4I", place_reward_control, 0x08)
-        != (7, 190, 89, 22)
-        or struct.unpack_from("<I", place_reward_control, 0x1C)[0] != 22
-        or struct.unpack_from("<I", place_reward_control, 0x24)[0] != 23
-        or struct.unpack_from("<I", place_reward_control, 0x5C)[0] != 0x1389
+        != (7, 190, 93, 26)
+        or struct.unpack_from("<I", place_reward_control, 0x30)[0] != 22
+        or struct.unpack_from("<I", place_reward_control, 0x38)[0] != 23
+        or place_reward_control[0x48:0x4C] != b"ZCBB"
+        or struct.unpack_from("<I", place_reward_control, 0x50)[0] != 1009
+        or struct.unpack_from("<I", place_reward_control, 0x88)[0] != 0x1389
         or place_reward_control[-4:] != b"\xff" * 4
     ):
-        errors.append("Zoo reward opener is not the audited AP39 half-width control clone")
-    if len(zoo_menu) != 2996:
+        errors.append("Zoo reward opener is not the private Capture AP10 control clone")
+    if len(zoo_menu) != 3152:
         errors.append(
             "Zoo panel must contain the restored Visitors, Tame, and rental controls"
         )
@@ -541,9 +547,9 @@ def validate(root: Path) -> list[str]:
         23: "Open the Zoo's Capture reward panel.",
         26: "TAME BEAST",
         27: "Open the Zoo's Tame Beast panel.",
-        28: "RENT OPEN",
+        28: "RENT ON",
         29: "Close the Zoo to hero rentals.",
-        30: "RENT CLOSED",
+        30: "RENT OFF",
         31: "Open the Zoo to hero rentals.",
     }
     for index, expected_text in expected_zoo_control_strings.items():
@@ -657,6 +663,8 @@ def validate(root: Path) -> list[str]:
     if not {
         b"ZOBGbuilding dialog",
         b"ZCICItem Icons",
+        b"ZCBBbuilding frame",
+        b"ZTBBbuilding frame",
         b"CUR1Tactical Cursor",
     } <= rewards_interface_images:
         errors.append(
@@ -680,6 +688,14 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo rewards backing is not a V1 TILE")
             elif struct.unpack_from("<HH", rewards_tile, 2) != (245, 202):
                 errors.append("Private Zoo rewards backing is not stock 202x245 geometry")
+            elif rewards_tile != (
+                REPO_ROOT
+                / "assets"
+                / "generated"
+                / "interface"
+                / "zoo-rewards-panel.tile"
+            ).read_bytes():
+                errors.append("Private Zoo rewards backing does not contain Zoo art")
         if tame_tile_index >= len(rewards_tiles):
             errors.append("Private ZOBG set 1013 references a missing TILE")
         else:
@@ -710,6 +726,48 @@ def validate(root: Path) -> list[str]:
                 errors.append("Private Zoo Capture button icon is not stock 25x25 geometry")
             elif struct.unpack_from("<H", capture_icon_tile, 20)[0] != 1:
                 errors.append("Private Zoo Capture button icon lacks its embedded palette")
+        for art_name, label in (
+            (b"ZCBBbuilding frame", "Capture"),
+            (b"ZTBBbuilding frame", "Tame"),
+        ):
+            parent_button_imag = cam_entry_data(
+                rewards_interface, b"IMAG", art_name
+            )
+            parent_button_indices = tactical_cursor_set_tile_indices(
+                parent_button_imag, 1009
+            )
+            if not (
+                len(parent_button_indices) == 7
+                and parent_button_indices[2:6]
+                == [parent_button_indices[2]] * 4
+                and len(set(parent_button_indices)) == 4
+            ):
+                errors.append(
+                    f"Private {art_name[:4].decode()} set 1009 changed AP10's "
+                    "four-state button topology"
+                )
+            elif any(
+                tile_index < 2624
+                or tile_index >= len(rewards_tiles)
+                or not rewards_tiles[tile_index][1]
+                for tile_index in parent_button_indices
+            ):
+                errors.append(
+                    f"Private {art_name[:4].decode()} set 1009 references a "
+                    "missing private TILE"
+                )
+            else:
+                for tile_index in set(parent_button_indices):
+                    parent_tile = rewards_tiles[tile_index][1]
+                    if (
+                        len(parent_tile) < 26
+                        or struct.unpack_from("<H", parent_tile, 0)[0] != 3
+                        or struct.unpack_from("<HH", parent_tile, 2) != (26, 93)
+                    ):
+                        errors.append(
+                            f"Private {label} action is not stock 93x26 V3 geometry"
+                        )
+                        break
         cursor_imag = cam_entry_data(
             rewards_interface, b"IMAG", b"CUR1Tactical Cursor"
         )

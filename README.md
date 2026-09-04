@@ -83,11 +83,13 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   read “is waiting in the zoo” rather than the default “is Thinking”;
 - a new **Tame Beast** control at the same lower-left position as the
   Alchemist Laboratory's Brewing control opens a private Zoo-themed clone of
-  the stock Mausoleum selected-occupant panel;
+  the stock Mausoleum selected-occupant panel and uses a private horned-monster
+  glyph on AP10's stock gold/parchment button family;
 - the **Place Reward** row is split into two equal actions: reward placement on
-  the left and a paired **Rent Closed** / **Rent Open** toggle on the
-  right; the toggle clones the Embassy's two-control, per-building open state
-  without its unrelated foreign-hero recruitment order;
+  the left and a paired **Rent Off** / **Rent On** toggle on the
+  right; both use stock-sized gold/parchment panel buttons, while the toggle
+  clones the Embassy's two-control, per-building open state without its
+  unrelated foreign-hero recruitment order;
 - that panel reads the Zoo's existing `Occupants` list directly and uses the
   shared Generic Visitor Lists painter, so every stored monster remains
   generic while displaying its stock icon, Threat Rank, name, action, and HP;

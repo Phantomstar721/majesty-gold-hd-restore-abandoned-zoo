@@ -388,14 +388,19 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   false branch of `Purchase_Bazaar`, and Cultist `Control_Monster` follower
   ownership. The Zoo begins closed because the stock
   `ATTRIB_EmbassyActiveFlag` default is zero. The labels describe the current
-  state as **Rent Closed** and **Rent Open** rather than copying the
+  state as **Rent Off** and **Rent On** rather than copying the
   Embassy's imperative button wording.
 - The Zoo parent-panel layout splits the abandoned Place Reward row into two
-  equal actions: an AP39 half-width reward opener on the left and two
-  overlapping AP39 half-width action controls presenting the MX22-cloned rental
-  state toggle on the right. The shortened labels **REWARD**, **RENT OPEN**, and
-  **RENT CLOSED** are new presentation; the actions and state lifecycle remain
-  the documented stock clones.
+  equal 93x26 actions copied from AP10: a reward opener on the left and two
+  overlapping controls presenting the MX22-cloned rental state toggle on the
+  right. RENT uses the stock `INBb` HEROES family. REWARD uses private `ZCBB`,
+  which retains AP10's complete four-state gold/parchment plate and replaces
+  only the 14-pixel SPELLS glyph with a green Capture Flag. TAME similarly uses
+  private `ZTBB` and replaces only that glyph with a tiny green horned-monster
+  head. Those two glyphs and the shortened labels **REWARD**, **RENT ON**, and
+  **RENT OFF** are new presentation; the commands and state lifecycle remain
+  the documented stock clones. The adjacent top-row controls touch at x=100
+  so the abandoned 189-pixel Place Reward plate cannot show through a gap.
 - Rental consideration uses the literal `Stat_Boost_Check` random expression
   and its shipped `#Percent_Chance_To_Buy_Stats` value. This gives the rental
   check the same effective 49% decision chance, but applying that stock chance

@@ -10,12 +10,14 @@ refresh. The same native order also owns Embassy recruitment, so calling it for
 a Zoo would incorrectly spawn foreign heroes.
 
 The Zoo asks the CAM Merge Manager for only that generic per-building
-state/visibility lifecycle. For the narrower Zoo layout, it copies the Palace
-`AP39` half-width REWARDS action control: one clone replaces the abandoned wide
-Place Reward control, while two overlapping clones occupy the right half with
-private commands `0x2A31`/`0x2A32`. This preserves stock button artwork and
-record structure without attempting to crop the Embassy's fixed 139-pixel art.
-No Embassy recruit order, timer, cost, or spawn callback is reused.
+state/visibility lifecycle. For the narrower Zoo layout, it copies the complete
+93x26 secondary-panel action from base-game `SMNU/AP10`: one clone replaces the
+abandoned wide Place Reward control, while two overlapping clones occupy the
+right half with private commands `0x2A31`/`0x2A32`. The RENT pair selects
+`INBb` set `1004`, the stock gold-framed HEROES family. REWARD retains AP10's
+set `1009` topology through private `ZCBB`, changing only its tiny glyph to the
+Capture Flag. No Embassy recruit order, timer, cost, or spawn callback is
+reused.
 
 ## Shopping priority and visit
 

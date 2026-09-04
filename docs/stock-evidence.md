@@ -693,12 +693,18 @@ internal presentation word, and command. The native MX22 controller reads
 cancels `GS_EmbassyRecruitOrder`, so the Zoo may clone only the state and
 presentation seam—not the order itself.
 
-Base-game `SMNU/AP39` supplies the exact half-width action presentation needed
-for the Zoo's two-column row. Its REWARDS record occupies `0xD4..0x164`, uses
-rectangle `(106,192,89,22)`, stock `INBb` set `0x3F8`, and command `0x1389`.
-The Zoo clones this record for both actions, changing only rectangle, text
-indices, and command. MX22 still supplies the open/closed state and visibility
-lifecycle; AP39 supplies only the stock button presentation.
+Base-game `SMNU/AP10` supplies the exact complete action presentation needed
+for the Zoo's two-column row. Its secondary-panel record occupies
+`0xD2C..0xDF0`, uses rectangle `(103,162,93,26)`, and selects `INBb` set
+`1009`. The Zoo clones that full 196-byte control for all three presentations,
+changing only rectangle, text indices, art selection, and command. RENT selects
+stock `INBb` set `1004`, whose four 93x26 HEROES state tiles are the same
+gold/parchment family. REWARD selects private `ZCBB` set `1009`; its IMAG is an
+exact private copy of `INBb`, with only stock TILEs 739-742 replaced by
+dimension-matched Capture-glyph variants. TAME selects a second exact private
+copy, `ZTBB` set `1009`, whose same four TILEs carry a horned-monster glyph.
+MX22 still supplies the open/closed state and visibility lifecycle; AP10
+supplies only the stock button record and presentation.
 
 All expansion hero decision trees call `Purchase_Equipment` after `rest`, then
 call `Purchase_Bazaar`. Within `mx_Purchase_Equipment.gpl`, the final nested

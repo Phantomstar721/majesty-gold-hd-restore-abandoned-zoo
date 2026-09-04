@@ -8,7 +8,7 @@ import struct
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,8 @@ OUTPUT_DIR = REPO_ROOT / "assets" / "generated" / "capture-flag"
 STOCK_IMAGE = b"ARA2flag attack"
 STOCK_BUTTON_IMAGE = b"INTCItem Icons"
 STOCK_BUTTON_TILE = 92
+STOCK_BUILDING_FRAME_IMAGE = b"INBbbuilding frame"
+STOCK_CAPTURE_PARENT_BUTTON_TILES = (739, 740, 741, 742)
 STOCK_CURSOR_IMAGE = b"CUR1Tactical Cursor"
 STOCK_ATTACK_CURSOR_SET = 1005
 STOCK_ATTACK_CURSOR_TILE = 27
@@ -148,6 +150,103 @@ def embedded_v1_from_rgba(original_tile: bytes, image: Image.Image) -> bytes:
         output += bytes((red, green, blue, 0))
     output += palette_suffix
     return bytes(output)
+
+
+def capture_parent_button_frame(source: Image.Image, state: int) -> Image.Image:
+    """Put a Capture Flag glyph into AP10's stock gold button icon well."""
+    if source.size != (93, 26) or state not in range(4):
+        raise ValueError("Capture parent button must use the four stock 93x26 states")
+    frame = source.copy().convert("RGBA")
+    draw = ImageDraw.Draw(frame)
+    well_fill = (
+        (31, 30, 29, 255),
+        (160, 152, 121, 255),
+        (38, 38, 38, 255),
+        (109, 106, 97, 255),
+    )[state]
+    draw.rectangle((6, 6, 19, 19), fill=well_fill)
+    if state == 2:
+        outline = (25, 25, 25, 255)
+        pole = (125, 125, 125, 255)
+        flag = (72, 72, 72, 255)
+        highlight = (155, 155, 155, 255)
+    else:
+        brightness = 1.24 if state in (1, 3) else 1.0
+
+        def color(rgb: tuple[int, int, int]) -> tuple[int, int, int, int]:
+            return tuple(
+                min(255, round(channel * brightness)) for channel in rgb
+            ) + (255,)
+
+        outline = color((29, 24, 8))
+        pole = color((207, 164, 42))
+        flag = color((42, 132, 51))
+        highlight = color((115, 202, 75))
+    # A crisp 12-pixel Capture Flag. The enclosing stock button square and
+    # every gold/parchment state plate remain byte-derived from AP10.
+    draw.line((9, 7, 9, 18), fill=outline, width=3)
+    draw.line((9, 7, 9, 18), fill=pole, width=1)
+    draw.point((9, 6), fill=highlight)
+    draw.polygon(((10, 8), (17, 9), (16, 14), (10, 13)), fill=outline)
+    draw.polygon(((11, 9), (16, 10), (15, 13), (11, 12)), fill=flag)
+    draw.point((12, 9), fill=highlight)
+    draw.line((7, 19, 12, 19), fill=outline, width=1)
+    draw.line((8, 18, 11, 18), fill=pole, width=1)
+    return frame
+
+
+def tame_parent_button_frame(source: Image.Image, state: int) -> Image.Image:
+    """Put a small horned monster head into AP10's stock gold button well."""
+    if source.size != (93, 26) or state not in range(4):
+        raise ValueError("Tame parent button must use the four stock 93x26 states")
+    frame = source.copy().convert("RGBA")
+    draw = ImageDraw.Draw(frame)
+    well_fill = (
+        (31, 30, 29, 255),
+        (160, 152, 121, 255),
+        (38, 38, 38, 255),
+        (109, 106, 97, 255),
+    )[state]
+    draw.rectangle((6, 6, 19, 19), fill=well_fill)
+    if state == 2:
+        outline = (25, 25, 25, 255)
+        horn = (128, 128, 128, 255)
+        face = (70, 70, 70, 255)
+        muzzle = (105, 105, 105, 255)
+        eye = (150, 150, 150, 255)
+    else:
+        brightness = 1.24 if state in (1, 3) else 1.0
+
+        def color(rgb: tuple[int, int, int]) -> tuple[int, int, int, int]:
+            return tuple(
+                min(255, round(channel * brightness)) for channel in rgb
+            ) + (255,)
+
+        outline = color((29, 24, 12))
+        horn = color((205, 169, 70))
+        face = color((68, 116, 52))
+        muzzle = color((116, 86, 45))
+        eye = color((238, 72, 35))
+    # Symmetric horns make the subject legible at the 14-pixel stock glyph
+    # scale while leaving AP10's complete square and state plate untouched.
+    draw.polygon(((8, 11), (7, 7), (11, 10)), fill=outline)
+    draw.polygon(((8, 9), (8, 8), (10, 10)), fill=horn)
+    draw.polygon(((15, 10), (18, 7), (17, 12)), fill=outline)
+    draw.polygon(((16, 10), (17, 8), (17, 11)), fill=horn)
+    draw.polygon(
+        ((10, 9), (15, 9), (17, 12), (16, 17), (13, 19), (9, 17), (8, 12)),
+        fill=outline,
+    )
+    draw.polygon(
+        ((10, 10), (15, 10), (16, 12), (15, 16), (13, 18), (10, 16), (9, 12)),
+        fill=face,
+    )
+    draw.point((11, 12), fill=eye)
+    draw.point((14, 12), fill=eye)
+    draw.rectangle((11, 15, 14, 17), fill=muzzle)
+    draw.point((11, 16), fill=outline)
+    draw.point((14, 16), fill=outline)
+    return frame
 
 
 def is_red_cloth(pixel: tuple[int, int, int, int]) -> bool:
@@ -386,6 +485,9 @@ def generate(game_path: Path) -> None:
     interface_cam = game_path / "Data" / "interfacedata.cam"
     stock.read_cam_entry(source_cam, b"IMAG", STOCK_IMAGE)
     stock.read_cam_entry(interface_cam, b"IMAG", STOCK_BUTTON_IMAGE)
+    building_frame_imag = stock.read_cam_entry(
+        interface_cam, b"IMAG", STOCK_BUILDING_FRAME_IMAGE
+    ).data
     stock.read_cam_entry(interface_cam, b"IMAG", STOCK_CURSOR_IMAGE)
     tiles = stock.read_cam_entries(source_cam, b"TILE")
     palettes = stock.read_cam_entries(source_cam, b"SPLT")
@@ -395,6 +497,12 @@ def generate(game_path: Path) -> None:
         raise ValueError(f"Stock flag art tables are incomplete in {source_cam}")
     if len(interface_tiles) <= max(STOCK_BUTTON_TILE, STOCK_ATTACK_CURSOR_TILE):
         raise ValueError(f"Stock Capture UI art is missing from {interface_cam}")
+    frame_tile_indices = {
+        struct.unpack_from("<I", building_frame_imag, offset)[0] & 0xFFFF
+        for offset in range(0, len(building_frame_imag) - 3, 4)
+    }
+    if not all(index in frame_tile_indices for index in STOCK_CAPTURE_PARENT_BUTTON_TILES):
+        raise ValueError("Stock AP10 gold button state family changed")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     green, gold = master_palette()
@@ -448,6 +556,42 @@ def generate(game_path: Path) -> None:
         embedded_v1_from_rgba(button_template, button),
     )
 
+    parent_button_frames: list[Image.Image] = []
+    for state, source_index in enumerate(STOCK_CAPTURE_PARENT_BUTTON_TILES):
+        source = render_indexed_v3(
+            stock, interface_tiles[source_index].data, interface_palettes
+        )
+        frame = capture_parent_button_frame(source, state)
+        parent_button_frames.append(frame)
+        png_path = OUTPUT_DIR / f"capture-parent-button-{state}.png"
+        frame.save(png_path)
+        write_tile(
+            OUTPUT_DIR / f"capture-parent-button-{state}.tile",
+            stock.tile_from_png_native_size(
+                interface_tiles[source_index].data,
+                interface_palettes,
+                png_path,
+            ),
+        )
+
+    tame_button_frames: list[Image.Image] = []
+    for state, source_index in enumerate(STOCK_CAPTURE_PARENT_BUTTON_TILES):
+        source = render_indexed_v3(
+            stock, interface_tiles[source_index].data, interface_palettes
+        )
+        frame = tame_parent_button_frame(source, state)
+        tame_button_frames.append(frame)
+        png_path = OUTPUT_DIR / f"tame-parent-button-{state}.png"
+        frame.save(png_path)
+        write_tile(
+            OUTPUT_DIR / f"tame-parent-button-{state}.tile",
+            stock.tile_from_png_native_size(
+                interface_tiles[source_index].data,
+                interface_palettes,
+                png_path,
+            ),
+        )
+
     cursor_template = interface_tiles[STOCK_ATTACK_CURSOR_TILE].data
     cursor = capture_cursor_icon(
         render_indexed_v3(stock, cursor_template, interface_palettes),
@@ -480,7 +624,8 @@ def generate(game_path: Path) -> None:
         )
     world_preview.save(OUTPUT_DIR / "capture-flag-world-preview.png")
     print(
-        "Generated 12 world, 4 minimap, 4 interface, 1 button, and 1 cursor "
+        "Generated 12 world, 4 minimap, 4 interface, Capture and Tame parent "
+        "button families, 1 capture icon, and 1 cursor "
         f"Capture Flag frames in {OUTPUT_DIR}"
     )
 
