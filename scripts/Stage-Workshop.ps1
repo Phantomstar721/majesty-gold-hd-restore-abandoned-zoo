@@ -21,7 +21,7 @@ $backup = [IO.Path]::GetFullPath(
 $ownershipMarker = ".restore-abandoned-zoo-workshop-stage"
 $projectName = "RestoreAbandonedZoo.mswproj"
 $descriptionSource = Join-Path $repoRoot "WORKSHOP.md"
-$previewSource = Join-Path $repoRoot "assets\workshop\workshop-preview.jpg"
+$previewSource = Join-Path $repoRoot "assets\Zoodemo.png"
 $instructionsSource = Join-Path $repoRoot "release\START HERE.txt"
 
 $required = @(
@@ -91,7 +91,7 @@ try {
     Get-ChildItem -LiteralPath $package -Force |
         Copy-Item -Destination $contentPath -Recurse -Force
     Copy-Item -LiteralPath $instructionsSource -Destination (Join-Path $contentPath "START HERE.txt") -Force
-    Copy-Item -LiteralPath $previewSource -Destination (Join-Path $stage "workshop-preview.jpg") -Force
+    Copy-Item -LiteralPath $previewSource -Destination (Join-Path $stage "workshop-preview.png") -Force
 
     $projectId = $WorkshopId
     $visibility = "Private"
@@ -112,7 +112,7 @@ try {
     }
 
     $finalContentPath = [Security.SecurityElement]::Escape((Join-Path $target "content"))
-    $finalPreviewPath = [Security.SecurityElement]::Escape((Join-Path $target "workshop-preview.jpg"))
+    $finalPreviewPath = [Security.SecurityElement]::Escape((Join-Path $target "workshop-preview.png"))
     $description = [Security.SecurityElement]::Escape(
         (Get-Content -LiteralPath $descriptionSource -Raw).Trim()
     )
@@ -183,4 +183,4 @@ Write-Host "Workshop upload staged: $target"
 Write-Host "  Files:   $($finalFiles.Count)"
 Write-Host "  Bytes:   $totalBytes"
 Write-Host "  Project: $(Join-Path $target $projectName)"
-Write-Host "  Preview: $(Join-Path $target 'workshop-preview.jpg')"
+Write-Host "  Preview: $(Join-Path $target 'workshop-preview.png')"

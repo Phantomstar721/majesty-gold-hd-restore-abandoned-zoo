@@ -10,7 +10,7 @@ The mod supports Original Majesty and Northern Expansion content and handles
 ordinary and custom monsters generically rather than maintaining a
 monster-by-monster compatibility table.
 
-![A restored Zoo in a living kingdom](assets/screenshots/zoo-building.png)
+![A restored Zoo in a living kingdom](assets/Zoodemo.png)
 
 ## Features
 
@@ -33,7 +33,7 @@ monster-by-monster compatibility table.
 
 | Captured monsters and Tame Beast | Private Capture Flag panel |
 | --- | --- |
-| ![Zoo visitor and taming panel](assets/screenshots/zoo-visitors-and-tame.png) | ![Zoo Capture Flag panel](assets/screenshots/zoo-capture-panel.png) |
+| ![Zoo visitor and taming panel](assets/zoopanel.png) | ![Zoo Capture Flag panel](assets/zoocapture.png) |
 
 ## Threat Rank
 
