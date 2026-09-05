@@ -422,6 +422,16 @@ def validate(root: Path) -> list[str]:
     zoo_menu = cam_entry_data(
         root / "Data" / "restore_zoo_textdata.cam", b"SMNU", b"MX09"
     )
+    if zoo_menu[0x0024:0x0028] != b"ZOTI" or struct.unpack_from(
+        "<I", zoo_menu, 0x002C
+    )[0] != 1029:
+        errors.append("Zoo primary panel must select private ZOTI guild backing set 1029")
+    if zoo_menu.count(b"ZOTI") != 1 or b"IX01" in zoo_menu:
+        errors.append("Only MX09's bottom raw-texture layer may select private ZOTI")
+    if zoo_menu[0x00A4:0x00A8] != b"INBg" or struct.unpack_from(
+        "<I", zoo_menu, 0x00AC
+    )[0] != 1000 or zoo_menu.count(b"INBg") != 2:
+        errors.append("Zoo primary panel must retain its stock INBg chrome and masks")
     if zoo_menu.count(struct.pack("<I", 0x1F55)) != 1:
         errors.append("Zoo panel must contain exactly one stock Visitors command")
     if zoo_menu.count(struct.pack("<I", 0x1389)) != 1:
@@ -667,6 +677,7 @@ def validate(root: Path) -> list[str]:
     ):
         errors.append("Zoo rewards interface CAM must carry all seven stock PALT entries")
     if not {
+        b"ZOTIraw textures",
         b"ZOBGbuilding dialog",
         b"ZCICItem Icons",
         b"ZCBBbuilding frame",
@@ -679,13 +690,35 @@ def validate(root: Path) -> list[str]:
     if not any(extension == b"TILE" for extension, _ in rewards_interface_names):
         errors.append("Zoo rewards interface CAM lacks its private positional TILE table")
     else:
+        raw_imag = cam_entry_data(
+            rewards_interface, b"IMAG", b"ZOTIraw textures"
+        )
         rewards_imag = cam_entry_data(
             rewards_interface, b"IMAG", b"ZOBGbuilding dialog"
         )
         rewards_tiles = cam_section_entries(rewards_interface, b"TILE")
         rewards_tile = None
+        primary_tile_index = interface_imag_set_tile_index(raw_imag, 1029)
         rewards_tile_index = interface_imag_set_tile_index(rewards_imag, 1019)
         tame_tile_index = interface_imag_set_tile_index(rewards_imag, 1013)
+        if primary_tile_index >= len(rewards_tiles):
+            errors.append("Private ZOTI set 1029 references a missing TILE")
+        else:
+            primary_tile = rewards_tiles[primary_tile_index][1]
+            if len(primary_tile) < 26 or struct.unpack_from(
+                "<H", primary_tile, 0
+            )[0] != 1:
+                errors.append("Private Zoo primary backing is not an embedded-palette V1 TILE")
+            elif struct.unpack_from("<HH", primary_tile, 2) != (245, 200):
+                errors.append("Private Zoo primary backing is not stock guild 200x245 geometry")
+            elif primary_tile != (
+                REPO_ROOT
+                / "assets"
+                / "generated"
+                / "interface"
+                / "zoo-primary-panel.tile"
+            ).read_bytes():
+                errors.append("Private ZOTI guild backing does not contain Zoo-themed art")
         if rewards_tile_index >= len(rewards_tiles):
             errors.append("Private ZOBG set 1019 references a missing TILE")
         else:
@@ -1087,6 +1120,9 @@ def validate(root: Path) -> list[str]:
         'Leader\'s "TaskName" != "Rent_Beast"',
         'zoo = Leader\'s "Target"',
         'zoo\'s "RevenueScript" != $Restore_Zoo_Revenue',
+        "function Restore_Zoo_Rented_Monster_Follow",
+        "$leader_dead ( thisagent ) == FALSE",
+        "$Monster_follow ( thisagent )",
         "function Restore_Zoo_Rental_Check",
         "#ATTRIB_EmbassyActiveFlag",
         "#Percent_Chance_To_Buy_Stats",
@@ -1099,7 +1135,10 @@ def validate(root: Path) -> list[str]:
         "$Spend_Gold ( thisagent, zoo, cost )",
         '$SetThreadInterval ( captive\'s "ActiveScript", #Normal_Cycle )',
         "$Control_Monster ( buyer, captive )",
+        'captive\'s "BackScript" = $Restore_Zoo_Rented_Monster_Follow',
         'captive\'s "Enemytype" = "Monster"',
+        "#ATTRIB_SightRange ) < 250",
+        "$SetAttribute ( captive, #ATTRIB_SightRange, 250 )",
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -1293,13 +1332,15 @@ def validate(root: Path) -> list[str]:
     rental_speed_start = capture.index(
         "function Restore_Zoo_Rented_Follower_Speed_Applies"
     )
+    rental_follow_start = capture.index("function Restore_Zoo_Rented_Monster_Follow")
     rental_check_start = capture.index("function Restore_Zoo_Rental_Check")
     rental_start = capture.index("function Restore_Zoo_Start_Rented_Beast")
     rental_complete_start = capture.index("function Restore_Zoo_Complete_Rental")
     rental_finish_start = capture.index("function Restore_Zoo_Finish_Rental")
     rental_visit_start = capture.index("function Restore_Zoo_Visited")
     tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
-    rental_speed = capture[rental_speed_start:rental_check_start]
+    rental_speed = capture[rental_speed_start:rental_follow_start]
+    rental_follow = capture[rental_follow_start:rental_check_start]
     rental_check = capture[rental_check_start:rental_start]
     rental_release = capture[rental_start:rental_complete_start]
     rental_complete = capture[rental_complete_start:rental_finish_start]
@@ -1336,6 +1377,26 @@ def validate(root: Path) -> list[str]:
                 "Rental speed eligibility must not own Manager lifecycle state: "
                 + forbidden
             )
+    rental_follow_order = tuple(
+        rental_follow.find(snippet)
+        for snippet in (
+            "$leader_dead ( thisagent ) == FALSE",
+            "$Monster_follow ( thisagent )",
+        )
+    )
+    if -1 in rental_follow_order or rental_follow_order != tuple(
+        sorted(rental_follow_order)
+    ):
+        errors.append(
+            "Rented follower support must preserve stock leader-death cleanup "
+            "before dispatching stock Monster_follow"
+        )
+    for forbidden in ("$RunThread", "$NewThread", "$ListObjects", "$list_enemies_seen"):
+        if forbidden in rental_follow:
+            errors.append(
+                "Rented follower support must remain a one-call stock seam: "
+                + forbidden
+            )
     rental_check_order = tuple(
         rental_check.find(snippet)
         for snippet in (
@@ -1364,7 +1425,10 @@ def validate(root: Path) -> list[str]:
             "#ATTRIB_MaxHP",
             '$SetThreadInterval ( captive\'s "ActiveScript", #Normal_Cycle )',
             "$Control_Monster ( buyer, captive )",
+            'captive\'s "BackScript" = $Restore_Zoo_Rented_Monster_Follow',
             'captive\'s "Enemytype" = "Monster"',
+            "#ATTRIB_SightRange ) < 250",
+            "$SetAttribute ( captive, #ATTRIB_SightRange, 250 )",
             "$Restore_Refresh_Zoo_Capacity ( zoo )",
         )
     )
@@ -1477,23 +1541,33 @@ def validate(root: Path) -> list[str]:
     release_captive = capture[release_captive_start:breakout_start]
     release_reset = release_captive.find("$Reset_Controlled ( captive )")
     release_exit = release_captive.find("$Exit_Building ( captive, zoo )")
-    if not (0 <= release_reset < release_exit):
+    if not (0 <= release_exit < release_reset):
         errors.append(
-            "Zoo release must restore stock monster control before exiting the building"
+            "Zoo release must exit the building before restoring stock monster control"
         )
     breakout = capture[breakout_start:release_occupants_start]
     breakout_container = breakout.find("$GetBuildingContainer ( thisagent )")
+    orphan_guard = breakout.find("if ( $IsValidGamePiece ( zoo ) == FALSE )")
+    orphan_reset = breakout.find("$Reset_Controlled ( thisagent )", orphan_guard)
+    orphan_return = breakout.find("return", orphan_reset)
     breakout_roll = breakout.find("$RandomNumber ( 100 ) + 1")
     breakout_release = breakout.find(
         "$Restore_Zoo_Release_Captive ( thisagent, zoo )"
     )
     breakout_refresh = breakout.find("$Restore_Refresh_Zoo_Capacity ( zoo )")
     if not (
-        0 <= breakout_container < breakout_roll < breakout_release < breakout_refresh
+        0
+        <= breakout_container
+        < orphan_guard
+        < orphan_reset
+        < orphan_return
+        < breakout_roll
+        < breakout_release
+        < breakout_refresh
     ):
         errors.append(
-            "Zoo breakout must preserve the stock garrison container, random-roll, "
-            "exit, and capacity-refresh order"
+            "Zoo breakout must repair an orphaned pre-fix captive before preserving "
+            "the stock garrison random-roll, exit, and capacity-refresh order"
         )
 
     project = (root / "GPL" / "RestoreAbandonedZoo.gplproj").read_text(

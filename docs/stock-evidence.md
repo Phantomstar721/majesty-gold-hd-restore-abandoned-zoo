@@ -33,6 +33,30 @@ matching `STRT/MX09` strings. The panel calls the building `ZOO`, exposes the
 normal visitors, repair, tax, track, help, reward, and status controls, and has
 obvious Blacksmith placeholder prose in two strings.
 
+MX09's bottom full-panel art control selects expansion `IX01` set 1004. A
+separate control above it selects `INBgbuilding dialog` set 1000 at rectangle
+`(0,0,202,245)`. The indexed V3 `INBg` TILE draws stock outer chrome and uses
+transparent plus reserved control-color pixels; changing or re-encoding that
+overlay produced literal magenta artifacts and damaged the frame.
+
+Stock AP10 demonstrates the correct two-layer guild contract: its bottom
+full-panel control selects `INTIraw textures` set 1029, which resolves to the
+ordinary 200x245 raw-texture TILE 474, while its next full-panel control keeps
+`INBg` set 1000 as the chrome/mask overlay. The custom Alchemist Laboratory
+uses private `ALTI` with its themed 200x245 TILE in that raw layer. The Phantoms
+Haunt uses the same arrangement as private `PHTI`, remapping the three stock
+guild backing TILEs 466, 474, and 495 to one opaque themed TILE packed from
+stock template 466.
+
+The Zoo now copies that established arrangement literally. MX09's existing
+bottom control changes from `IX01` set 1004 to private `ZOTI` set 1029. `ZOTI`
+is a complete private clone of stock `INTI`; every referenced TILE is moved to
+an appended private slot, and only backing TILEs 466, 474, and 495 receive the
+Zoo's opaque 200x245 master. MX09's `INBg` set-1000 control and its other
+`INBg` control remain byte-for-byte stock, preserving their frame, masks, and
+reserved palette behavior. Stock `INTI`, `IX01`, and every unrelated dialog
+remain untouched.
+
 ## Stock reward-placement dispatch
 
 The abandoned `MX09` Place Reward control is visually complete but sends
@@ -87,10 +111,10 @@ art resource rather than another dialog-stream change.
 The custom presentation follows the already proven Alchemist Brewing-panel
 resource pattern. The complete stock `INBgbuilding dialog` IMAG is cloned as
 private `ZOBGbuilding dialog`; every TILE reached by the private IMAG is cloned
-to appended private positions, and only set 1019's backing is replaced. The
-private `SMNU/ZC01` changes its one background token from `INBg` to `ZOBG`.
-Stock AP41, every other `INBg` consumer, and all functional AP41 control records
-remain unchanged.
+to appended private positions, and only set 1019's backing is replaced. Private
+`SMNU/ZC01` changes its set-1019 background token from `INBg` to `ZOBG`.
+Stock AP41, MX09's two `INBg` controls, every other `INBg` consumer, and all
+functional control records remain unchanged.
 
 The literal AP41 controller owns the rest of the lifecycle. On entry it
 validates each stored reward amount against the player's available gold. An
@@ -634,9 +658,9 @@ statement remains in stock order.
 `Monster_Gravestone`, `Monster_Player`, and clears charm ownership state.
 Capture therefore no longer overwrites `StartingScript`, `attack_action`, or
 the original idle/guardian behavior. At dead-Zoo release, each valid stored
-captive runs `Reset_Controlled`, receives `MaxHP`, clears the two Capture-only
-target prohibitions, and then runs stock `Exit_Building`, which resets tasks,
-unhides it, and plays the normal exit effect. Stock `Guardhouse_Visited` enters
+captive first runs stock `Exit_Building`, which resets tasks, unhides it, and
+plays the normal exit effect; it then runs `Reset_Controlled`, receives `MaxHP`,
+and clears the two Capture-only target prohibitions. Stock `Guardhouse_Visited` enters
 the visitor and assigns `Garrison_Scan_Or_Leave` to its still-running
 `ActiveScript`; that function obtains the containing building through
 `GetBuildingContainer`, makes a `RandomNumber(100) + 1` roll, and calls
@@ -644,6 +668,14 @@ the visitor and assigns `Garrison_Scan_Or_Leave` to its still-running
 replaces only the ordinary exit with its already-proven hostile captive release
 helper. Killing or suspending the captive task at delivery left correct script
 pointers on release but no running monster behavior after `Exit_Building`.
+Calling `Reset_Controlled` before `Exit_Building` also failed: the exit restored
+the captive's saved Hooligan/breakout task after the reset. The paused ZooTrace
+save showed that exact result on Troll agents 13, 24, and 135: all were outside
+any building with no leader or target, but retained `Hooligan / Controlled` and
+all three task slots still pointed at `Restore_Zoo_Breakout_Check`. The corrected
+order exits first and resets second. The breakout task also contains a one-shot
+no-container repair so those persisted pre-fix agents re-enter stock hostile
+monster control on their next tick.
 
 ## Tame Beast
 
@@ -727,11 +759,18 @@ The result is the literal expansion Cultist path in
 `mx_Control_Monster.gpl` and `mx_Controlled_Monster.gpl`.
 `Control_Monster` increments `Num_Followers`, transfers player ownership,
 creates `Charm_icon`, records the hero as `leader`, and schedules
-`fake_wander`. `Become_Controlled` installs `Controlled_Monster`, which wanders
-near the leader and calls the normal monster enemy evaluator while moving.
-Its death callback decrements the same follower count; its leader-loss path
-removes charm and eventually calls `Reset_Controlled` to restore the immutable
-monster `StartingScript` and hostile owner.
+`fake_wander`. By default, `Become_Controlled` installs `Controlled_Monster`,
+which wanders near the leader and calls the normal monster enemy evaluator while
+moving. The same shipped module supplies `Monster_follow`: if the leader owns a
+valid target inside the follower's `SightRange *
+Mon_Atck_Obj_Pursuit_Range_Mod`, it copies that target and dispatches stock
+`monster_attack_object`; when the target is farther away it travels back to the
+leader; otherwise it resumes the same near-leader wander. Rental changes only
+the `BackScript` consumed by `Become_Controlled`, selecting `Monster_follow`
+behind a private wrapper that first preserves `Controlled_Monster`'s stock
+`leader_dead` gate. Its death callback still decrements the same follower count;
+its leader-loss path still removes charm and eventually calls `Reset_Controlled`
+to restore the immutable monster `StartingScript` and hostile owner.
 
 That stock follower path does not synchronize movement speed. It only selects
 destinations near the leader. The closest stock speed lifecycle is
@@ -756,6 +795,20 @@ with `Enemytype = hero` and a player-owned Priestess Skeleton as its reciprocal
 combat target. Zoo rental restores the original assignment immediately after
 the selected ruleset's `Control_Monster` call, preserving original behavior and
 repairing the expansion omission without changing ordinary Cultist control.
+
+`Controlled_Monster` delegates acquisition to `monster_eval_enemies`, which
+passes the controlled unit's unmodified `ATTRIB_SightRange` to
+`list_enemies_seen`; neither the leader's sight nor the 300-unit follow
+destination is used as the scan radius. The paused ZooTrace save made the
+missing support handoff explicit: Werewolf agent 96 was correctly
+`Hero / Controlled`, owned Ranger agent 27 as its leader, and ran
+`Controlled_Monster` in all three task slots, but had no target while its leader
+was fighting. Stock character descriptions give a Harpy 175 sight, a Troll 180,
+and a Ranger 260. Expansion Palace combat guards use sight 250. The rental
+handoff therefore applies the same stock 250 minimum already used for a tamed
+Guardian. `Monster_follow` multiplies that sight by the shipped pursuit modifier
+2, producing a 500-unit leader-target handoff while preserving stronger native
+values. Stock attack, leader-loss cleanup, and death paths remain unchanged.
 
 The stored monster's previous breakout task is already running, whereas a
 stock Mausoleum occupant's task was killed at interment. A focused paused-save

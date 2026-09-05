@@ -13,8 +13,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MASTER_PATH = REPO_ROOT / "assets" / "source" / "interface" / "zoo-rewards-panel-master.png"
 OUTPUT_PNG = REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel-202x245.png"
 OUTPUT_TILE = REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel.tile"
+PRIMARY_OUTPUT_PNG = (
+    REPO_ROOT / "assets" / "generated" / "interface" / "zoo-primary-panel-200x245.png"
+)
+PRIMARY_OUTPUT_TILE = (
+    REPO_ROOT / "assets" / "generated" / "interface" / "zoo-primary-panel.tile"
+)
 SOURCE_IMAG = b"INBgbuilding dialog"
 SOURCE_SET_ID = 1019
+PRIMARY_RAW_TEMPLATE_TILE = 466
 
 
 def load_stock_pipeline():
@@ -156,6 +163,20 @@ def generate(game_path: Path) -> None:
     source = game_path / "Data" / "interfacedata.cam"
     imag = stock.read_cam_entry(source, b"IMAG", SOURCE_IMAG).data
     tiles = stock.read_cam_entries(source, b"TILE")
+
+    if PRIMARY_RAW_TEMPLATE_TILE >= len(tiles):
+        raise ValueError("Stock guild-panel backing template TILE 466 is missing")
+    primary_preview = fit_master(MASTER_PATH, (200, 245)).convert("RGB")
+    primary_tile = stock.tile_v1_embedded_from_rgb(
+        tiles[PRIMARY_RAW_TEMPLATE_TILE].data,
+        primary_preview.tobytes(),
+    )
+    if struct.unpack_from("<HH", primary_tile, 2) != (245, 200):
+        raise ValueError("Packed Zoo guild backing changed the stock 200x245 geometry")
+    PRIMARY_OUTPUT_PNG.parent.mkdir(parents=True, exist_ok=True)
+    primary_preview.save(PRIMARY_OUTPUT_PNG)
+    PRIMARY_OUTPUT_TILE.write_bytes(primary_tile)
+
     tile_offset = interface_set_tile_offset(imag, SOURCE_SET_ID)
     source_index = struct.unpack_from("<I", imag, tile_offset)[0] & 0xFFFF
     if source_index >= len(tiles):
@@ -175,6 +196,11 @@ def generate(game_path: Path) -> None:
     if struct.unpack_from("<HH", packed, 2) != (245, 202):
         raise ValueError("Packed Zoo rewards TILE geometry changed")
     OUTPUT_TILE.write_bytes(packed)
+    print(f"Generated {PRIMARY_OUTPUT_PNG}")
+    print(
+        f"Packed {PRIMARY_OUTPUT_TILE} from stock guild raw-texture "
+        f"TILE {PRIMARY_RAW_TEMPLATE_TILE}"
+    )
     print(f"Generated {OUTPUT_PNG}")
     print(f"Packed {OUTPUT_TILE} from stock INBg set {SOURCE_SET_ID} TILE {source_index}")
 

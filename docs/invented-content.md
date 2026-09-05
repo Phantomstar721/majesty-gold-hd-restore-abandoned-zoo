@@ -43,6 +43,17 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   its related Capture tooltips, “Capture,” and the Zoo return tooltip are
   newly written presentation text. All control records and internal Attack Flag
   IDs remain stock, so this step changes no placement behavior or flag type.
+- Stock MX09's bottom art control selects expansion `IX01` set 1004, while its
+  separate full-panel `INBg` set 1000 is mostly transparent and exposes the
+  common sidebar's large Majesty crown behind the Zoo portrait and controls.
+  The custom Alchemist Laboratory and Phantoms Haunt established the safer
+  guild-art pattern: an opaque 200x245 themed backing in a private clone of
+  stock `INTI`, beneath unmodified stock `INBg` chrome. The Zoo now follows
+  that same pattern by changing only its bottom control to private `ZOTI` set
+  1029 and remapping stock guild-backing tiles 466, 474, and 495 to the fitted
+  Zoo master. The choice to reuse the Zoo courtyard art as the primary backing
+  is new presentation content; dialog geometry, commands, the stock `INBg`
+  TILE, masks, and controller behavior are unchanged.
 - The Zoo-themed rewards backing is newly created presentation art, not a
   recovered Cyberlore asset. Its warm stucco, terracotta roof, dark timber,
   stone courtyard, iron enclosure, greenery, and restrained gold motifs are
@@ -54,12 +65,13 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   as dark Zoo timber and supplies a near-black green amount-field backing,
   because the stock amount field uses transparent palette index 0 and normally
   borrows its darkness from the Palace panel beneath it.
-- `ZOBGbuilding dialog`, the `ZOBG` resource token, the generated 202x245
-  backing TILE, and its layer in the consolidated
-  `restore_zoo_interfacedata.cam` are new private art integration. Their scope
-  is only `SMNU/ZC01`; the stock `INBg` resource and
-  all other dialogs are untouched. This is presentation-only and does not
-  alter reward values, flag placement, callbacks, or cleanup.
+- `ZOTIraw textures`, its `ZOTI` resource token, and the generated 200x245
+  primary backing TILE are new private primary-panel integration. Their scope
+  is only MX09's existing bottom art control; stock `INTI`, `IX01`, `INBg`, and
+  every other dialog remain untouched. `ZOBGbuilding dialog`, the `ZOBG`
+  resource token, and the generated 202x245 Capture backing remain the private
+  Capture/Tame subpanel integration. These changes are presentation-only and
+  do not alter reward values, flag placement, callbacks, or cleanup.
 - The Capture Flag's `ZCA2` art family is newly created presentation art; no
   finished Zoo flag artwork survives in stock resources. Its forest-green
   cloth, aged-gold paw emblem, dark timber, cream edging, and reuse of the
@@ -351,8 +363,9 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   integration glue. The branch uses the private Zoo `RevenueScript` identity
   because its completion callback slot is mutable, and guards that optional
   field with stock `HasAttribute` before reading it so unrelated building
-  prototypes are not required to declare the field. On destruction, stock `Reset_Controlled` and
-  `Exit_Building` own the hostile reactivation; restoring full HP and clearing
+  prototypes are not required to declare the field. On destruction, stock
+  `Exit_Building` and `Reset_Controlled` own the hostile reactivation in that
+  order; restoring full HP and clearing
   Capture's `NotFlaggable` / `NotSpellTarget` bits are requested Zoo behavior.
   Captive storage/release uses stock Guardhouse's still-running occupant-task
   lifecycle so released monsters actually run the original behavior restored
@@ -361,7 +374,11 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   `Garrison_Scan_Or_Leave`: each captive reads its building container, makes the
   same 1..100 strict-less-than roll, and exits through the established hostile
   release path on success. The 60-second period and threshold 6 (effective 5%)
-  are best-guess balance values, not recovered Zoo balance.
+  are best-guess balance values, not recovered Zoo balance. The release helper
+  must exit first because `Exit_Building` restores the captive's saved Hooligan
+  task state; stock `Reset_Controlled` then replaces that state with the native
+  hostile monster lifecycle. A no-container fallback applies that same reset to
+  already-roaming captives persisted by pre-fix saves.
 - Unlike stock Hooligans, Zoo Hooligans persist after delivery. Their completed
   arrest owner is cleared and all three resettable task pointers are assigned
   to the stored-occupant function so a generic task reset cannot restart the
@@ -441,6 +458,17 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   assignment after the selected ruleset's control call so expansion monsters
   do not retain `Enemytype = Hero` and attack the renter or player familiars.
   This is recovered original behavior, not an inferred targeting system.
+- Stock `Controlled_Monster` acquires hostiles only within the follower's own
+  raw sight and does not inherit its leader's target. The same shipped module
+  provides `Monster_follow`, which copies a valid leader target inside the
+  follower's `SightRange * Mon_Atck_Obj_Pursuit_Range_Mod`, closes on the leader
+  when that target is farther away, and otherwise uses the ordinary near-leader
+  wander. Zoo rentals select that existing stock follower variant through a
+  one-call wrapper that preserves `Controlled_Monster`'s `leader_dead` cleanup
+  gate. They also apply the expansion Palace combat guard's sight 250 as a
+  minimum, making the stock target handoff reach 500 units while preserving
+  stronger native values. The minimum and selection of the alternate stock
+  follower are inferred Zoo balance; no scanner, timer, or attack task is added.
 - Stock `Use_Building` temporarily inserts the visiting buyer into the Zoo's
   `Occupants` list. Capacity, revenue, release, and AI selection now identify
   real cages through valid `Original_Type == Monster` occupants whose building

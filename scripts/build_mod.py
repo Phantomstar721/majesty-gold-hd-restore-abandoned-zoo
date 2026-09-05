@@ -27,8 +27,17 @@ ZOO_RENT_CLOSE_COMMAND_ID = 0x2A32
 ZOO_REWARDS_BACKGROUND_SOURCE = b"INBgbuilding dialog"
 ZOO_REWARDS_BACKGROUND_CUSTOM = b"ZOBGbuilding dialog"
 ZOO_REWARDS_BACKGROUND_TOKEN = b"ZOBG"
+ZOO_PRIMARY_RAW_SOURCE = b"INTIraw textures"
+ZOO_PRIMARY_RAW_CUSTOM = b"ZOTIraw textures"
+ZOO_PRIMARY_RAW_TOKEN = b"ZOTI"
+ZOO_PRIMARY_RAW_SET = 1029
+ZOO_PRIMARY_RAW_BACKING_TILES = (466, 474, 495)
+ZOO_PRIMARY_RAW_TEMPLATE_TILE = 466
 ZOO_REWARDS_BACKGROUND_SET = 1019
 ZOO_TAME_BACKGROUND_SET = 1013
+ZOO_PRIMARY_BACKGROUND_TILE = (
+    REPO_ROOT / "assets" / "generated" / "interface" / "zoo-primary-panel.tile"
+)
 ZOO_REWARDS_TILE = (
     REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel.tile"
 )
@@ -345,6 +354,33 @@ def restore_zoo_visitors_control(zoo_menu: bytes, blacksmith_menu: bytes) -> byt
     )
 
 
+def privatize_zoo_primary_background(zoo_menu: bytes) -> bytes:
+    """Give MX09 the same private raw-texture backing used by custom guilds.
+
+    The Zoo already has a bottom-most full-panel art control, but unlike the
+    stock guild dialogs it selects expansion resource IX01 instead of INTI.
+    Route that existing layer through a private INTI clone and select AP10's
+    stock guild-panel set.  The separate INBg set-1000 control remains byte-for-
+    byte stock so its frame, masks, and control-color behavior stay intact.
+    """
+
+    raw_token_offset = 0x0024
+    raw_set_offset = 0x002C
+    if zoo_menu[raw_token_offset : raw_token_offset + 4] != b"IX01":
+        raise ValueError("Stock MX09 bottom raw-texture token moved")
+    if u32(zoo_menu, raw_set_offset) != 1004:
+        raise ValueError("Stock MX09 bottom raw-texture set changed")
+    if zoo_menu.count(b"INBg") != 2:
+        raise ValueError("Stock MX09 no longer has exactly two INBg controls")
+    if zoo_menu[0x00A4:0x00A8] != b"INBg" or u32(zoo_menu, 0x00AC) != 1000:
+        raise ValueError("Stock MX09 primary INBg chrome changed")
+
+    patched = bytearray(zoo_menu)
+    patched[raw_token_offset : raw_token_offset + 4] = ZOO_PRIMARY_RAW_TOKEN
+    struct.pack_into("<I", patched, raw_set_offset, ZOO_PRIMARY_RAW_SET)
+    return bytes(patched)
+
+
 def clone_ap10_parent_button(
     ap10_menu: bytes,
     *,
@@ -637,7 +673,9 @@ def write_text_cams(game_path: Path, data_dir: Path) -> None:
                             add_zoo_tame_control(
                                 restore_zoo_visitors_control(
                                     restore_zoo_reward_dispatch(
-                                        stock_menu.data,
+                                        privatize_zoo_primary_background(
+                                            stock_menu.data
+                                        ),
                                         stock_ap10_menu.data,
                                         stock_palace_menu.data,
                                     ),
@@ -1196,6 +1234,7 @@ def imag_tile_reference_offsets(imag: bytes) -> tuple[int, ...]:
 def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None:
     """Package private Capture/Tame backing plus a private Capture cursor set."""
     source = game_path / "Data" / "interfacedata.cam"
+    stock_raw_imag = read_cam_entry(source, b"IMAG", ZOO_PRIMARY_RAW_SOURCE).data
     stock_imag = read_cam_entry(
         source, b"IMAG", ZOO_REWARDS_BACKGROUND_SOURCE
     ).data
@@ -1215,17 +1254,38 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
     source_offset = interface_imag_set_tile_offset(
         stock_imag, ZOO_REWARDS_BACKGROUND_SET
     )
+    primary_raw_offset = interface_imag_set_tile_offset(
+        stock_raw_imag, ZOO_PRIMARY_RAW_SET
+    )
+    primary_raw_source_index = u32(stock_raw_imag, primary_raw_offset) & 0xFFFF
     source_index = u32(stock_imag, source_offset) & 0xFFFF
     tame_source_offset = interface_imag_set_tile_offset(
         stock_imag, ZOO_TAME_BACKGROUND_SET
     )
     tame_source_index = u32(stock_imag, tame_source_offset) & 0xFFFF
+    if primary_raw_source_index != 474:
+        raise ValueError(
+            "Stock AP10 guild-panel raw backing no longer references TILE 474"
+        )
     if source_index >= len(tiles):
         raise ValueError("Stock AP41 backing references a missing TILE")
     if tame_source_index >= len(tiles):
         raise ValueError("Stock MX05 backing references a missing TILE")
     if tame_source_index == source_index:
         raise ValueError("Stock AP41 and MX05 unexpectedly share one backing TILE")
+    if not ZOO_PRIMARY_BACKGROUND_TILE.is_file():
+        raise FileNotFoundError(
+            f"Generated Zoo primary-panel TILE is missing: {ZOO_PRIMARY_BACKGROUND_TILE}"
+        )
+    custom_primary_tile = ZOO_PRIMARY_BACKGROUND_TILE.read_bytes()
+    if len(custom_primary_tile) < 26 or struct.unpack_from(
+        "<H", custom_primary_tile, 0
+    )[0] != 1:
+        raise ValueError("Zoo primary-panel art is not an embedded-palette V1 TILE")
+    if struct.unpack_from("<HH", custom_primary_tile, 2) != (245, 200):
+        raise ValueError("Zoo primary-panel art must use stock guild 200x245 geometry")
+    if custom_primary_tile == tiles[ZOO_PRIMARY_RAW_TEMPLATE_TILE].data:
+        raise ValueError("Zoo primary-panel art is still the stock guild backing")
     if not ZOO_REWARDS_TILE.is_file():
         raise FileNotFoundError(
             f"Generated Zoo rewards TILE is missing: {ZOO_REWARDS_TILE}"
@@ -1310,6 +1370,19 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
         extra.append(CamEntry(pad_name(name), data))
         return index
 
+    custom_raw_imag = privateize_interface_imag_tiles(
+        stock_raw_imag,
+        tiles,
+        append,
+        ZOO_PRIMARY_RAW_TOKEN,
+        {
+            source_index: custom_primary_tile
+            for source_index in ZOO_PRIMARY_RAW_BACKING_TILES
+        },
+    )
+    private_primary_raw_index = u32(custom_raw_imag, primary_raw_offset) & 0xFFFF
+    if private_primary_raw_index < len(tiles):
+        raise ValueError("Private Zoo raw-texture backing was not moved to an appended TILE")
     custom_imag = privateize_interface_imag_tiles(
         stock_imag,
         tiles,
@@ -1369,6 +1442,7 @@ def write_zoo_rewards_interfacedata_cam(game_path: Path, data_dir: Path) -> None
             CamSection(
                 b"IMAG",
                 (
+                    CamEntry(pad_name(ZOO_PRIMARY_RAW_CUSTOM), custom_raw_imag),
                     CamEntry(pad_name(ZOO_REWARDS_BACKGROUND_CUSTOM), custom_imag),
                     CamEntry(pad_name(ZOO_CAPTURE_ICON_CUSTOM), bytes(custom_icon_imag)),
                     CamEntry(

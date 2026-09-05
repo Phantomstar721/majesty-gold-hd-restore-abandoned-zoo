@@ -90,6 +90,12 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   right; both use stock-sized gold/parchment panel buttons, while the toggle
   clones the Embassy's two-control, per-building open state without its
   unrelated foreign-hero recruitment order;
+- the primary Zoo panel uses the same backing-layer contract as the Alchemist
+  Laboratory and Phantoms Haunt: MX09's bottom art control selects private
+  `ZOTI` set 1029, a complete clone of stock `INTI` whose standard 200x245
+  guild-panel tiles are replaced by the opaque Zoo-themed master; the separate
+  stock `INBg` set-1000 overlay remains untouched, retaining its real frame,
+  masks, and control-color behavior without exposing the common sidebar crown;
 - that panel reads the Zoo's existing `Occupants` list directly and uses the
   shared Generic Visitor Lists painter, so every stored monster remains
   generic while displaying its stock icon, Threat Rank, name, action, and HP;
@@ -108,10 +114,13 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   Magic Bazaar check has failed; arrival uses the normal `Use_Building` visit, pays the same
   `500 * Threat Rank` fee through stock `Spend_Gold`, and releases the strongest
   captive that hero can afford;
-- the purchased monster then enters the literal Cultist
-  `Control_Monster -> fake_wander -> Become_Controlled -> Controlled_Monster`
-  lifecycle, following its buyer and assisting that hero in combat; a hero may
-  rent only while its stock `Num_Followers` count is zero, so existing
+- the purchased monster enters the literal Cultist
+  `Control_Monster -> fake_wander -> Become_Controlled` lifecycle, then uses
+  stock `Monster_follow` behind `Controlled_Monster`'s unchanged
+  `leader_dead` cleanup gate; it copies a valid buyer target within the stock
+  monster pursuit radius and closes on the buyer otherwise. Rented beasts use
+  the expansion Palace guard's 250-point sight as a minimum; a hero may rent only while its stock
+  `Num_Followers` count is zero, so existing
   Priestess/Cultist followers and a previously rented beast take precedence;
 - each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
   minute and deposits `40 * Threat Rank` gold per valid stored occupant into its own
@@ -139,8 +148,9 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   `HasAttribute` before reading `RevenueScript`, so ordinary buildings without
   that optional field remain valid. The Zoo retains its
   captives while standing; stock `building_death` reaches the same boundary
-  after marking the Zoo dead, at which point every captive is restored to full
-  HP through stock `Reset_Controlled` and `Exit_Building` as a hostile monster;
+  after marking the Zoo dead, at which point every captive leaves through
+  stock `Exit_Building` and is then restored through stock `Reset_Controlled`
+  to a full-HP hostile monster;
 - every stored captive uses the stock Guardhouse random-exit shape once per
   minute with an effective 5% breakout chance; a successful roll
   restores full HP and hostile stock behavior, while ordinary damage to a
@@ -273,21 +283,25 @@ The validator checks the package structure, XML links, private standalone GPL,
 stock dialog resources, and all documented first-milestone boundaries. It
 does not replace an in-game construction and upgrade test.
 
-## Regenerate the Zoo rewards art
+## Regenerate the Zoo panel art
 
-The build consumes the checked-in, packed
-`assets/generated/interface/zoo-rewards-panel.tile`, so Pillow is not required
-for an ordinary mod build. To regenerate it from the source master, use a
-Python environment with Pillow installed:
+The build consumes the checked-in, packed primary-panel and rewards-panel TILEs
+under `assets/generated/interface`, so Pillow is not required for an ordinary
+mod build. To regenerate both from the source master, use a Python environment
+with Pillow installed:
 
 ```powershell
 python scripts/generate_zoo_rewards_art.py `
   --game-path "C:\Program Files (x86)\Steam\steamapps\common\Majesty HD"
 ```
 
-The generator derives the exact 202x245 geometry and functional chrome from
-stock `INBg` set 1019, composites the Zoo-themed backing, and packs it back into
-Majesty's embedded-palette V1 TILE format.
+For the primary panel, the generator follows the established Alchemist
+Laboratory/Phantoms Haunt guild-art pipeline: it fits the Zoo master to the
+stock 200x245 guild backing, packs it as an embedded-palette V1 TILE using
+stock raw-texture TILE 466 as the template, and leaves MX09's separate `INBg`
+chrome layer unmodified. It also derives the exact 202x245 geometry and
+functional chrome from stock set 1019, composites the Zoo-themed Capture
+backing, and packs that result into Majesty's embedded-palette V1 TILE format.
 
 ## Regenerate the Capture Flag art
 

@@ -179,6 +179,21 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Rented_Monster_Follow ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Controlled_Monster guards its charm cleanup through leader_dead, but
+// otherwise only wanders near the leader and scans around the follower itself.
+// Stock Monster_follow is the shipped alternate follower behavior that copies
+// a valid leader target when it is within the monster's pursuit range and
+// closes on the leader otherwise. Preserve Controlled_Monster's cleanup gate,
+// then dispatch the rented beast through that literal stock support function.
+declare
+begin
+	if ( $leader_dead ( thisagent ) == FALSE )
+		$Monster_follow ( thisagent );
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Rental_Check ( agent thisagent ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
 // This callback belongs at the final false branch of stock Purchase_Bazaar.
@@ -234,7 +249,10 @@ function Restore_Zoo_Start_Rented_Beast (
 // an interred hero, this captive still owns its running periodic occupant task.
 // Stock timed-building handoffs reset that task's interval before replacing its
 // ActiveScript, and stock Control_Monster redirects an already-running monster
-// task without creating a second thread. Preserve both boundaries here.
+// task without creating a second thread. Preserve both boundaries here. Stock
+// Controlled_Monster evaluates hostiles at the captive's raw SightRange; use
+// the same expansion Palace-guard minimum already proven by Tame Beast so a
+// follower can notice combat at roughly the same range as its buyer.
 declare
 begin
 	$SpecifyIntent ( captive, #Intent_Thinking );
@@ -252,6 +270,11 @@ begin
 
 	$SetThreadInterval ( captive's "ActiveScript", #Normal_Cycle );
 	$Control_Monster ( buyer, captive );
+	// Control_Monster deliberately leaves fake_wander active and installs the
+	// eventual controlled task through BackScript. Replace only that handoff
+	// with the stock Monster_follow support variant; Become_Controlled retains
+	// its stock delay and copies this slot into ActiveScript and BasicScript.
+	captive's "BackScript" = $Restore_Zoo_Rented_Monster_Follow;
 
 	// Original Majesty Control_Monster explicitly changes EnemyType to Monster.
 	// GPLMx retained the same controlled-monster combat AI but accidentally
@@ -260,6 +283,8 @@ begin
 	// player-controlled heroes/familiars. Restore the original stock handoff for
 	// this private rental in both rulesets.
 	captive's "Enemytype" = "Monster";
+	if ( $GetAttribute ( captive, #ATTRIB_SightRange ) < 250 )
+		$SetAttribute ( captive, #ATTRIB_SightRange, 250 );
 	$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 
@@ -426,11 +451,14 @@ function Restore_Zoo_Release_Captive ( agent captive, agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
 // Stock Reset_Controlled is the shipped charm-expiry path: it restores the
 // monster's StartingScript, Monster_Player ownership, monster death callback,
-// and hostile classification. Heal before the stock Exit_Building lifecycle
-// unhides it and resets its task pointers. The stored captive retains a running
-// stock-shaped garrison task, so Exit_Building can return it to BasicScript.
+// and hostile classification. Stock Garrison_Scan_Or_Leave exits the visitor
+// before assigning its outside task; preserve that boundary here. Exit_Building
+// first restores the pre-hidden Hooligan state, then Reset_Controlled replaces
+// it with the original hostile monster state instead of allowing Exit_Building
+// to overwrite the reset with the stored Hooligan/breakout task.
 declare
 begin
+	$Exit_Building ( captive, zoo );
 	$Reset_Controlled ( captive );
 	$SetAttribute (
 		captive, #ATTRIB_HP, $GetAttribute ( captive, #ATTRIB_MaxHP ));
@@ -438,7 +466,6 @@ begin
 	$SetAttribute ( captive, #ATTRIB_NotSpellTarget, 0 );
 	captive's "leader" = $NullAgent ();
 	captive's "Target" = $NullAgent ();
-	$Exit_Building ( captive, zoo );
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -452,14 +479,29 @@ declare
 begin
 	zoo = $GetBuildingContainer ( thisagent );
 
-	if ( $IsValidGamePiece ( zoo ))
-		if ( $IsDead ( zoo ) == FALSE )
-			if (( $RandomNumber ( 100 ) + 1 ) <
-				#Restore_Zoo_Breakout_Threshold )
-				begin
-					$Restore_Zoo_Release_Captive ( thisagent, zoo );
-					$Restore_Refresh_Zoo_Capacity ( zoo );
-				end
+	// A pre-fix save can contain an already-exited captive whose old breakout
+	// task was restored by Exit_Building after Reset_Controlled. Complete the
+	// same stock reset once when that task has no containing building.
+	if ( $IsValidGamePiece ( zoo ) == FALSE )
+		begin
+			$Reset_Controlled ( thisagent );
+			$SetAttribute (
+				thisagent, #ATTRIB_HP,
+				$GetAttribute ( thisagent, #ATTRIB_MaxHP ));
+			$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 0 );
+			$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 0 );
+			thisagent's "leader" = $NullAgent ();
+			thisagent's "Target" = $NullAgent ();
+			return;
+		end
+
+	if ( $IsDead ( zoo ) == FALSE )
+		if (( $RandomNumber ( 100 ) + 1 ) <
+			#Restore_Zoo_Breakout_Threshold )
+			begin
+				$Restore_Zoo_Release_Captive ( thisagent, zoo );
+				$Restore_Refresh_Zoo_Capacity ( zoo );
+			end
 end
 
 ///////////////////////////////////////////////////////////////////////////////

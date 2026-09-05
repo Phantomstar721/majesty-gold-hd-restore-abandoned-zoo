@@ -236,13 +236,17 @@ release lifecycle. Every 60-second revenue pulse deposits 40 gold per valid
 stored occupant Threat Rank into the Zoo's coffers. Physical or spell damage retains captives
 while the private Zoo lives, copying the existing Mausoleum exception in
 `release_occupants`. Once stock `building_death` marks the Zoo dead, the same
-function applies stock `Reset_Controlled`, full HP, and stock `Exit_Building`
-to every valid captive. While stored, each captive runs a private clone of stock
+function applies stock `Exit_Building`, then `Reset_Controlled` and full HP,
+to every valid captive. Exit must come first: it restores the pre-hidden
+Hooligan state, after which Reset_Controlled installs the final hostile monster
+state. While stored, each captive runs a private clone of stock
 Guardhouse `Garrison_Scan_Or_Leave`: it obtains its container, makes the same
 strict-less-than random roll, and routes success through the same hostile
 release helper. The current values are one roll every 60 seconds with threshold
 6, which is an effective 5% chance for the stock 1..100 roll. There
-is no manual release command in this checkpoint.
+is no manual release command in this checkpoint. A saved orphan already running
+the breakout task without a building container completes the same stock reset
+on its next check; this repairs releases created by the former reversed order.
 
 Delivery clears the completed `leader` / `Special_Boolean` arrest pairing and
 installs the occupant function in `BasicScript`, `BackScript`, and

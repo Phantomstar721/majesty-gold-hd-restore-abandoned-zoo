@@ -58,11 +58,19 @@ task to `Normal_Cycle` immediately before calling the shipped expansion
 
 That stock Cultist function increments `buyer.Num_Followers`, transfers player
 ownership, creates the charm effector, records the hero in `leader`, and begins
-`fake_wander`. After the stock charm delay, `Become_Controlled` installs
-`Controlled_Monster`, whose existing `wander_near_leader` and
-`monster_eval_enemies` behavior follows the buyer and assists in combat.
-`Controlled_Monster_Death` and the stock leader-loss path own follower cleanup
-and eventual hostile reversion.
+`fake_wander`. The default `Controlled_Monster` task only wanders near the
+buyer and scans around the follower. The same shipped module also defines
+`Monster_follow`: when the leader has a valid target within the monster's stock
+pursuit range, it copies that exact target into `monster_attack_object`; when
+the target is farther away, it closes on the leader; otherwise it resumes the
+ordinary near-leader wander.
+
+Rental preserves the stock charm delay and changes only the eventual
+`BackScript` selected by `Become_Controlled`. A private one-function seam keeps
+`Controlled_Monster`'s stock `leader_dead` cleanup gate, then dispatches to
+stock `Monster_follow`. `Controlled_Monster_Death` remains the death callback,
+so follower counts, charm cleanup, speed cleanup, and hostile reversion retain
+their existing owners.
 
 Original Majesty's `Control_Monster` also sets `Enemytype = Monster`; GPLMx
 omits that one assignment while retaining `monster_eval_enemies`, whose
@@ -71,6 +79,14 @@ a rented Harpy retained its native `Enemytype = hero` and selected a
 player-owned Priestess Skeleton as its target. The private rental handoff
 restores the original stock assignment immediately after `Control_Monster`, so
 both rulesets use the intended controlled-monster target class.
+
+The stock `Monster_follow` pursuit test is follower sight multiplied by
+`#Mon_Atck_Obj_Pursuit_Range_Mod` (2). Stock Harpies and Trolls have only 175
+and 180 sight while a Ranger has 260, so rentals retain the expansion Palace
+guard's 250-point minimum already used by Tame Beast. The effective support
+handoff therefore reaches a buyer target within 500 units while preserving any
+stronger native sight value. No target scanner, timer, or attack task is
+invented.
 
 A focused paused-save trace caught the failure mode directly: the rented Troll
 was still `Hidden`, its `ActiveScript` was `fake_wander`, its counter was zero,
@@ -102,5 +118,6 @@ immediately before stock `Controlled_Monster_Death` or the stock `leader_dead`
 Charm cleanup. Ordinary Cultist charms, the Zoo capture-control bridge, tame
 Guardians, and hostile monsters fail the callback and remain unchanged.
 
-No rental-specific follower timer, combat scanner, polling controller,
-replacement AI, or per-monster table is introduced.
+No rental-specific follower timer, combat scanner, polling controller, or
+per-monster table is introduced. The only private task is the cleanup-preserving
+one-call seam between stock `leader_dead` and stock `Monster_follow`.
