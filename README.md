@@ -236,7 +236,12 @@ The shipped definition declares the reusable
 `stock.mx04-mx05-occupant-action-panel.v1` selected-occupant purchase recipe
 for Tame Beast. Hero rental adds the generic
 `stock.mx22-building-open-toggle.v1` state/presentation recipe and the
-`stock.gplmx-purchase-bazaar-tail.v1` low-priority shopping callback. Their
+`stock.gplmx-purchase-bazaar-tail.v1` low-priority shopping callback. Rented
+beasts also declare `stock.controlled-follower-speed-sync.v1`: the Manager
+compares the stock 1–5 Speed tiers and adds one stock-style
+`MovementRateModifier -100` step for each tier by which the rented beast trails
+its hero. It removes exactly the applied steps before stock follower death or
+leader-loss cleanup. Their
 stock lifecycle and package contract are recorded in
 [`docs/manager-v3-capture-feature-proposal.md`](docs/manager-v3-capture-feature-proposal.md),
 and the retained example definition mirrors the shipping manifest in

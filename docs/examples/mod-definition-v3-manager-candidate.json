@@ -40,6 +40,12 @@
       "callback_symbol": "Restore_Zoo_Rental_Check"
     },
     {
+      "type": "stock.controlled-follower-speed-sync.v1",
+      "feature_key": "rented-follower-speed",
+      "eligibility_callback_symbol": "Restore_Zoo_Rented_Follower_Speed_Applies",
+      "movement_rate_modifier_per_tier": -100
+    },
+    {
       "type": "stock.ap41-fl00-hostile-monster-flag.v1",
       "panel_key": "capture-rewards",
       "action_key": "capture",

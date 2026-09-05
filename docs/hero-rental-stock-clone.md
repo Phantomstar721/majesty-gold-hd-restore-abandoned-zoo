@@ -46,11 +46,15 @@ task copies `Done_Enhancing_Equipment`'s `Exit_Building` reset.
 
 ## Purchased follower
 
-The selected captive leaves storage using the two stock Mausoleum boundaries:
-`Mausoleum_Resurrect_Begin` clears engine death state, removes the occupant,
-and unhides it; `Mausoleum_Resurrect_Finish` starts the newly assigned active
-task in a fresh thread. Between those boundaries the Zoo calls the shipped
-expansion `Control_Monster(buyer, captive)`.
+The selected captive leaves storage through `Mausoleum_Resurrect_Begin`'s
+engine-death clear, occupant removal, and unhide ordering. A Zoo captive is not
+identical to an interred hero: its periodic occupant task is still running at
+the 60-second breakout interval, while Mausoleum burial killed the hero's task.
+Stock timed-building handoffs set the existing task interval before replacing
+`ActiveScript`, and stock `Control_Monster` redirects an already-running monster
+task without creating a new one. Rental therefore resets the captive's existing
+task to `Normal_Cycle` immediately before calling the shipped expansion
+`Control_Monster(buyer, captive)`; it neither kills nor duplicates that thread.
 
 That stock Cultist function increments `buyer.Num_Followers`, transfers player
 ownership, creates the charm effector, records the hero in `leader`, and begins
@@ -60,5 +64,43 @@ ownership, creates the charm effector, records the hero in `leader`, and begins
 `Controlled_Monster_Death` and the stock leader-loss path own follower cleanup
 and eventual hostile reversion.
 
-No rental-specific follower timer, combat scanner, polling controller, or
-per-monster table is introduced.
+Original Majesty's `Control_Monster` also sets `Enemytype = Monster`; GPLMx
+omits that one assignment while retaining `monster_eval_enemies`, whose
+EnemyType query has no team filter. A paused-save trace showed the consequence:
+a rented Harpy retained its native `Enemytype = hero` and selected a
+player-owned Priestess Skeleton as its target. The private rental handoff
+restores the original stock assignment immediately after `Control_Monster`, so
+both rulesets use the intended controlled-monster target class.
+
+A focused paused-save trace caught the failure mode directly: the rented Troll
+was still `Hidden`, its `ActiveScript` was `fake_wander`, its counter was zero,
+and that active task still serialized the 60,000 ms Zoo breakout interval. The
+normal-cycle handoff above prevents the stock 3.3-second charm transition from
+being stretched across many one-minute ticks.
+
+## Rental follower movement
+
+Stock `Control_Monster` does not synchronize a controlled monster's movement
+with its leader. It only calls `wander_near_leader`, which chooses destinations
+within 300 units of that leader. Stock `Speed_Monster` proves the actual speed
+operation: a negative `ATTRIB_MovementRateModifier` adjustment makes a unit
+move faster and the positive inverse removes that exact adjustment.
+
+The package therefore declares the Manager's generic
+`stock.controlled-follower-speed-sync.v1` lifecycle with a `-100` adjustment
+per missing Speed tier. Its eligibility callback accepts only the moment when
+the `Rent_Beast` buyer still targets the private Zoo and the new follower names
+that buyer as its leader. The stock visit target owns that transaction across
+Enter_Building, payment, and the hidden-unit control handoff; the callback
+therefore consumes that target directly rather than rediscovering it through
+the buyer's transient container state. The Manager bounds both stock Speed
+values to 1–5, applies and privately marks one movement-rate step for
+each positive `Leader - Follower` tier after stock `Control_Monster` succeeds,
+and applies no boost when the follower is already as fast or faster. Up to four
+independent private markers let it remove exactly the applied `+100` steps
+immediately before stock `Controlled_Monster_Death` or the stock `leader_dead`
+Charm cleanup. Ordinary Cultist charms, the Zoo capture-control bridge, tame
+Guardians, and hostile monsters fail the callback and remain unchanged.
+
+No rental-specific follower timer, combat scanner, polling controller,
+replacement AI, or per-monster table is introduced.

@@ -733,10 +733,40 @@ Its death callback decrements the same follower count; its leader-loss path
 removes charm and eventually calls `Reset_Controlled` to restore the immutable
 monster `StartingScript` and hostile owner.
 
+That stock follower path does not synchronize movement speed. It only selects
+destinations near the leader. The closest stock speed lifecycle is
+`Speed_Monster_Begin` / `Speed_Monster_End`: it adjusts
+`ATTRIB_MovementRateModifier` negatively to accelerate a unit and restores the
+same positive value when the effect ends. The Manager's generic controlled-
+follower speed-sync feature bounds the existing stock Speed ratings to 1–5,
+then composes one `-100` movement-rate step for each positive leader/follower
+tier difference immediately after stock `Control_Monster` ownership transfer.
+Four independent generated markers allow the exact applied steps to be removed
+immediately before either stock cleanup exit. The Zoo's pure eligibility
+callback recognizes only its existing `Rent_Beast` visit targeting a building
+whose `RevenueScript` is `Restore_Zoo_Revenue`. The callback uses the visit's
+stock-owned `Leader.Target` Zoo directly; that target is already revalidated by
+the purchase callback and persists across the hidden building handoff.
+
+Original `Control_Monster.gpl` assigns `Target.Enemytype = "Monster"` before
+transferring player ownership. `GPLMx/TaskModules/Subtasks/mx_Control_Monster.gpl`
+omits that line even though the shared `monster_eval_enemies` scans every unit
+of `EnemyType` without `NotMyTeam`. A paused-save trace captured a rented Harpy
+with `Enemytype = hero` and a player-owned Priestess Skeleton as its reciprocal
+combat target. Zoo rental restores the original assignment immediately after
+the selected ruleset's `Control_Monster` call, preserving original behavior and
+repairing the expansion omission without changing ordinary Cultist control.
+
 The stored monster's previous breakout task is already running, whereas a
-stock Mausoleum occupant's task was killed at interment. Rental therefore
-kills that old task before removal, then copies `Mausoleum_Resurrect_Finish`'s
-fresh `NewThread` boundary after `Control_Monster` selects `fake_wander`.
+stock Mausoleum occupant's task was killed at interment. A focused paused-save
+trace exposed the difference: the rented Troll was `Hidden`, its
+`ActiveScript` was stock `fake_wander`, its counter remained zero, and the
+serialized active task still had the Zoo's 60,000 ms breakout interval. Stock
+`Control_Monster` normally redirects a live monster's existing task and does
+not create a new one. Stock timed-building callbacks likewise set the current
+task interval before replacing `ActiveScript`. Rental now preserves that
+running occupant task, resets it to `Normal_Cycle`, and then calls
+`Control_Monster`; it does not kill and recreate the same task slot.
 
 ## Executable profiles
 

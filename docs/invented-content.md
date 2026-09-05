@@ -420,6 +420,27 @@ from the Blacksmith scaffold rather than recovered Zoo design.
 - Rental uses the existing Tame Beast price and restores the purchased captive
   to full HP before stock control. The full heal is inferred purchase value,
   matching the existing Tame release but not a recovered rental rule.
+- A stored captive retains the running 60-second breakout task that stock
+  Mausoleum burial does not. Rental resets that existing task to
+  `Normal_Cycle` before stock `Control_Monster` redirects it, copying the stock
+  timed-building interval-before-script handoff. This integration seam is
+  required to avoid stretching the 3.3-second `fake_wander` charm transition
+  across one-minute ticks; it adds no timer or replacement task.
+- Stock controlled monsters do not inherit or synchronize their leader's
+  movement. Zoo rentals request the Manager's generic controlled-follower
+  speed-sync lifecycle with one `MovementRateModifier -100` step for each stock
+  1–5 Speed tier by which the follower trails its leader. The per-tier amount
+  is inferred balance, chosen below `Speed_Monster`'s `-200` boost. Up to four
+  Manager-owned private effectors record the exact applied tier count and
+  remove the matching `+100` steps on follower death or leader-loss reversion.
+  The Zoo's eligibility callback is restricted to the existing `Rent_Beast`
+  transaction while its buyer still targets the private Zoo, so ordinary charm
+  and tame paths are unaffected.
+- Original Majesty `Control_Monster` sets a controlled target's `Enemytype` to
+  `Monster`; GPLMx omits that stock line. Zoo rental reapplies the original
+  assignment after the selected ruleset's control call so expansion monsters
+  do not retain `Enemytype = Hero` and attack the renter or player familiars.
+  This is recovered original behavior, not an inferred targeting system.
 - Stock `Use_Building` temporarily inserts the visiting buyer into the Zoo's
   `Occupants` list. Capacity, revenue, release, and AI selection now identify
   real cages through valid `Original_Type == Monster` occupants whose building

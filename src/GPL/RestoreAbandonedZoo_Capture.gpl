@@ -142,6 +142,43 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Rented_Follower_Speed_Applies (
+	agent Leader, agent Follower ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// The Manager calls this immediately after stock Control_Monster has completed.
+// Identify only the existing Zoo rental transaction: its buyer still targets
+// the private Zoo and still owns the Rent_Beast task. The stock visit lifecycle
+// owns that target across Enter_Building, payment, and Control_Monster; using it
+// directly also avoids asking GetBuildingContainer to rediscover the same
+// transaction during the hidden-unit handoff.
+// The shared runtime owns the reversible movement adjustment and both cleanup
+// exits; this package contributes no marker, timer, or replacement follower AI.
+declare
+	agent zoo;
+begin
+	if ( $IsValidGamePiece ( Leader ) == FALSE )
+		return FALSE;
+	if ( $IsValidGamePiece ( Follower ) == FALSE )
+		return FALSE;
+	if ( Leader's "TaskName" != "Rent_Beast" )
+		return FALSE;
+	if ( Follower's "leader" != Leader )
+		return FALSE;
+	if ( Follower's "Original_Type" != "Monster" )
+		return FALSE;
+
+	zoo = Leader's "Target";
+	if ( $IsValidGamePiece ( zoo ) == FALSE )
+		return FALSE;
+	if ( $HasAttribute ( "RevenueScript", zoo ) == FALSE )
+		return FALSE;
+	if ( zoo's "RevenueScript" != $Restore_Zoo_Revenue )
+		return FALSE;
+
+	return TRUE;
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Rental_Check ( agent thisagent ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
 // This callback belongs at the final false branch of stock Purchase_Bazaar.
@@ -193,14 +230,15 @@ end
 function Restore_Zoo_Start_Rented_Beast (
 	agent captive, agent buyer, agent zoo )
 ///////////////////////////////////////////////////////////////////////////////
-// Mausoleum_Resurrect_Begin supplies the stored-agent removal boundary;
-// Mausoleum_Resurrect_Finish supplies the new ActiveScript thread start. The
-// released monster then enters the literal stock Cultist Control_Monster path.
+// Mausoleum_Resurrect_Begin supplies the stored-agent removal boundary. Unlike
+// an interred hero, this captive still owns its running periodic occupant task.
+// Stock timed-building handoffs reset that task's interval before replacing its
+// ActiveScript, and stock Control_Monster redirects an already-running monster
+// task without creating a second thread. Preserve both boundaries here.
 declare
 begin
 	$SpecifyIntent ( captive, #Intent_Thinking );
 	$ClearEngineDeathFlags ( captive );
-	$KillThread ( captive's "ActiveScript" );
 	zoo's "Occupants" -= captive;
 	$Unhide ( captive );
 
@@ -212,8 +250,16 @@ begin
 	captive's "Target" = $NullAgent ();
 	captive's "Special_Boolean" = FALSE;
 
+	$SetThreadInterval ( captive's "ActiveScript", #Normal_Cycle );
 	$Control_Monster ( buyer, captive );
-	$NewThread ( captive's "ActiveScript", #Normal_Cycle, captive );
+
+	// Original Majesty Control_Monster explicitly changes EnemyType to Monster.
+	// GPLMx retained the same controlled-monster combat AI but accidentally
+	// omitted that assignment. Without it, ordinary Harpies and Trolls retain
+	// EnemyType Hero and monster_eval_enemies attacks the renter and other
+	// player-controlled heroes/familiars. Restore the original stock handoff for
+	// this private rental in both rulesets.
+	captive's "Enemytype" = "Monster";
 	$Restore_Refresh_Zoo_Capacity ( zoo );
 end
 

@@ -10,6 +10,14 @@ $repoRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $source = [IO.Path]::GetFullPath((Join-Path $repoRoot "dist\$packageName"))
 $mods = [IO.Path]::GetFullPath($ModsRoot).TrimEnd('\', '/')
 $target = [IO.Path]::GetFullPath((Join-Path $mods $packageName))
+$sharedPython = [IO.Path]::GetFullPath(
+    (Join-Path (Split-Path -Parent $repoRoot) ".tools\python\Scripts\python.exe")
+)
+$pythonExe = if (Test-Path -LiteralPath $sharedPython -PathType Leaf) {
+    $sharedPython
+} else {
+    "python"
+}
 
 if ((Split-Path -Leaf $mods) -ine "Mods" -or
     (Split-Path -Leaf (Split-Path -Parent $mods)) -ine "MajestyHD") {
@@ -25,11 +33,11 @@ if ((Split-Path -Parent $target) -ine $mods -or (Split-Path -Leaf $target) -cne 
     throw "Unsafe local mod target: $target"
 }
 
-& python (Join-Path $PSScriptRoot "build_mod.py") --game-path $GamePath
+& $pythonExe (Join-Path $PSScriptRoot "build_mod.py") --game-path $GamePath
 if ($LASTEXITCODE -ne 0) {
     throw "Zoo build failed with exit code $LASTEXITCODE"
 }
-& python (Join-Path $PSScriptRoot "validate_mod.py") $source
+& $pythonExe (Join-Path $PSScriptRoot "validate_mod.py") $source
 if ($LASTEXITCODE -ne 0) {
     throw "Zoo package validation failed with exit code $LASTEXITCODE"
 }

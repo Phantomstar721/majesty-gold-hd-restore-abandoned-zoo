@@ -328,6 +328,12 @@ def validate(root: Path) -> list[str]:
                 "callback_symbol": "Restore_Zoo_Rental_Check",
             },
             {
+                "type": "stock.controlled-follower-speed-sync.v1",
+                "feature_key": "rented-follower-speed",
+                "eligibility_callback_symbol": "Restore_Zoo_Rented_Follower_Speed_Applies",
+                "movement_rate_modifier_per_tier": -100,
+            },
+            {
                 "type": "stock.ap41-fl00-hostile-monster-flag.v1",
                 "panel_key": "capture-rewards",
                 "action_key": "capture",
@@ -1077,6 +1083,10 @@ def validate(root: Path) -> list[str]:
         "function Restore_Zoo_Is_Stored_Captive",
         "function Restore_Zoo_Captive_Count",
         "function Restore_Zoo_Find_Rentable_Captive",
+        "function Restore_Zoo_Rented_Follower_Speed_Applies",
+        'Leader\'s "TaskName" != "Rent_Beast"',
+        'zoo = Leader\'s "Target"',
+        'zoo\'s "RevenueScript" != $Restore_Zoo_Revenue',
         "function Restore_Zoo_Rental_Check",
         "#ATTRIB_EmbassyActiveFlag",
         "#Percent_Chance_To_Buy_Stats",
@@ -1087,8 +1097,9 @@ def validate(root: Path) -> list[str]:
         "function Restore_Zoo_Finish_Rental",
         "function Restore_Zoo_Start_Rented_Beast",
         "$Spend_Gold ( thisagent, zoo, cost )",
+        '$SetThreadInterval ( captive\'s "ActiveScript", #Normal_Cycle )',
         "$Control_Monster ( buyer, captive )",
-        '$NewThread ( captive\'s "ActiveScript", #Normal_Cycle, captive )',
+        'captive\'s "Enemytype" = "Monster"',
     )
     for snippet in required_capture_contract:
         if snippet not in capture:
@@ -1279,17 +1290,52 @@ def validate(root: Path) -> list[str]:
             "Tame Beast must preserve the Mausoleum removal/start ordering and "
             "stock controlled-monster Guardian state"
         )
+    rental_speed_start = capture.index(
+        "function Restore_Zoo_Rented_Follower_Speed_Applies"
+    )
     rental_check_start = capture.index("function Restore_Zoo_Rental_Check")
     rental_start = capture.index("function Restore_Zoo_Start_Rented_Beast")
     rental_complete_start = capture.index("function Restore_Zoo_Complete_Rental")
     rental_finish_start = capture.index("function Restore_Zoo_Finish_Rental")
     rental_visit_start = capture.index("function Restore_Zoo_Visited")
     tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
+    rental_speed = capture[rental_speed_start:rental_check_start]
     rental_check = capture[rental_check_start:rental_start]
     rental_release = capture[rental_start:rental_complete_start]
     rental_complete = capture[rental_complete_start:rental_finish_start]
     rental_finish = capture[rental_finish_start:rental_visit_start]
     rental_visit = capture[rental_visit_start:tame_action_start]
+    rental_speed_order = tuple(
+        rental_speed.find(snippet)
+        for snippet in (
+            'Leader\'s "TaskName" != "Rent_Beast"',
+            'Follower\'s "leader" != Leader',
+            'Follower\'s "Original_Type" != "Monster"',
+            'zoo = Leader\'s "Target"',
+            '$HasAttribute ( "RevenueScript", zoo ) == FALSE',
+            'zoo\'s "RevenueScript" != $Restore_Zoo_Revenue',
+            "return TRUE",
+        )
+    )
+    if -1 in rental_speed_order or rental_speed_order != tuple(
+        sorted(rental_speed_order)
+    ):
+        errors.append(
+            "Rental speed eligibility must remain a pure, private-Zoo "
+            "Rent_Beast transition check"
+        )
+    for forbidden in (
+        "#ATTRIB_MovementRateModifier",
+        "$AdjustAttribute",
+        "$CreateEffector",
+        "$RunThread",
+        "$NewThread",
+    ):
+        if forbidden in rental_speed:
+            errors.append(
+                "Rental speed eligibility must not own Manager lifecycle state: "
+                + forbidden
+            )
     rental_check_order = tuple(
         rental_check.find(snippet)
         for snippet in (
@@ -1313,12 +1359,12 @@ def validate(root: Path) -> list[str]:
         rental_release.find(snippet)
         for snippet in (
             "$ClearEngineDeathFlags ( captive )",
-            '$KillThread ( captive\'s "ActiveScript" )',
             'zoo\'s "Occupants" -= captive',
             "$Unhide ( captive )",
             "#ATTRIB_MaxHP",
+            '$SetThreadInterval ( captive\'s "ActiveScript", #Normal_Cycle )',
             "$Control_Monster ( buyer, captive )",
-            '$NewThread ( captive\'s "ActiveScript", #Normal_Cycle, captive )',
+            'captive\'s "Enemytype" = "Monster"',
             "$Restore_Refresh_Zoo_Capacity ( zoo )",
         )
     )
@@ -1326,9 +1372,18 @@ def validate(root: Path) -> list[str]:
         sorted(rental_release_order)
     ):
         errors.append(
-            "Rented beasts must leave storage through Mausoleum ordering before "
-            "stock Control_Monster and a fresh active thread"
+            "Rented beasts must leave storage through Mausoleum removal ordering, "
+            "then reset the existing occupant thread before stock control"
         )
+    for forbidden in (
+        '$KillThread ( captive\'s "ActiveScript" )',
+        '$NewThread ( captive\'s "ActiveScript", #Normal_Cycle, captive )',
+    ):
+        if forbidden in rental_release:
+            errors.append(
+                "Rental must preserve the captive's existing occupant thread: "
+                + forbidden
+            )
     rental_complete_order = tuple(
         rental_complete.find(snippet)
         for snippet in (
