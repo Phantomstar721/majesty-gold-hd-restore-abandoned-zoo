@@ -461,9 +461,15 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   invented selection rule intended to make larger hero purses meaningful; no
   surviving Zoo buyer preference exists. Arrival rechecks open state, follower
   count, occupant validity, and affordability so races cancel without payment.
-- Rental uses the existing Tame Beast price and restores the purchased captive
-  to full HP before stock control. The full heal is inferred purchase value,
-  matching the existing Tame release but not a recovered rental rule.
+- Rental uses a separate hero-scale `100 * Threat Rank` fee (100-800 gold),
+  while the player-facing Tame Beast action remains `500 * Threat Rank`
+  (500-4000). No surviving Zoo rental-price table exists; the lower curve is
+  invented balance because rental consideration occurs only after every normal
+  equipment, upgrade, and Bazaar opportunity. The same private cost function
+  owns both pre-trip affordability and arrival-time payment. Rental restores
+  the purchased captive to full HP before stock control. The full heal is
+  inferred purchase value, matching the existing Tame release but not a
+  recovered rental rule.
 - A stored captive retains the running 60-second breakout task that stock
   Mausoleum burial does not. Rental resets that existing task to
   `Normal_Cycle` before stock `Control_Monster` redirects it, copying the stock

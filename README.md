@@ -114,9 +114,10 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
 - when rentals are open, the final unclaimed branch of stock
   `Purchase_Bazaar` lets a sufficiently wealthy hero choose a Zoo only after
   every ordinary equipment, potion, ring, powerful-item, stat-upgrade, and
-  Magic Bazaar check has failed; arrival uses the normal `Use_Building` visit, pays the same
-  `500 * Threat Rank` fee through stock `Spend_Gold`, and releases the strongest
-  captive that hero can afford;
+  Magic Bazaar check has failed; arrival uses the normal `Use_Building` visit,
+  pays a hero-scale `100 * Threat Rank` rental fee (100-800 gold) through stock
+  `Spend_Gold`, and releases the strongest captive that hero can afford; the
+  player-facing Tame Beast price remains the separate 500-4000 gold curve;
 - the purchased monster enters the literal Cultist
   `Control_Monster -> fake_wander -> Become_Controlled` lifecycle, then uses
   stock `Monster_follow` behind `Controlled_Monster`'s `leader_dead` cleanup

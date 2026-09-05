@@ -44,6 +44,13 @@ that rentals are still open, the hero has no follower, an affordable captive
 still exists, and the Zoo is alive before calling stock `Spend_Gold`. A final
 task copies `Done_Enhancing_Equipment`'s `Exit_Building` reset.
 
+Majesty contains no surviving Zoo rental-price table. Because this check is
+deliberately behind every normal hero purchase, it uses a hero-scale
+`100 * Threat Rank` fee (100-800 gold) rather than the player-facing Tame
+Beast curve of `500 * Threat Rank` (500-4000). Both the pre-trip affordability
+selection and the arrival-time payment revalidation call the same private
+rental-cost function.
+
 ## Purchased follower
 
 The selected captive leaves storage through `Mausoleum_Resurrect_Begin`'s

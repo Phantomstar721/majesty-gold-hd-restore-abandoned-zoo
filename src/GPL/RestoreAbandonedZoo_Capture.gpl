@@ -69,6 +69,23 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Rental_Cost ( agent visitor ) is integer
+///////////////////////////////////////////////////////////////////////////////
+// Rental is evaluated only after the hero's normal equipment, upgrade, and
+// Bazaar shopping. Use a separate hero-scale fee so those prior purchases do
+// not make the Zoo unreachable: ranks 1-8 cost 100-800 gold. Manual Tame Beast
+// remains on its distinct 500-4000 kingdom-scale curve above.
+declare
+begin
+	if ( $IsValidGamePiece ( visitor ) == FALSE )
+		return 0;
+	if ( visitor's "Original_Type" != "Monster" )
+		return 0;
+
+	return $Restore_Zoo_Threat_Rank ( visitor ) * 100;
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Is_Stored_Captive (
 	agent visitor, agent zoo ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
@@ -129,7 +146,7 @@ begin
 			if ( $Restore_Zoo_Is_Stored_Captive ( visitor, zoo ))
 				if ( $IsDead ( visitor ) == FALSE )
 					begin
-						cost = $Restore_Zoo_Tame_Cost ( visitor );
+						cost = $Restore_Zoo_Rental_Cost ( visitor );
 						if ( cost <= available_gold && cost > selected_cost )
 							begin
 								selected = visitor;
@@ -364,7 +381,7 @@ begin
 							zoo, thisagent );
 						if ( $IsValidGamePiece ( captive ))
 							begin
-								cost = $Restore_Zoo_Tame_Cost ( captive );
+								cost = $Restore_Zoo_Rental_Cost ( captive );
 								if ( $Total_Gold ( thisagent ) >= cost )
 									begin
 										$Spend_Gold ( thisagent, zoo, cost );

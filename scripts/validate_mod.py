@@ -1397,16 +1397,35 @@ def validate(root: Path) -> list[str]:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
     tame_cost_start = capture.index("function Restore_Zoo_Tame_Cost")
+    rental_cost_start = capture.index("function Restore_Zoo_Rental_Cost")
+    stored_captive_start = capture.index("function Restore_Zoo_Is_Stored_Captive")
+    find_rentable_start = capture.index("function Restore_Zoo_Find_Rentable_Captive")
+    rental_speed_start = capture.index(
+        "function Restore_Zoo_Rented_Follower_Speed_Applies"
+    )
     tame_guardian_start = capture.index("function Restore_Zoo_Tame_Guardian")
     tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
     tame_action_end = capture.index("function Restore_Zoo_Revenue")
-    tame_cost = capture[tame_cost_start:tame_action_start]
+    tame_cost = capture[tame_cost_start:rental_cost_start]
+    rental_cost = capture[rental_cost_start:stored_captive_start]
+    find_rentable = capture[find_rentable_start:rental_speed_start]
     tame_guardian = capture[tame_guardian_start:tame_action_start]
     tame_action = capture[tame_action_start:tame_action_end]
     if "return $Restore_Zoo_Threat_Rank ( visitor ) * 500" not in tame_cost:
         errors.append("Tame Beast cost must remain 500 gold per Threat Rank")
     if 'visitor\'s "Original_Type" != "Monster"' not in tame_cost:
         errors.append("Tame Beast cost must reject a transient hero visitor")
+    if "return $Restore_Zoo_Threat_Rank ( visitor ) * 100" not in rental_cost:
+        errors.append("Hero rental must cost 100 gold per Threat Rank")
+    if 'visitor\'s "Original_Type" != "Monster"' not in rental_cost:
+        errors.append("Hero rental cost must reject a transient hero visitor")
+    if (
+        "$Restore_Zoo_Rental_Cost ( visitor )" not in find_rentable
+        or "$Restore_Zoo_Tame_Cost" in find_rentable
+    ):
+        errors.append(
+            "Rental affordability must use the private hero-scale rental cost"
+        )
     tame_guardian_order = tuple(
         tame_guardian.find(snippet)
         for snippet in (
@@ -1465,9 +1484,6 @@ def validate(root: Path) -> list[str]:
             "Tame Beast must preserve the Mausoleum removal/start ordering and "
             "the cleanup-preserving stock Guardian delegation"
         )
-    rental_speed_start = capture.index(
-        "function Restore_Zoo_Rented_Follower_Speed_Applies"
-    )
     rental_follow_start = capture.index("function Restore_Zoo_Rented_Monster_Follow")
     rental_check_start = capture.index("function Restore_Zoo_Rental_Check")
     rental_start = capture.index("function Restore_Zoo_Start_Rented_Beast")
@@ -1615,6 +1631,14 @@ def validate(root: Path) -> list[str]:
     ):
         errors.append(
             "Rental completion must revalidate before stock hero payment and release"
+        )
+    if (
+        "$Restore_Zoo_Rental_Cost ( captive )" not in rental_complete
+        or "$Restore_Zoo_Tame_Cost" in rental_complete
+        or capture.count("$Restore_Zoo_Rental_Cost (") != 2
+    ):
+        errors.append(
+            "Rental selection and payment must share exactly one hero-scale cost"
         )
     if not (
         rental_finish.find("$Exit_Building ( thisagent, zoo )")

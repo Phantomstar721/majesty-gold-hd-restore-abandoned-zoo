@@ -787,6 +787,14 @@ that building's `Occupants`, and dispatches the building's `Visited_Script`.
 `Done_Enhancing_Equipment` exits and resets the hero. The Zoo rental callback
 uses the same boundaries, changing only the purchased result.
 
+There is no surviving stock Zoo rental fee. The player-facing Tame action and
+the hero shopping path therefore use separate invented scales: Tame remains
+`500 * Threat Rank` (500-4000 gold), while rental uses
+`100 * Threat Rank` (100-800 gold). The lower rental curve accounts for its
+stock-shaped position after all ordinary hero purchases. One private rental
+cost function is used both when selecting an affordable captive and when
+revalidating payment after the building visit.
+
 The result is the literal expansion Cultist path in
 `mx_Control_Monster.gpl` and `mx_Controlled_Monster.gpl`.
 `Control_Monster` increments `Num_Followers`, transfers player ownership,

@@ -77,4 +77,5 @@ uncontrolled/reset path.
 Majesty contains no surviving Zoo taming-price table. The first playable curve
 is linear: `500 * Threat Rank`, producing costs from 500 gold at rank 1 through
 4000 gold at rank 8. Threat Rank itself is the existing display-only grouping
-of the monster's stock `ATTRIB_LevelXP` combat bounty.
+of the monster's stock `ATTRIB_LevelXP` combat bounty. This is the
+player-facing permanent-guardian price; hero rental uses its own lower curve.
