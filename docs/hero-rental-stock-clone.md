@@ -67,10 +67,30 @@ ordinary near-leader wander.
 
 Rental preserves the stock charm delay and changes only the eventual
 `BackScript` selected by `Become_Controlled`. A private one-function seam keeps
-`Controlled_Monster`'s stock `leader_dead` cleanup gate, then dispatches to
-stock `Monster_follow`. `Controlled_Monster_Death` remains the death callback,
-so follower counts, charm cleanup, speed cleanup, and hostile reversion retain
-their existing owners.
+`Controlled_Monster`'s stock hidden-leader and `leader_dead` boundaries, then
+dispatches ordinary enemy targets to stock `Monster_follow`.
+`Controlled_Monster_Death` remains the death callback, so follower counts,
+charm cleanup, speed cleanup, and hostile reversion retain their existing
+owners.
+
+There is one required Ranger exception. Stock `Journey_Offmap` assigns the
+Ranger to its own `Target` while it travels to the farthest map edge, then
+changes it to `Hidden` without placing it in a building. Stock
+`Monster_follow` accepts that self-target as valid and copies it to the rented
+monster, which attacks its leader despite their shared player ownership. A
+paused autosave captured the result directly: Troll 19 and Ranger 27 targeted
+one another and each contained the other in its one-entry `Hostiles` list.
+The later ZooTrace no longer contained Troll 19 after the Ranger killed it.
+
+The private seam now recognizes only that general invalid support shape: a
+same-team leader target is not copied. It uses stock
+`wander_near_leader` instead, removes only the renter and rental from one
+another's explicit `Hostiles` lists, and resets a leader only when its current
+target is that exact rental. A hidden leader with no valid building container
+is the stock off-map Ranger case; the rental stops and waits until that leader
+returns. Hidden heroes inside real buildings continue through stock
+`Monster_follow` and its container substitution. Unrelated hostile entries,
+enemy targets, leader death, and follower death retain the stock paths.
 
 Original Majesty's `Control_Monster` also sets `Enemytype = Monster`; GPLMx
 omits that one assignment while retaining `monster_eval_enemies`, whose
@@ -119,5 +139,6 @@ Charm cleanup. Ordinary Cultist charms, the Zoo capture-control bridge, tame
 Guardians, and hostile monsters fail the callback and remain unchanged.
 
 No rental-specific follower timer, combat scanner, polling controller, or
-per-monster table is introduced. The only private task is the cleanup-preserving
-one-call seam between stock `leader_dead` and stock `Monster_follow`.
+per-monster table is introduced. The only private task is the
+cleanup-preserving seam around stock `leader_dead`, `wander_near_leader`, and
+`Monster_follow`.

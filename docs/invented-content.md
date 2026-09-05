@@ -377,8 +377,19 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   are best-guess balance values, not recovered Zoo balance. The release helper
   must exit first because `Exit_Building` restores the captive's saved Hooligan
   task state; stock `Reset_Controlled` then replaces that state with the native
-  hostile monster lifecycle. A no-container fallback applies that same reset to
-  already-roaming captives persisted by pre-fix saves.
+  hostile monster lifecycle. The release boundary also copies the stock
+  timed-building handoff back to `Normal_Cycle`, preventing the one-minute cage
+  interval from following the monster outside. A no-container fallback applies
+  that same reset to already-roaming captives persisted by pre-fix saves.
+- Stock `monster_birth` records `BasicScript` into `StartingScript`, but the
+  shipped `war_party_Birth` used by Goblin Priests omits the assignment even
+  though `Reset_Controlled` later assumes it exists. Completing that exact
+  stock assignment immediately before capture is compatibility glue. It is
+  generic: a valid native `BasicScript` is preserved without inspecting title
+  or subtype. Stock `wandering` is used only when that field is already missing
+  from an older stored captive, or a custom monster supplies neither a valid
+  `StartingScript` nor `BasicScript`; the lost native function cannot be
+  recovered at that point.
 - Unlike stock Hooligans, Zoo Hooligans persist after delivery. Their completed
   arrest owner is cleared and all three resettable task pointers are assigned
   to the stored-occupant function so a generic task reset cannot restart the
@@ -469,6 +480,14 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   minimum, making the stock target handoff reach 500 units while preserving
   stronger native values. The minimum and selection of the alternate stock
   follower are inferred Zoo balance; no scanner, timer, or attack task is added.
+- Stock `Journey_Offmap` temporarily gives a Ranger itself as `Target`, a
+  travel marker that unmodified `Monster_follow` mistakes for a combat target.
+  Zoo rental treats any same-team leader target as non-combat, uses stock
+  `wander_near_leader`, removes only the renter/rental pair from one another's
+  explicit `Hostiles`, and waits while an off-map hidden leader has no building
+  container. Enemy target copying, ordinary hostile lists, and stock death
+  cleanup remain unchanged. This narrow guard is inferred integration glue for
+  allowing classes other than Cultists to own the stock controlled follower.
 - Stock `Use_Building` temporarily inserts the visiting buyer into the Zoo's
   `Occupants` list. Capacity, revenue, release, and AI selection now identify
   real cages through valid `Original_Type == Monster` occupants whose building

@@ -1031,6 +1031,9 @@ def validate(root: Path) -> list[str]:
         "expression #intent_capturing_monster 198",
         "function Restore_Controlled_To_Hooligan",
         "function Restore_Begin_Stock_Zoo_Control",
+        '$ValidFunction ( thisagent\'s "StartingScript" ) == FALSE',
+        'thisagent\'s "StartingScript" = thisagent\'s "BasicScript"',
+        'thisagent\'s "StartingScript" = $wandering',
         "$Control_Monster ( hero, thisagent )",
         '#ATTRIB_HP,',
         '#ATTRIB_MaxHP ) / 3',
@@ -1170,6 +1173,30 @@ def validate(root: Path) -> list[str]:
         errors.append(
             "Zoo owner abandonment must apply only before stock Hide completes; "
             "hidden arrival must retain delivery priority"
+        )
+    control_start = capture.index("function Restore_Begin_Stock_Zoo_Control")
+    control_end = capture.index("function monster_gravestone", control_start)
+    control = capture[control_start:control_end]
+    control_starting_guard = control.find(
+        '$ValidFunction ( thisagent\'s "StartingScript" ) == FALSE'
+    )
+    control_native_start = control.find(
+        'thisagent\'s "StartingScript" = thisagent\'s "BasicScript"'
+    )
+    control_fallback_start = control.find(
+        'thisagent\'s "StartingScript" = $wandering'
+    )
+    control_charm = control.find("$Control_Monster ( hero, thisagent )")
+    if not (
+        0
+        <= control_starting_guard
+        < control_native_start
+        < control_fallback_start
+        < control_charm
+    ):
+        errors.append(
+            "Zoo capture must complete stock monster_birth StartingScript "
+            "initialization before Control_Monster can replace task pointers"
         )
     birth_start = capture.index("function Restore_Zoo_Building_Birth")
     upgrade_complete_start = capture.index("function Restore_Zoo_Upgrade_Complete")
@@ -1380,7 +1407,20 @@ def validate(root: Path) -> list[str]:
     rental_follow_order = tuple(
         rental_follow.find(snippet)
         for snippet in (
+            'leader = thisagent\'s "leader"',
+            "$IsHidden ( leader )",
+            "$GetBuildingContainer ( leader )",
+            "$StopMoving ( thisagent )",
             "$leader_dead ( thisagent ) == FALSE",
+            'hostiles = thisagent\'s "Hostiles"',
+            "hostiles -= leader",
+            'hostiles = leader\'s "Hostiles"',
+            "hostiles -= thisagent",
+            'leader\'s "Target" == thisagent',
+            "$Reset_Tasks ( leader )",
+            "$Has_Attrib_Target_and_Is_Valid ( leader )",
+            '$GetPlayerTeamNumber ( leader\'s "Target" ) ==',
+            "$wander_near_leader (",
             "$Monster_follow ( thisagent )",
         )
     )
@@ -1388,8 +1428,9 @@ def validate(root: Path) -> list[str]:
         sorted(rental_follow_order)
     ):
         errors.append(
-            "Rented follower support must preserve stock leader-death cleanup "
-            "before dispatching stock Monster_follow"
+            "Rented follower support must preserve the stock hidden-leader, "
+            "leader-death, paired-hostile repair, same-team guard, and "
+            "Monster_follow order"
         )
     for forbidden in ("$RunThread", "$NewThread", "$ListObjects", "$list_enemies_seen"):
         if forbidden in rental_follow:
@@ -1539,15 +1580,41 @@ def validate(root: Path) -> list[str]:
     breakout_start = capture.index("function Restore_Zoo_Breakout_Check")
     release_occupants_start = capture.index("function release_occupants")
     release_captive = capture[release_captive_start:breakout_start]
+    release_starting_guard = release_captive.find(
+        '$ValidFunction ( captive\'s "StartingScript" ) == FALSE'
+    )
+    release_fallback_start = release_captive.find(
+        'captive\'s "StartingScript" = $wandering'
+    )
+    release_interval = release_captive.find(
+        'captive\'s "ActiveScript", #Normal_Cycle'
+    )
     release_reset = release_captive.find("$Reset_Controlled ( captive )")
     release_exit = release_captive.find("$Exit_Building ( captive, zoo )")
-    if not (0 <= release_exit < release_reset):
+    if not (
+        0
+        <= release_starting_guard
+        < release_fallback_start
+        < release_interval
+        < release_exit
+        < release_reset
+    ):
         errors.append(
-            "Zoo release must exit the building before restoring stock monster control"
+            "Zoo release must repair missing stock StartingScript, resume the "
+            "normal cycle, exit the building, then restore stock monster control"
         )
     breakout = capture[breakout_start:release_occupants_start]
     breakout_container = breakout.find("$GetBuildingContainer ( thisagent )")
     orphan_guard = breakout.find("if ( $IsValidGamePiece ( zoo ) == FALSE )")
+    orphan_starting_guard = breakout.find(
+        '$ValidFunction ( thisagent\'s "StartingScript" ) == FALSE', orphan_guard
+    )
+    orphan_fallback_start = breakout.find(
+        'thisagent\'s "StartingScript" = $wandering', orphan_starting_guard
+    )
+    orphan_interval = breakout.find(
+        'thisagent\'s "ActiveScript", #Normal_Cycle', orphan_fallback_start
+    )
     orphan_reset = breakout.find("$Reset_Controlled ( thisagent )", orphan_guard)
     orphan_return = breakout.find("return", orphan_reset)
     breakout_roll = breakout.find("$RandomNumber ( 100 ) + 1")
@@ -1559,6 +1626,9 @@ def validate(root: Path) -> list[str]:
         0
         <= breakout_container
         < orphan_guard
+        < orphan_starting_guard
+        < orphan_fallback_start
+        < orphan_interval
         < orphan_reset
         < orphan_return
         < breakout_roll

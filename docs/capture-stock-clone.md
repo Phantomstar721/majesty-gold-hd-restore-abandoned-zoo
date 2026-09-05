@@ -239,7 +239,9 @@ while the private Zoo lives, copying the existing Mausoleum exception in
 function applies stock `Exit_Building`, then `Reset_Controlled` and full HP,
 to every valid captive. Exit must come first: it restores the pre-hidden
 Hooligan state, after which Reset_Controlled installs the final hostile monster
-state. While stored, each captive runs a private clone of stock
+state. The release handoff first reschedules the captive at stock
+`Normal_Cycle`, so the restored monster task runs promptly rather than retaining
+the one-minute cage interval. While stored, each captive runs a private clone of stock
 Guardhouse `Garrison_Scan_Or_Leave`: it obtains its container, makes the same
 strict-less-than random roll, and routes success through the same hostile
 release helper. The current values are one roll every 60 seconds with threshold
@@ -247,6 +249,20 @@ release helper. The current values are one roll every 60 seconds with threshold
 is no manual release command in this checkpoint. A saved orphan already running
 the breakout task without a building container completes the same stock reset
 on its next check; this repairs releases created by the former reversed order.
+
+The generic `monster_birth` lifecycle finishes initialization with
+`StartingScript = BasicScript`, which is the immutable task consumed by
+`Reset_Controlled`. The shipped `war_party_Birth` exception used by Goblin
+Priests omits that final statement. A captured Goblin Priest could therefore
+break out as a hostile monster with null `ActiveScript`, `BasicScript`, and
+`BackScript` and remain frozen. Immediately before stock `Control_Monster`, the
+Zoo now performs the missing stock initialization whenever `StartingScript` is
+invalid. It copies the monster's current valid `BasicScript` exactly as
+`monster_birth` does; only a malformed custom monster with no valid basic task
+falls back to stock `wandering`. The release helper repeats the `wandering`
+fallback for captives already stored in older saves, whose native task can no
+longer be recovered after all three slots were replaced by the cage task. This
+is title-independent and requires no per-monster table.
 
 Delivery clears the completed `leader` / `Special_Boolean` arrest pairing and
 installs the occupant function in `BasicScript`, `BackScript`, and

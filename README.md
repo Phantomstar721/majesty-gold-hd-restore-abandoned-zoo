@@ -116,11 +116,13 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   captive that hero can afford;
 - the purchased monster enters the literal Cultist
   `Control_Monster -> fake_wander -> Become_Controlled` lifecycle, then uses
-  stock `Monster_follow` behind `Controlled_Monster`'s unchanged
-  `leader_dead` cleanup gate; it copies a valid buyer target within the stock
-  monster pursuit radius and closes on the buyer otherwise. Rented beasts use
-  the expansion Palace guard's 250-point sight as a minimum; a hero may rent only while its stock
-  `Num_Followers` count is zero, so existing
+  stock `Monster_follow` behind `Controlled_Monster`'s `leader_dead` cleanup
+  gate; it copies a valid enemy buyer target within the stock monster pursuit
+  radius and closes on the buyer otherwise. Same-team targets—including the
+  Ranger self-target used by stock `Journey_Offmap`—remain on stock
+  `wander_near_leader`, while a rental waits for an off-map hidden buyer to
+  return. Rented beasts use the expansion Palace guard's 250-point sight as a
+  minimum; a hero may rent only while its stock `Num_Followers` count is zero, so existing
   Priestess/Cultist followers and a previously rented beast take precedence;
 - each completed Zoo runs the stock Fairgrounds revenue-thread shape once per
   minute and deposits `40 * Threat Rank` gold per valid stored occupant into its own
@@ -153,8 +155,11 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   to a full-HP hostile monster;
 - every stored captive uses the stock Guardhouse random-exit shape once per
   minute with an effective 5% breakout chance; a successful roll
-  restores full HP and hostile stock behavior, while ordinary damage to a
-  living Zoo still releases nobody;
+  restores full HP and hostile stock behavior on the normal monster cycle,
+  while ordinary damage to a living Zoo still releases nobody. The generic
+  capture boundary also completes stock `monster_birth`'s missing
+  `StartingScript = BasicScript` initialization for special-birth monsters such
+  as Goblin Priests, preventing a released monster from losing all AI tasks;
 - delivery clears the completed arrest pairing and points all three resettable
   task slots at the stored-occupant lifecycle, preventing a generic task reset
   from restarting Hooligan delivery for a monster already inside the Zoo;

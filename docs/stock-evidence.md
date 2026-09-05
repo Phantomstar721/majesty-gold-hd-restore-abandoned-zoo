@@ -656,11 +656,23 @@ statement remains in stock order.
 `Reset_Controlled` is the shipped end-of-charm lifecycle. It restores
 `Monster` type, the immutable `StartingScript` to all three task slots,
 `Monster_Gravestone`, `Monster_Player`, and clears charm ownership state.
-Capture therefore no longer overwrites `StartingScript`, `attack_action`, or
-the original idle/guardian behavior. At dead-Zoo release, each valid stored
+Generic `monster_birth` populates that supposedly immutable field from the
+post-override `BasicScript`, but shipped `war_party_Birth` starts its thread
+without the assignment. The paused ZooTrace save exposed the consequence on
+Goblin Priest agent 68: after breakout it was `Monster / Controlled`, had no
+leader or target, and serialized null `StartingScript`, `ActiveScript`,
+`BasicScript`, and `BackScript`. Its prototype normally declares `war_party`
+in all three live task slots. The Zoo now copies the exact generic
+`monster_birth` assignment before `Control_Monster` whenever the field is
+missing, with stock `wandering` as the only fallback when no valid basic task
+exists. Capture otherwise leaves `StartingScript`, `attack_action`, and the
+original idle/guardian behavior untouched. At dead-Zoo release, each valid stored
 captive first runs stock `Exit_Building`, which resets tasks, unhides it, and
 plays the normal exit effect; it then runs `Reset_Controlled`, receives `MaxHP`,
-and clears the two Capture-only target prohibitions. Stock `Guardhouse_Visited` enters
+and clears the two Capture-only target prohibitions. Before that boundary, the
+existing stored task is rescheduled at stock `Normal_Cycle`; older saves whose
+already-stored captive still lacks `StartingScript` receive stock `wandering`
+before `Reset_Controlled`. Stock `Guardhouse_Visited` enters
 the visitor and assigns `Garrison_Scan_Or_Leave` to its still-running
 `ActiveScript`; that function obtains the containing building through
 `GetBuildingContainer`, makes a `RandomNumber(100) + 1` roll, and calls
@@ -809,6 +821,25 @@ handoff therefore applies the same stock 250 minimum already used for a tamed
 Guardian. `Monster_follow` multiplies that sight by the shipped pursuit modifier
 2, producing a 500-unit leader-target handoff while preserving stronger native
 values. Stock attack, leader-loss cleanup, and death paths remain unchanged.
+
+Stock Ranger travel exposes one target shape that `Monster_follow` was never
+designed to receive from an ordinary Cultist leader. `Journey_Offmap` sets
+`ThisAgent.Target = ThisAgent` while traveling to the farthest map edge. Once
+there, `hide_off_map` changes the Ranger to `Hidden` without a building
+container until `Return_To_Map` runs. `Monster_follow` checks only that the
+leader's target is valid, so it copies the Ranger self-target to the rented
+monster and directly starts `monster_attack_object` against its own leader.
+
+A focused autosave trace recorded the resulting reciprocal feud: rented Troll
+agent 19 targeted Ranger agent 27 and its `Hostiles` list contained 27; Ranger
+27 targeted 19 and its `Hostiles` list contained 19. The post-fight ZooTrace
+no longer contained the Troll. Rental therefore keeps enemy targets on literal
+stock `Monster_follow`, routes same-team targets through stock
+`wander_near_leader`, and waits when a hidden leader has no real building
+container. It also subtracts only the paired renter/rental entries from their
+respective `Hostiles` lists and resets the renter only if its exact current
+target is the rental. This is a narrow compatibility seam for stock Ranger
+off-map state; it does not scan for targets or alter unrelated hostiles.
 
 The stored monster's previous breakout task is already running, whereas a
 stock Mausoleum occupant's task was killed at interment. A focused paused-save

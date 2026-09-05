@@ -185,12 +185,66 @@ function Restore_Zoo_Rented_Monster_Follow ( agent thisagent )
 // otherwise only wanders near the leader and scans around the follower itself.
 // Stock Monster_follow is the shipped alternate follower behavior that copies
 // a valid leader target when it is within the monster's pursuit range and
-// closes on the leader otherwise. Preserve Controlled_Monster's cleanup gate,
-// then dispatch the rented beast through that literal stock support function.
+// closes on the leader otherwise.
+//
+// Journey_Offmap is a stock exception: while walking to the map edge it makes
+// the Ranger target itself, then changes the Ranger to Hidden without putting
+// it inside a building. Monster_follow otherwise copies that same-team target
+// and makes the rental attack its own leader. Preserve the normal stock
+// Monster_follow path for enemy targets, use Controlled_Monster's shipped
+// wander-near-leader behavior for a same-team target, and wait in place while
+// a hidden leader has no real building container. The paired Hostiles cleanup
+// repairs only the impossible renter/rental feud exposed by that stock
+// self-target; every unrelated hostile remains owned by the stock evaluators.
 declare
+    agent leader, hidden_container;
+    list hostiles;
 begin
+	leader = thisagent's "leader";
+
+	if ( $IsValidGamePiece ( leader ))
+		if ( $IsHidden ( leader ))
+			begin
+				hidden_container = $GetBuildingContainer ( leader );
+				if ( $IsValidGamePiece ( hidden_container ) == FALSE )
+					begin
+						$StopMoving ( thisagent );
+						thisagent's "Target" = $NullAgent ();
+						return;
+					end
+			end
+
 	if ( $leader_dead ( thisagent ) == FALSE )
-		$Monster_follow ( thisagent );
+		begin
+			hostiles = thisagent's "Hostiles";
+			hostiles -= leader;
+			thisagent's "Hostiles" = hostiles;
+
+			hostiles = leader's "Hostiles";
+			hostiles -= thisagent;
+			leader's "Hostiles" = hostiles;
+
+			if ( leader's "Target" == thisagent )
+				begin
+					leader's "Target" = $NullAgent ();
+					$Reset_Tasks ( leader );
+				end
+
+			if ( $Has_Attrib_Target_and_Is_Valid ( leader ))
+				if ( $GetPlayerTeamNumber ( leader's "Target" ) ==
+					$GetPlayerTeamNumber ( thisagent ))
+					begin
+						thisagent's "Target" = $NullAgent ();
+						if ( $IsHidden ( leader ))
+							$wander_near_leader (
+								thisagent, hidden_container );
+						else
+							$wander_near_leader ( thisagent, leader );
+						return;
+					end
+
+			$Monster_follow ( thisagent );
+		end
 end
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -452,12 +506,18 @@ function Restore_Zoo_Release_Captive ( agent captive, agent zoo )
 // Stock Reset_Controlled is the shipped charm-expiry path: it restores the
 // monster's StartingScript, Monster_Player ownership, monster death callback,
 // and hostile classification. Stock Garrison_Scan_Or_Leave exits the visitor
-// before assigning its outside task; preserve that boundary here. Exit_Building
-// first restores the pre-hidden Hooligan state, then Reset_Controlled replaces
-// it with the original hostile monster state instead of allowing Exit_Building
-// to overwrite the reset with the stored Hooligan/breakout task.
+// before assigning its outside task; preserve that boundary here. A few shipped
+// special births (notably war_party_Birth on Goblin Priests) omit the ordinary
+// monster_birth assignment to StartingScript. Captures made before that stock
+// omission was repaired therefore receive the generic stock wandering task.
+// Reschedule the captive on Normal_Cycle before Exit_Building restores its
+// stored state, then let Reset_Controlled install the preserved native task.
 declare
 begin
+	if ( $ValidFunction ( captive's "StartingScript" ) == FALSE )
+		captive's "StartingScript" = $wandering;
+
+	$SetThreadInterval ( captive's "ActiveScript", #Normal_Cycle );
 	$Exit_Building ( captive, zoo );
 	$Reset_Controlled ( captive );
 	$SetAttribute (
@@ -484,6 +544,11 @@ begin
 	// same stock reset once when that task has no containing building.
 	if ( $IsValidGamePiece ( zoo ) == FALSE )
 		begin
+			if ( $ValidFunction ( thisagent's "StartingScript" ) == FALSE )
+				thisagent's "StartingScript" = $wandering;
+
+			$SetThreadInterval (
+				thisagent's "ActiveScript", #Normal_Cycle );
 			$Reset_Controlled ( thisagent );
 			$SetAttribute (
 				thisagent, #ATTRIB_HP,
@@ -1105,6 +1170,19 @@ function Restore_Begin_Stock_Zoo_Control (
 // seam that runs only after stock fake_wander -> Become_Controlled completes.
 declare
 begin
+	// Generic monster_birth records BasicScript as the immutable task used by
+	// Reset_Controlled. Stock special birth functions do not all perform that
+	// final assignment, so complete the same stock initialization before charm
+	// can replace any task pointers. A malformed custom monster with no normal
+	// BasicScript still receives the shipped generic wandering behavior.
+	if ( $ValidFunction ( thisagent's "StartingScript" ) == FALSE )
+		begin
+			if ( $ValidFunction ( thisagent's "BasicScript" ))
+				thisagent's "StartingScript" = thisagent's "BasicScript";
+			else
+				thisagent's "StartingScript" = $wandering;
+		end
+
 	$SetAttribute ( thisagent, #ATTRIB_HP,
 		$GetAttribute ( thisagent, #ATTRIB_MaxHP ) / 3 );
 	$Control_Monster ( hero, thisagent );
