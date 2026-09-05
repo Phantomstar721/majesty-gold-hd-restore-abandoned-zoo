@@ -714,7 +714,7 @@ enemy evaluator and attack functions, and abandons pursuit outside its home
 radius. Tame Beast copies those fields and uses the player's true Palace as
 `coord_home`, falling back to the Zoo only if that Palace is invalid. The
 Palace substitution is Zoo-specific balance; the coordinate field and patrol
-lifecycle remain the literal stock Guardian mechanism.
+lifecycle otherwise remain the literal stock Guardian mechanism.
 
 The special quest Varg overrides `Guardian_Mod` to 2, whereas nearly every
 entry in expansion `mx_Monster_Data.dat`—including the White Wolf's native
@@ -724,6 +724,22 @@ not multiply acquisition by `Guardian_Mod`. Expansion Epic Quest Palace guards
 are spawned with sight 250, so Tame Beast applies 250 as a minimum and leaves
 any stronger monster value unchanged. Applying those inputs to all Zoo tames
 is balance glue; no Guardian targeting or movement code is replaced.
+
+A focused paused-save trace then captured tamed Vampire agent 719 in the stock
+Guardian stale-target state: all three task slots had returned to `Guardian`,
+`EnemyType` remained `Monster`, `Hostiles` was empty, and its valid `Target`
+still referenced Daemonwood agent 957. `Guardian_Attack_Object` resets its
+active and back tasks to `BasicScript` when the target crosses the home leash,
+but does not clear `Target`. `Guardian_Eval_Enemies` dispatches its attack task
+only when the closest enemy differs from that stored target. The result is a
+known-selected enemy with no active attack task.
+
+The closest stock cleanup is in `Returning_Guardian_Attack_Object`, which sets
+`Target = NullAgent()` in its corresponding return-home branch. Replacing the
+whole roaming Guardian with Returning Guardian would remove the requested city
+patrol and its spell-aware attack path. The private tame patrol entry therefore
+performs only that stock target clear before calling `Guardian`; acquisition,
+movement, casting, attack, leash, timing, and Hostiles ownership remain stock.
 
 ## Hero rental
 
@@ -746,7 +762,11 @@ stock `INBb` set `1004`, whose four 93x26 HEROES state tiles are the same
 gold/parchment family. REWARD selects private `ZCBB` set `1009`; its IMAG is an
 exact private copy of `INBb`, with only stock TILEs 739-742 replaced by
 dimension-matched Capture-glyph variants. TAME selects a second exact private
-copy, `ZTBB` set `1009`, whose same four TILEs carry a horned-monster glyph.
+copy, `ZTBB` set `1009`. Its icon is a dedicated high-resolution raster master
+designed around a simple horned-monster silhouette, then alpha-cropped and
+reduced into the same four AP10 glyph wells instead of being reconstructed as
+block art. This keeps the stock button family and state behavior while avoiding
+the unreadable detail of a full monster portrait at 14 pixels.
 MX22 still supplies the open/closed state and visibility lifecycle; AP10
 supplies only the stock button record and presentation.
 

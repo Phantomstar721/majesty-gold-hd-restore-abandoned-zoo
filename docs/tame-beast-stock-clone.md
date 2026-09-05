@@ -25,7 +25,8 @@ stock match for a friendly monster that independently guards an area. It sets:
 
 - `Type = Hero` and `SubType = Controlled`;
 - `EnemyType = Monster`;
-- `ActiveScript`, `BackScript`, and `BasicScript` to stock `Guardian`.
+- `ActiveScript`, `BackScript`, and `BasicScript` to the Zoo's narrow
+  patrol-entry wrapper, which delegates immediately to stock `Guardian`.
 
 Stock `Guardian` wanders around `coord_home`, evaluates enemies with the normal
 monster combat helpers, pursues a target only within its guardian radius, and
@@ -33,7 +34,7 @@ returns home afterward. Tame Beast copies this state literally and uses the
 player's Palace as `coord_home`, making the creature a kingdom-core guardian
 instead of tethering it to the Zoo grounds. The Zoo is used only if no valid
 Palace exists. It preserves player ownership and the existing charm effector,
-restores full health, and starts `Guardian` at `#Normal_Cycle`.
+restores full health, and starts the stock-delegating patrol at `#Normal_Cycle`.
 
 The quest Varg overrides `Guardian_Mod` to `2`, but that special leash proved
 too small when applied to arbitrary Zoo monsters. Expansion Monster Data uses
@@ -42,8 +43,25 @@ native White Wolf prototype, so the tame role uses that generic stock value.
 `Guardian` acquires enemies using unmodified `SightRange`, not `Guardian_Mod`.
 The expansion also spawns Palace guards with sight 250; Tame Beast applies that
 stock combat-guard value as a minimum while preserving monsters with stronger
-native sight. The state machine, target selection, pursuit, and return-home
+native sight. The movement, target selection, pursuit, casting, and return-home
 logic remain stock `Guardian`.
+
+A paused `ZooTrace.GMP` exposed one stock lifecycle gap after a tamed Vampire
+had pursued a Daemonwood. Vampire agent 719 retained Daemonwood agent 957 as
+its valid `Target`, while `ActiveScript`, `BackScript`, and `BasicScript` had
+all returned to `Guardian` and `Hostiles` was empty. Stock
+`Guardian_Attack_Object` returns to `BasicScript` when a target crosses the
+home leash but leaves `Target` intact. On later patrol ticks,
+`Guardian_Eval_Enemies` changes to its attack task only when the closest enemy
+differs from the stored target, so the same enemy can remain selected without
+combat resuming.
+
+Stock `Returning_Guardian_Attack_Object` clears `Target` at its equivalent
+return-home boundary. The Zoo applies that exact cleanup intent through a
+single private patrol-entry wrapper: whenever a tame re-enters its basic
+patrol, the wrapper clears the stale target once and calls stock `Guardian`.
+It does not scan, choose a target, replace combat, alter Hostiles, add a timer,
+or create another task.
 
 The private child dialog retains MX05's own list/action backing and chrome.
 Only its resource identity and text are private. Reusing the Capture rewards

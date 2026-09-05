@@ -27,6 +27,13 @@ SOURCE_WORLD = (
     / "capture-flag-world-master.png"
 )
 OUTPUT_DIR = REPO_ROOT / "assets" / "generated" / "capture-flag"
+TAME_ICON_SOURCE = (
+    REPO_ROOT
+    / "assets"
+    / "source"
+    / "interface"
+    / "tame-button-monster-head.png"
+)
 STOCK_IMAGE = b"ARA2flag attack"
 STOCK_BUTTON_IMAGE = b"INTCItem Icons"
 STOCK_BUTTON_TILE = 92
@@ -195,8 +202,10 @@ def capture_parent_button_frame(source: Image.Image, state: int) -> Image.Image:
     return frame
 
 
-def tame_parent_button_frame(source: Image.Image, state: int) -> Image.Image:
-    """Put a small horned monster head into AP10's stock gold button well."""
+def tame_parent_button_frame(
+    source: Image.Image, state: int, monster_head: Image.Image
+) -> Image.Image:
+    """Downsample the simplified monster-head raster into AP10's icon well."""
     if source.size != (93, 26) or state not in range(4):
         raise ValueError("Tame parent button must use the four stock 93x26 states")
     frame = source.copy().convert("RGBA")
@@ -208,44 +217,27 @@ def tame_parent_button_frame(source: Image.Image, state: int) -> Image.Image:
         (109, 106, 97, 255),
     )[state]
     draw.rectangle((6, 6, 19, 19), fill=well_fill)
+
+    # The source is a deliberately broad, low-detail raster silhouette. Crop
+    # its transparent padding, reduce in two stages, and retain alpha so the
+    # stock state-specific icon well remains visible around the painted head.
+    icon = monster_head.convert("RGBA")
+    bounds = icon.getchannel("A").getbbox()
+    if bounds is None:
+        raise ValueError("Tame monster-head source has no visible pixels")
+    icon = icon.crop(bounds)
+    icon.thumbnail((56, 56), Image.Resampling.LANCZOS)
+    icon = icon.resize((13, 13), Image.Resampling.LANCZOS)
+    icon = icon.filter(ImageFilter.SHARPEN)
     if state == 2:
-        outline = (25, 25, 25, 255)
-        horn = (128, 128, 128, 255)
-        face = (70, 70, 70, 255)
-        muzzle = (105, 105, 105, 255)
-        eye = (150, 150, 150, 255)
-    else:
-        brightness = 1.24 if state in (1, 3) else 1.0
-
-        def color(rgb: tuple[int, int, int]) -> tuple[int, int, int, int]:
-            return tuple(
-                min(255, round(channel * brightness)) for channel in rgb
-            ) + (255,)
-
-        outline = color((29, 24, 12))
-        horn = color((205, 169, 70))
-        face = color((68, 116, 52))
-        muzzle = color((116, 86, 45))
-        eye = color((238, 72, 35))
-    # Symmetric horns make the subject legible at the 14-pixel stock glyph
-    # scale while leaving AP10's complete square and state plate untouched.
-    draw.polygon(((8, 11), (7, 7), (11, 10)), fill=outline)
-    draw.polygon(((8, 9), (8, 8), (10, 10)), fill=horn)
-    draw.polygon(((15, 10), (18, 7), (17, 12)), fill=outline)
-    draw.polygon(((16, 10), (17, 8), (17, 11)), fill=horn)
-    draw.polygon(
-        ((10, 9), (15, 9), (17, 12), (16, 17), (13, 19), (9, 17), (8, 12)),
-        fill=outline,
-    )
-    draw.polygon(
-        ((10, 10), (15, 10), (16, 12), (15, 16), (13, 18), (10, 16), (9, 12)),
-        fill=face,
-    )
-    draw.point((11, 12), fill=eye)
-    draw.point((14, 12), fill=eye)
-    draw.rectangle((11, 15, 14, 17), fill=muzzle)
-    draw.point((11, 16), fill=outline)
-    draw.point((14, 16), fill=outline)
+        alpha = icon.getchannel("A")
+        icon = ImageOps.grayscale(icon.convert("RGB")).convert("RGBA")
+        icon.putalpha(alpha)
+        icon = ImageEnhance.Brightness(icon).enhance(0.62)
+    elif state in (1, 3):
+        icon = ImageEnhance.Brightness(icon).enhance(1.18)
+        icon = ImageEnhance.Color(icon).enhance(1.08)
+    frame.alpha_composite(icon, (6, 6))
     return frame
 
 
@@ -497,6 +489,13 @@ def generate(game_path: Path) -> None:
         raise ValueError(f"Stock flag art tables are incomplete in {source_cam}")
     if len(interface_tiles) <= max(STOCK_BUTTON_TILE, STOCK_ATTACK_CURSOR_TILE):
         raise ValueError(f"Stock Capture UI art is missing from {interface_cam}")
+    if not TAME_ICON_SOURCE.is_file():
+        raise FileNotFoundError(TAME_ICON_SOURCE)
+    tame_icon = Image.open(TAME_ICON_SOURCE).convert("RGBA")
+    if min(tame_icon.size) < 512 or tame_icon.size[0] != tame_icon.size[1]:
+        raise ValueError(f"Tame monster-head master must be square and >=512px: {tame_icon.size}")
+    if tame_icon.getchannel("A").getextrema() != (0, 255):
+        raise ValueError("Tame monster-head master must retain transparent padding")
     frame_tile_indices = {
         struct.unpack_from("<I", building_frame_imag, offset)[0] & 0xFFFF
         for offset in range(0, len(building_frame_imag) - 3, 4)
@@ -579,7 +578,7 @@ def generate(game_path: Path) -> None:
         source = render_indexed_v3(
             stock, interface_tiles[source_index].data, interface_palettes
         )
-        frame = tame_parent_button_frame(source, state)
+        frame = tame_parent_button_frame(source, state, tame_icon)
         tame_button_frames.append(frame)
         png_path = OUTPUT_DIR / f"tame-parent-button-{state}.png"
         frame.save(png_path)

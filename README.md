@@ -107,7 +107,10 @@ Zoo capture attempt, and the proven Wizard's Curse Hooligan delivery lifecycle:
   engages enemies through the ordinary monster combat evaluator, using the Zoo
   as its home only when no valid Palace exists; the role uses stock monsters'
   usual `Guardian_Mod = 5` and the expansion Palace guard's 250-point sight as
-  a minimum, preserving any stronger native sight value;
+  a minimum, preserving any stronger native sight value; a narrow patrol-entry
+  wrapper clears the stale target that stock `Returning_Guardian` clears on
+  leash return, then delegates movement, acquisition, casting, and combat to
+  the ordinary stock `Guardian`;
 - when rentals are open, the final unclaimed branch of stock
   `Purchase_Bazaar` lets a sufficiently wealthy hero choose a Zoo only after
   every ordinary equipment, potion, ring, powerful-item, stat-upgrade, and
@@ -292,8 +295,8 @@ does not replace an in-game construction and upgrade test.
 
 The build consumes the checked-in, packed primary-panel and rewards-panel TILEs
 under `assets/generated/interface`, so Pillow is not required for an ordinary
-mod build. To regenerate both from the source master, use a Python environment
-with Pillow installed:
+mod build. The two panels intentionally have separate source masters. To
+regenerate both, use a Python environment with Pillow installed:
 
 ```powershell
 python scripts/generate_zoo_rewards_art.py `
@@ -301,12 +304,13 @@ python scripts/generate_zoo_rewards_art.py `
 ```
 
 For the primary panel, the generator follows the established Alchemist
-Laboratory/Phantoms Haunt guild-art pipeline: it fits the Zoo master to the
-stock 200x245 guild backing, packs it as an embedded-palette V1 TILE using
-stock raw-texture TILE 466 as the template, and leaves MX09's separate `INBg`
-chrome layer unmodified. It also derives the exact 202x245 geometry and
-functional chrome from stock set 1019, composites the Zoo-themed Capture
-backing, and packs that result into Majesty's embedded-palette V1 TILE format.
+Laboratory/Phantoms Haunt guild-art pipeline: it fits the separate dark
+menagerie master to the stock 200x245 guild backing, packs it as an
+embedded-palette V1 TILE using stock raw-texture TILE 466 as the template, and
+leaves MX09's separate `INBg` chrome layer unmodified. It separately derives
+the exact 202x245 geometry and functional chrome from stock set 1019,
+composites the pale Zoo courtyard Capture master, and packs that result into
+Majesty's embedded-palette V1 TILE format.
 
 ## Regenerate the Capture Flag art
 
@@ -327,4 +331,9 @@ produces review previews beside them. It also repaints stock `INTC` set 1011's
 green-and-gold paw flags. The build clones the ARA2 IMAG as private
 `ZCA2Capture flag`, clones the button resource as private `ZCICItem Icons`, and
 appends CUR1 set 1038. Existing ARA2 Attack, ARA4 Explore, INTC, and CUR1 sets
-remain visually and behaviorally unchanged.
+remain visually and behaviorally unchanged. The TAME parent button uses a
+dedicated high-resolution raster master with a broad horned-monster silhouette
+and deliberately minimal interior detail. The generator crops its transparent
+padding, performs a multi-stage reduction into AP10's 14-pixel icon well, and
+derives normal, hover, disabled, and pressed variants without drawing a crude
+replacement pixel glyph.

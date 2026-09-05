@@ -411,6 +411,21 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Tame_Guardian ( agent thisagent )
+///////////////////////////////////////////////////////////////////////////////
+// Stock Guardian_Attack_Object returns to BasicScript when its target crosses
+// the home leash, but unlike Returning_Guardian_Attack_Object it does not clear
+// Target. Guardian_Eval_Enemies will not re-enter its attack task when the next
+// closest enemy is that same stale target. Clear only on re-entry to the tame's
+// basic patrol, then delegate the complete movement, acquisition, casting, and
+// combat lifecycle back to stock Guardian.
+declare
+begin
+	thisagent's "Target" = $NullAgent ();
+	$Guardian ( thisagent );
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Tame_Beast ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Stock Mausoleum resurrection removes the selected agent from its containing
@@ -460,9 +475,9 @@ begin
 	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
 
-	thisagent's "BasicScript" = $Guardian;
-	thisagent's "BackScript" = $Guardian;
-	thisagent's "ActiveScript" = $Guardian;
+	thisagent's "BasicScript" = $Restore_Zoo_Tame_Guardian;
+	thisagent's "BackScript" = $Restore_Zoo_Tame_Guardian;
+	thisagent's "ActiveScript" = $Restore_Zoo_Tame_Guardian;
 	$NewThread ( thisagent's "ActiveScript", #Normal_Cycle, thisagent );
 	$Restore_Refresh_Zoo_Capacity ( zoo );
 end

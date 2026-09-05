@@ -284,6 +284,84 @@ def validate(root: Path) -> list[str]:
     if errors:
         return errors
 
+    primary_master = (
+        REPO_ROOT / "assets" / "source" / "interface" / "zoo-primary-panel-master.png"
+    )
+    capture_master = (
+        REPO_ROOT / "assets" / "source" / "interface" / "zoo-rewards-panel-master.png"
+    )
+    tame_icon_source = (
+        REPO_ROOT
+        / "assets"
+        / "source"
+        / "interface"
+        / "tame-button-monster-head.png"
+    )
+    for source_art in (primary_master, capture_master, tame_icon_source):
+        if not source_art.is_file() or source_art.stat().st_size == 0:
+            errors.append(f"Missing Zoo source art: {source_art.name}")
+    if primary_master.is_file() and capture_master.is_file():
+        if primary_master.read_bytes() == capture_master.read_bytes():
+            errors.append(
+                "Zoo primary and Capture subpanel must use distinct source masters"
+            )
+    if tame_icon_source.is_file():
+        icon_png = tame_icon_source.read_bytes()
+        icon_size = (
+            struct.unpack_from(">II", icon_png, 16)
+            if len(icon_png) >= 26 and icon_png[:8] == b"\x89PNG\r\n\x1a\n"
+            else (0, 0)
+        )
+        if (
+            len(icon_png) < 26
+            or icon_png[:8] != b"\x89PNG\r\n\x1a\n"
+            or icon_size[0] != icon_size[1]
+            or icon_size[0] < 512
+            or icon_png[25] != 6
+        ):
+            errors.append(
+                "Zoo Tame source must remain a square >=512px RGBA monster-head PNG"
+            )
+
+    panel_generator = (
+        REPO_ROOT / "scripts" / "generate_zoo_rewards_art.py"
+    ).read_text(encoding="utf-8")
+    for snippet in (
+        "PRIMARY_MASTER_PATH",
+        "Zoo primary and Capture panels require distinct source masters",
+        "primary_preview = fit_master(PRIMARY_MASTER_PATH, (200, 245))",
+    ):
+        if snippet not in panel_generator:
+            errors.append(
+                f"Zoo panel generator lost its distinct-primary contract: {snippet}"
+            )
+
+    capture_art_generator = (
+        REPO_ROOT / "scripts" / "generate_capture_flag_art.py"
+    ).read_text(encoding="utf-8")
+    for snippet in (
+        '"tame-button-monster-head.png"',
+        'icon.getchannel("A").getbbox()',
+        "Image.Resampling.LANCZOS",
+        "frame.alpha_composite(icon, (6, 6))",
+        "tame_parent_button_frame(source, state, tame_icon)",
+    ):
+        if snippet not in capture_art_generator:
+            errors.append(
+                f"Zoo Tame art generator lost its simplified-raster contract: {snippet}"
+            )
+    tame_function_start = capture_art_generator.index(
+        "def tame_parent_button_frame"
+    )
+    tame_function_end = capture_art_generator.index(
+        "def is_red_cloth", tame_function_start
+    )
+    tame_function = capture_art_generator[tame_function_start:tame_function_end]
+    if "draw.polygon" in tame_function or "draw.point" in tame_function:
+        errors.append(
+            "Zoo Tame icon must downsample its raster master, not reconstruct pixel art"
+        )
+
     manifest = ET.parse(root / "RestoreAbandonedZoo.mmxml").getroot()
     definition = json.loads((root / "mod-definition.json").read_text(encoding="utf-8"))
     expected_definition = {
@@ -1319,14 +1397,45 @@ def validate(root: Path) -> list[str]:
         if snippet in capture:
             errors.append(f"Isolated Hooligan diagnostic still contains: {snippet}")
     tame_cost_start = capture.index("function Restore_Zoo_Tame_Cost")
+    tame_guardian_start = capture.index("function Restore_Zoo_Tame_Guardian")
     tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
     tame_action_end = capture.index("function Restore_Zoo_Revenue")
     tame_cost = capture[tame_cost_start:tame_action_start]
+    tame_guardian = capture[tame_guardian_start:tame_action_start]
     tame_action = capture[tame_action_start:tame_action_end]
     if "return $Restore_Zoo_Threat_Rank ( visitor ) * 500" not in tame_cost:
         errors.append("Tame Beast cost must remain 500 gold per Threat Rank")
     if 'visitor\'s "Original_Type" != "Monster"' not in tame_cost:
         errors.append("Tame Beast cost must reject a transient hero visitor")
+    tame_guardian_order = tuple(
+        tame_guardian.find(snippet)
+        for snippet in (
+            'thisagent\'s "Target" = $NullAgent ()',
+            "$Guardian ( thisagent )",
+        )
+    )
+    if (
+        -1 in tame_guardian_order
+        or tame_guardian_order != tuple(sorted(tame_guardian_order))
+        or tame_guardian.count('$NullAgent ()') != 1
+        or tame_guardian.count('$Guardian ( thisagent )') != 1
+    ):
+        errors.append(
+            "Tame Guardian must clear the stale leash target once before "
+            "delegating to stock Guardian"
+        )
+    for forbidden in (
+        "$ListObjects",
+        "$ListEnemiesSeen",
+        "$RunThread",
+        "$NewThread",
+        "$SetThreadInterval",
+        'thisagent\'s "Hostiles"',
+    ):
+        if forbidden.lower() in tame_guardian.lower():
+            errors.append(
+                f"Tame Guardian must not replace stock targeting or timing: {forbidden}"
+            )
     tame_order = tuple(
         tame_action.find(snippet)
         for snippet in (
@@ -1344,9 +1453,9 @@ def validate(root: Path) -> list[str]:
             "palace = $GetTruePalace ( zoo )",
             'thisagent\'s "coord_home" = $LocationOf ( palace )',
             'thisagent\'s "coord_home" = $LocationOf ( zoo )',
-            'thisagent\'s "BasicScript" = $Guardian',
-            'thisagent\'s "BackScript" = $Guardian',
-            'thisagent\'s "ActiveScript" = $Guardian',
+            'thisagent\'s "BasicScript" = $Restore_Zoo_Tame_Guardian',
+            'thisagent\'s "BackScript" = $Restore_Zoo_Tame_Guardian',
+            'thisagent\'s "ActiveScript" = $Restore_Zoo_Tame_Guardian',
             "$NewThread ( thisagent's \"ActiveScript\", #Normal_Cycle, thisagent )",
             "$Restore_Refresh_Zoo_Capacity ( zoo )",
         )
@@ -1354,7 +1463,7 @@ def validate(root: Path) -> list[str]:
     if -1 in tame_order or tame_order != tuple(sorted(tame_order)):
         errors.append(
             "Tame Beast must preserve the Mausoleum removal/start ordering and "
-            "stock controlled-monster Guardian state"
+            "the cleanup-preserving stock Guardian delegation"
         )
     rental_speed_start = capture.index(
         "function Restore_Zoo_Rented_Follower_Speed_Applies"

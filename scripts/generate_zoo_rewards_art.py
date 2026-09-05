@@ -11,6 +11,9 @@ from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MASTER_PATH = REPO_ROOT / "assets" / "source" / "interface" / "zoo-rewards-panel-master.png"
+PRIMARY_MASTER_PATH = (
+    REPO_ROOT / "assets" / "source" / "interface" / "zoo-primary-panel-master.png"
+)
 OUTPUT_PNG = REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel-202x245.png"
 OUTPUT_TILE = REPO_ROOT / "assets" / "generated" / "interface" / "zoo-rewards-panel.tile"
 PRIMARY_OUTPUT_PNG = (
@@ -157,8 +160,11 @@ def composite_stock_chrome(panel: Image.Image, stock_frame: Image.Image) -> Imag
 
 
 def generate(game_path: Path) -> None:
-    if not MASTER_PATH.is_file():
-        raise FileNotFoundError(MASTER_PATH)
+    for path in (MASTER_PATH, PRIMARY_MASTER_PATH):
+        if not path.is_file():
+            raise FileNotFoundError(path)
+    if MASTER_PATH.read_bytes() == PRIMARY_MASTER_PATH.read_bytes():
+        raise ValueError("Zoo primary and Capture panels require distinct source masters")
     stock = load_stock_pipeline()
     source = game_path / "Data" / "interfacedata.cam"
     imag = stock.read_cam_entry(source, b"IMAG", SOURCE_IMAG).data
@@ -166,7 +172,7 @@ def generate(game_path: Path) -> None:
 
     if PRIMARY_RAW_TEMPLATE_TILE >= len(tiles):
         raise ValueError("Stock guild-panel backing template TILE 466 is missing")
-    primary_preview = fit_master(MASTER_PATH, (200, 245)).convert("RGB")
+    primary_preview = fit_master(PRIMARY_MASTER_PATH, (200, 245)).convert("RGB")
     primary_tile = stock.tile_v1_embedded_from_rgb(
         tiles[PRIMARY_RAW_TEMPLATE_TILE].data,
         primary_preview.tobytes(),

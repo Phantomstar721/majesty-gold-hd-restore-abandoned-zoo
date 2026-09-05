@@ -51,8 +51,13 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   stock `INTI`, beneath unmodified stock `INBg` chrome. The Zoo now follows
   that same pattern by changing only its bottom control to private `ZOTI` set
   1029 and remapping stock guild-backing tiles 466, 474, and 495 to the fitted
-  Zoo master. The choice to reuse the Zoo courtyard art as the primary backing
-  is new presentation content; dialog geometry, commands, the stock `INBg`
+  Zoo primary master. That primary master is deliberately distinct from the
+  Capture subpanel: it uses a dark timber-and-masonry menagerie interior with
+  restrained iron cages, animal carvings, and edge ivy behind the building
+  portrait and controls, rather than the Capture panel's pale courtyard wall.
+  The primary source was produced with built-in image generation and reduced
+  through the same private raw-texture pipeline used by the Alchemist
+  Laboratory and Phantoms Haunt. Dialog geometry, commands, the stock `INBg`
   TILE, masks, and controller behavior are unchanged.
 - The Zoo-themed rewards backing is newly created presentation art, not a
   recovered Cyberlore asset. Its warm stucco, terracotta roof, dark timber,
@@ -408,9 +413,16 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   normal controlled-monster death callback. Generic tames use the stock
   Monster Data norm `Guardian_Mod = 5` rather than the quest Varg's special
   override of 2, and use the expansion Palace guard's sight 250 as a minimum;
-  applying those stock values to every tame is new Zoo balance. The price is
-  invented as `500 * Threat Rank`, or 500-4000 gold across ranks 1-8; Majesty
-  contains no surviving Zoo taming-price table.
+  applying those stock values to every tame is new Zoo balance. Stock
+  `Guardian_Attack_Object` can return to patrol without clearing a leashed
+  target, while its evaluator will not re-enter combat against that same
+  stored target. A private basic-patrol wrapper now clears that stale target
+  once before delegating the complete tick to stock `Guardian`, copying the
+  cleanup already present in stock `Returning_Guardian_Attack_Object`. Applying
+  that cleanup to roaming Zoo tames is new integration glue; it adds no scan,
+  timer, target choice, combat function, Hostiles mutation, or extra task. The
+  price is invented as `500 * Threat Rank`, or 500-4000 gold across ranks 1-8;
+  Majesty contains no surviving Zoo taming-price table.
 - Hero rental connects three stock lifecycles that were not connected in the
   abandoned implementation: the Embassy's paired open/close state, the final
   false branch of `Purchase_Bazaar`, and Cultist `Control_Monster` follower
@@ -424,11 +436,15 @@ from the Blacksmith scaffold rather than recovered Zoo design.
   right. RENT uses the stock `INBb` HEROES family. REWARD uses private `ZCBB`,
   which retains AP10's complete four-state gold/parchment plate and replaces
   only the 14-pixel SPELLS glyph with a green Capture Flag. TAME similarly uses
-  private `ZTBB` and replaces only that glyph with a tiny green horned-monster
-  head. Those two glyphs and the shortened labels **REWARD**, **RENT ON**, and
-  **RENT OFF** are new presentation; the commands and state lifecycle remain
-  the documented stock clones. The adjacent top-row controls touch at x=100
-  so the abandoned 189-pixel Place Reward plate cannot show through a gap.
+  private `ZTBB`, but its glyph is a high-quality reduction of a dedicated
+  high-resolution horned-monster raster master. The checked-in source uses a
+  bold silhouette, very few broad painted shapes, and transparent padding so
+  the generator can reduce it cleanly into each 14px stock button well. The
+  Capture glyph, this custom Tame presentation, and the shortened
+  labels **REWARD**, **RENT ON**, and **RENT OFF** are presentation-only; the
+  commands and state lifecycle remain the documented stock clones. The adjacent
+  top-row controls touch at x=100 so the abandoned 189-pixel Place Reward plate
+  cannot show through a gap.
 - Rental consideration uses the literal `Stat_Boost_Check` random expression
   and its shipped `#Percent_Chance_To_Buy_Stats` value. This gives the rental
   check the same effective 49% decision chance, but applying that stock chance
