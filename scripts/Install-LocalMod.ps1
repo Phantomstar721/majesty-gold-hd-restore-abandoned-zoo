@@ -1,7 +1,6 @@
 param(
     [string]$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\Majesty HD",
-    [string]$ModsRoot = "$env:USERPROFILE\Documents\My Games\MajestyHD\Mods",
-    [switch]$ContentOnly
+    [string]$ModsRoot = "$env:USERPROFILE\Documents\My Games\MajestyHD\Mods"
 )
 
 $ErrorActionPreference = "Stop"
@@ -86,15 +85,6 @@ foreach ($relative in $sourceFiles.Keys) {
     }
 }
 
-if (-not $ContentOnly) {
-    & (Join-Path $PSScriptRoot "Install-ZooRewardDispatcher.ps1") -GamePath $GamePath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Zoo reward-dispatch installation failed with exit code $LASTEXITCODE"
-    }
-}
-
 Write-Host "Installed and verified $($sourceFiles.Count) files:"
 Write-Host $target
-if ($ContentOnly) {
-    Write-Host "Skipped standalone executable dispatcher for CAM Merge Manager use."
-}
+Write-Host "Use Majesty Mod Manager to prepare and launch this merge-compatible package."

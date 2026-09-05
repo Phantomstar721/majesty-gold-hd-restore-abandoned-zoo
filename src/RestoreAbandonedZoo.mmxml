@@ -20,7 +20,6 @@
 						<Source>GPL\RestoreAbandonedZoo_Building_Data.dat</Source>
 						<Source>GPL\RestoreAbandonedZoo_Flag_Data.dat</Source>
 						<Source>GPL\RestoreAbandonedZoo_Capture.gpl</Source>
-						<Source>GPL\RestoreAbandonedZoo_DealDemon_Test.gpl</Source>
 					</GPL>
 				</Load>
 			</Dataset>

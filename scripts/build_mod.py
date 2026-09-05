@@ -1578,9 +1578,6 @@ def build(game_path: Path, output_root: Path) -> None:
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Building_Data.dat", gpl_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Flag_Data.dat", gpl_dir)
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_Capture.gpl", gpl_dir)
-    shutil.copy2(
-        SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo_DealDemon_Test.gpl", gpl_dir
-    )
     shutil.copy2(SOURCE_ROOT / "GPL" / "RestoreAbandonedZoo.gplproj", gpl_dir)
     write_maindata_cam(game_path, data_dir)
     write_capture_flag_maindata_cam(game_path, data_dir)

@@ -1,4 +1,9 @@
 dist/
+artifacts/
+docs/internal/
+private/
 __pycache__/
 *.pyc
-
+*.log
+.DS_Store
+Thumbs.db

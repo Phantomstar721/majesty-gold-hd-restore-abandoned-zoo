@@ -1,0 +1,10 @@
+RESTORE ABANDONED ZOO
+
+This mod requires Majesty Mod Manager:
+https://steamcommunity.com/sharedfiles/filedetails/?id=3793024054
+
+Run Majesty Mod Manager.exe from its Workshop folder, select Restore Abandoned
+Zoo on the Merge tab, choose Prepare Selected Mods, and launch Majesty through
+the manager.
+
+Do not enable this raw package directly in Majesty's mod selector.
