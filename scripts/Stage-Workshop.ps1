@@ -61,7 +61,7 @@ if ($definition.schema_version -ne 3) {
     throw "Workshop package is not a Mod Manager v3 package."
 }
 if ($definition.mod_id -ne "{d45a135f-31ca-4b53-b3e4-776e231a328c}") {
-    throw "Workshop package has the wrong Restore Abandoned Zoo mod ID."
+    throw "Workshop package has the wrong mod ID for The Royal Menagerie."
 }
 $requiredFeatures = @(
     "stock.mx09-ap41-reward-panel.v1",
@@ -119,7 +119,7 @@ try {
     $projectText = @"
 <Majesty>
 	<SteamWorkshop id="$projectId" visibility="$visibility">
-		<Title lang="en_US">Restore Abandoned Zoo</Title>
+		<Title lang="en_US">The Royal Menagerie</Title>
 		<Description lang="en_US">$description</Description>
 		<ContentPath>$finalContentPath</ContentPath>
 		<PreviewImagePath>$finalPreviewPath</PreviewImagePath>

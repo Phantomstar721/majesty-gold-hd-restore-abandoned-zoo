@@ -1,7 +1,7 @@
 <Majesty>
 	<Mod id="{d45a135f-31ca-4b53-b3e4-776e231a328c}">
 		<Name>RestoreAbandonedZoo</Name>
-		<DisplayName lang="en_US">Restore Abandoned Zoo</DisplayName>
+		<DisplayName lang="en_US">The Royal Menagerie</DisplayName>
 		<Description lang="en_US">
 			<Short>Restores the abandoned three-level Zoo building.</Short>
 			<Long>Restores the surviving Zoo building, monster capture and visitor systems, breakout risk, and stock-shaped Tame Beast guardian release.</Long>

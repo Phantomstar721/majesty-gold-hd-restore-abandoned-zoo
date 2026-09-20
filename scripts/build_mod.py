@@ -1601,7 +1601,7 @@ def build(game_path: Path, output_root: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build Restore Abandoned Zoo")
+    parser = argparse.ArgumentParser(description="Build The Royal Menagerie")
     parser.add_argument("--game-path", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()

@@ -1,6 +1,6 @@
-# Restore Abandoned Zoo
+# The Royal Menagerie
 
-Restore Abandoned Zoo completes the unused three-level Zoo left in *Majesty
+The Royal Menagerie completes the unused three-level Zoo left in *Majesty
 Gold HD* and turns it into a full monster-capture and kingdom-defense system.
 Place Capture Flags on hostile monsters, bring successful captures back alive,
 display them as Zoo visitors, earn admission revenue, or release them as
@@ -78,13 +78,13 @@ Original-rules quests.
 
 ## Requirements and installation
 
-Restore Abandoned Zoo requires [Majesty Mod Manager](https://steamcommunity.com/sharedfiles/filedetails/?id=3793024054).
+The Royal Menagerie requires [Majesty Mod Manager](https://steamcommunity.com/sharedfiles/filedetails/?id=3793024054).
 The manager supplies the generic runtime features needed by the Zoo and safely
 combines it with other compatible mods.
 
-1. Subscribe to Restore Abandoned Zoo and Majesty Mod Manager.
+1. Subscribe to The Royal Menagerie and Majesty Mod Manager.
 2. Run `Majesty Mod Manager.exe` from the manager's Workshop folder.
-3. Select Restore Abandoned Zoo on the **Merge** tab.
+3. Select The Royal Menagerie on the **Merge** tab.
 4. Choose **Prepare Selected Mods**.
 5. Launch the game through **Launch Majesty** in the manager.
 
@@ -105,7 +105,10 @@ it available for heroes to escort to the Zoo.
 
 Zoo capacity counts stored visitors plus monsters already latched to a hero for
 delivery. Additional Capture Flags can be placed while unclaimed space remains.
-The Zoo refuses duplicate flags on the same monster.
+The Zoo refuses duplicate flags on the same monster. A monster carrying a
+Capture Flag is reserved for the ruler and cannot be charmed by Cultists or
+controlled by Priestesses; cancelling the flag restores its normal spell
+eligibility.
 
 Capturing quest-critical monsters can prevent a quest event that expects that
 monster's normal death callback. Use Capture Flags cautiously in scripted

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////
-// Restore Abandoned Zoo: stock Zoo capture front half plus Hooligan delivery
+// The Royal Menagerie: stock Zoo capture front half plus Hooligan delivery
 //
 // The private Capture Flag preserves its target's own death callback.  Lethal
 // damage runs the abandoned expansion Zoo roll and actual Control_Monster
@@ -21,6 +21,30 @@ expression #Restore_Zoo_Breakout_Threshold 6
 expression #Restore_Zoo_Breakout_Period 60000
 
 ///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+Function Restore_Zoo_Get_True_Palace (agent ThisAgent) is agent
+///////////////////////////////////////////////////////////////////////////////
+// Literal private clone of GPLMx GetTruePalace. Original Majesty does not
+// export that GPL helper, so the Zoo must own the same lookup when loaded by
+// its base="Any" dataset. Keep the stock search, filters, ordering, and null
+// fallback unchanged; only the symbol is privatized.
+Declare
+	list Palaces;
+	agent Palace;
+
+Begin
+
+	$ListObjects (ThisAgent, "Building", -1, Palaces, #CheckTitles, "Palace", #MyPlayer, #NoHiddenMap);
+
+	If (ThisAgent's "Title" == "Palace")
+		Palaces << ThisAgent;
+
+	If ($ListSize (Palaces) > 0)
+		return $ListMember (Palaces, 1);
+
+	return $NullAgent ();
+End
 
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Threat_Rank ( agent visitor ) is integer
@@ -478,7 +502,7 @@ begin
 	thisagent's "Guardian_Mod" = 5;
 	if ( $GetAttribute ( thisagent, #ATTRIB_SightRange ) < 250 )
 		$SetAttribute ( thisagent, #ATTRIB_SightRange, 250 );
-	palace = $GetTruePalace ( zoo );
+	palace = $Restore_Zoo_Get_True_Palace ( zoo );
 	if ( $IsValidGamePiece ( palace ))
 		thisagent's "coord_home" = $LocationOf ( palace );
 	else
@@ -491,6 +515,11 @@ begin
 		thisagent, #ATTRIB_HP, $GetAttribute ( thisagent, #ATTRIB_MaxHP ));
 	$SetAttribute ( thisagent, #ATTRIB_NotFlaggable, 1 );
 	$SetAttribute ( thisagent, #ATTRIB_NotSpellTarget, 1 );
+	// The stock controlled Varg changes to Hero/Controlled Guardian behavior
+	// without replacing its ordinary monster gravestone death callback. Captive
+	// Hooligans temporarily own a private death callback, so restore that stock
+	// guardian death path explicitly when this captive becomes a tame.
+	thisagent's "IGDeathScript" = $Monster_GraveStone;
 
 	thisagent's "BasicScript" = $Restore_Zoo_Tame_Guardian;
 	thisagent's "BackScript" = $Restore_Zoo_Tame_Guardian;
@@ -513,7 +542,7 @@ declare
 	list visitors;
 	integer revenue;
 begin
-	palace = $GetTruePalace ( thisagent );
+	palace = $Restore_Zoo_Get_True_Palace ( thisagent );
 	revenue = 0;
 
 	if ( $IsValidGamePiece ( palace ))
@@ -766,6 +795,16 @@ declare
 begin
 	if ( $IsValidGamePiece ( zoo ) == FALSE )
 		return;
+	if ( zoo's "Type" != "building" )
+		return;
+	if ( zoo's "Title" != "Zoo" )
+		return;
+	if ( $HasAttribute ( "RevenueScript", zoo ) == FALSE )
+		return;
+	if ( zoo's "RevenueScript" != $Restore_Zoo_Revenue )
+		return;
+	if ( $HasAttribute ( "Occupants", zoo ) == FALSE )
+		return;
 
 	visitors = zoo's "Occupants";
 	occupied = $Restore_Zoo_Captive_Count ( zoo ) +
@@ -832,9 +871,23 @@ function Restore_Captive_Hooligan_Death ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Keep the complete stock Hooligan death lifecycle. Once it removes the dead
 // captive from the pending Hooligan types, release that Zoo reservation.
+//
+// Saves made before tame release restored Monster_GraveStone can retain this
+// callback after becoming the stock Varg-shaped Hero/Controlled Guardian.
+// Recover those units before reading Target: Guardian combat owns Target as an
+// enemy, not a Zoo. The stock controlled Varg dies through the ordinary monster
+// gravestone path, so the saved tame is redirected to that same lifecycle.
 declare
 	agent zoo;
 begin
+	if ( thisagent's "Type" == "Hero" )
+		if ( thisagent's "SubType" == "Controlled" )
+			begin
+				thisagent's "IGDeathScript" = $Monster_GraveStone;
+				$Monster_GraveStone ( thisagent );
+				return;
+			end
+
 	zoo = thisagent's "Target";
 	$Hooligan_Death ( thisagent );
 
@@ -1013,10 +1066,10 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Hooligan_Basic ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
-// Literal stock Hooligan_Basic.  Its sole substitution is the private arrival
-// function assigned after a player-1 hero targets this Hooligan.  If a prior
-// owner abandoned the target, the same active lifecycle offers it to one
-// different hero.
+// Stock Hooligan_Basic with its Wizard's Curse notification omitted and its
+// arrival function privatized after a player-1 hero targets this Hooligan. If a
+// prior owner abandoned the target, the same active lifecycle offers it to one
+// different hero. Zoo captures must not create scenario Hooligan message flags.
 declare
 	agent hero, owner;
 	list heroes, player1_heroes;
@@ -1058,7 +1111,6 @@ begin
 	if ( $ListSize ( player1_heroes ) > 0 )
 		begin
 			$StopMoving ( thisagent );
-			$MessageFlag ( thisagent, #message_found_hooligan );
 			thisagent's "Special_Boolean" = TRUE;
 			thisagent's "ActiveScript" = $Restore_Hooligan_Goto_Zoo;
 		end
@@ -1074,10 +1126,10 @@ function Restore_Hooligan_Goto_Zoo ( agent thisagent )
 // The stock Zoo flag abandonment test releases an interrupted owner whenever
 // that hero no longer targets this Hooligan.  Arrival resets the exact owner
 // and stores the valid hidden Hooligan through the stock Mausoleum occupant
-// handoff instead of deleting it.
+// handoff instead of deleting it. Wizard's Curse's last-Hooligan notification
+// and global quest flag are deliberately omitted from this private Zoo path.
 declare
-	list hooligans;
-	agent zoo, AIRootAgent, owner;
+	agent zoo, owner;
 	list visitors;
 	integer limit;
 begin
@@ -1089,8 +1141,6 @@ begin
 				return;
 			thisagent's "Target" = zoo;
 		end
-
-	AIRootAgent = $RetrieveAgent ( "GPLAiRoot" );
 
 	owner = thisagent's "leader";
 
@@ -1147,14 +1197,6 @@ begin
 					thisagent's "ActiveScript" = $Restore_Hooligan_Basic;
 					$Restore_Refresh_Zoo_Capacity ( zoo );
 					return;
-				end
-
-			$ListObjects ( zoo, "Hooligan", -1, hooligans, #NoHiddenMap );
-			if ( $ListSize ( hooligans ) == 0 )
-				begin
-					$MessageFlag ( zoo, #message_arrested_all_hooligans );
-					AIRootAgent's "Quest_Flag_2" = TRUE;
-
 				end
 
 			// The stock visitor callback runs only after travel has delivered the
@@ -1286,6 +1328,22 @@ begin
 	targetplayer = $getunitplayernumber ( target );
 	flagplayer = $getunitplayernumber ( thisagent );
 
+	// NotSpellTarget is the stock engine gate for spell eligibility. A living
+	// hostile monster under the ruler's private Capture Flag is reserved for
+	// capture and must not enter Cultist/Priestess Control_Monster. Reuse the
+	// stock RewardFlag gavereward bit to remember a pre-existing lock: this flag
+	// never pays a lethal bounty, so that field is otherwise unused here.
+	if ( $IsValidGamePiece ( target ))
+		if ( $IsDead ( target ) == FALSE )
+			if ( target's "Type" == "Monster" )
+				if ( targetplayer == #Monster_Player )
+					if ( $GetAttribute (
+							target, #ATTRIB_NotSpellTarget ) == 0 )
+						$SetAttribute (
+							target, #ATTRIB_NotSpellTarget, 1 );
+					else
+						thisagent's "gavereward" = TRUE;
+
 	if ( targetplayer != #monster_player )
 		if ( targetplayer != flagplayer )
 			if ( $getplayerteamnumber ( target ) ==
@@ -1339,12 +1397,24 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 function Restore_Capture_Flag_Death ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
-// Literal abandoned Zoo flag seeker cleanup.
+// Literal abandoned Zoo flag seeker cleanup plus release of the stock spell
+// target lock owned by this private flag. Successful capture has already
+// changed the target out of its live hostile Monster state, so its Hooligan
+// lock remains intact; only cancellation from a still-live hostile restores
+// the value this flag changed.
 declare
 	agent hero, target;
 begin
 	target = $AgentNumber (
 		$GetAttribute ( thisagent, #ATTRIB_TargetID ));
+
+	if ( $IsValidGamePiece ( target ))
+		if ( $IsDead ( target ) == FALSE )
+			if ( target's "Type" == "Monster" )
+				if ( $GetUnitPlayerNumber ( target ) == #Monster_Player )
+					if ( thisagent's "gavereward" == FALSE )
+						$SetAttribute (
+							target, #ATTRIB_NotSpellTarget, 0 );
 
 	if ( $ListSize ( thisagent's "heroes" ) > 0 )
 		begin

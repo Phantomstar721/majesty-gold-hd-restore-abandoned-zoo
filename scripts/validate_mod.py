@@ -367,7 +367,7 @@ def validate(root: Path) -> list[str]:
         "schema_version": 3,
         "mod_id": "{d45a135f-31ca-4b53-b3e4-776e231a328c}",
         "internal_name": "RestoreAbandonedZoo",
-        "display_name": "Restore Abandoned Zoo",
+        "display_name": "The Royal Menagerie",
         "custom_buildings": [
             {
                 "local_name": "Restore_Zoo",
@@ -1037,6 +1037,7 @@ def validate(root: Path) -> list[str]:
                 f"{gpl_path.name} returns from inside foreach at line(s) {rendered}"
             )
     required_capture_contract = (
+        "Function Restore_Zoo_Get_True_Palace",
         "function Restore_Capture_Flag_Birth",
         "function Restore_Zoo_Visitor_Limit",
         'zoo\'s "Level" >= 3',
@@ -1128,8 +1129,6 @@ def validate(root: Path) -> list[str]:
         'thisagent\'s "BasicScript" = $Restore_Zoo_Breakout_Check',
         'thisagent\'s "BackScript" = $Restore_Zoo_Breakout_Check',
         '#Restore_Zoo_Breakout_Period',
-        "$ListObjects ( zoo, \"Hooligan\", -1, hooligans, #NoHiddenMap )",
-        "$MessageFlag ( zoo, #message_arrested_all_hooligans )",
         'thisagent\'s "IGDeathScript" = $Restore_Captive_Hooligan_Death',
         "#ATTRIB_NotFlaggable, 1",
         "#ATTRIB_NotSpellTarget, 1",
@@ -1147,6 +1146,8 @@ def validate(root: Path) -> list[str]:
         "function Restore_Capture_Flag_Poll",
         "function Restore_Capture_Flag_Death_Callback",
         "function Restore_Capture_Flag_Death",
+        'thisagent\'s "gavereward" = TRUE',
+        '#ATTRIB_NotSpellTarget, 0',
         '"RewardFlag", -1, flags, #RewardFlags',
         'flag\'s "SubType" == "Capture_Flag"',
         "function monster_gravestone",
@@ -1193,6 +1194,35 @@ def validate(root: Path) -> list[str]:
     for snippet in required_capture_contract:
         if snippet not in capture:
             errors.append(f"Zoo capture stock-clone contract is missing: {snippet}")
+    palace_helper_start = capture.index("Function Restore_Zoo_Get_True_Palace")
+    threat_rank_start = capture.index("function Restore_Zoo_Threat_Rank")
+    palace_helper = capture[palace_helper_start:threat_rank_start]
+    palace_helper_order = tuple(
+        palace_helper.find(snippet)
+        for snippet in (
+            '$ListObjects (ThisAgent, "Building", -1, Palaces, '
+            '#CheckTitles, "Palace", #MyPlayer, #NoHiddenMap)',
+            'If (ThisAgent\'s "Title" == "Palace")',
+            'Palaces << ThisAgent',
+            'If ($ListSize (Palaces) > 0)',
+            'return $ListMember (Palaces, 1)',
+            'return $NullAgent ()',
+        )
+    )
+    if -1 in palace_helper_order or palace_helper_order != tuple(
+        sorted(palace_helper_order)
+    ):
+        errors.append(
+            "Private true-Palace helper must remain the ordered literal GPLMx clone"
+        )
+    if "$GetTruePalace" in capture:
+        errors.append(
+            "Zoo GPL must not import expansion-only GetTruePalace into its Any dataset"
+        )
+    if capture.count("$Restore_Zoo_Get_True_Palace (") != 2:
+        errors.append(
+            "Zoo tame and revenue paths must both use the private true-Palace helper"
+        )
     revenue_start = capture.index("function Restore_Zoo_Revenue")
     release_start = capture.index("function release_occupants")
     revenue = capture[revenue_start:release_start]
@@ -1210,9 +1240,27 @@ def validate(root: Path) -> list[str]:
             "Living-Zoo release protection must guard the optional RevenueScript "
             "attribute before reading it"
         )
+    hooligan_basic_start = capture.index("function Restore_Hooligan_Basic")
     goto_start = capture.index("function Restore_Hooligan_Goto_Zoo")
     goto_end = capture.index("function Restore_Begin_Stock_Zoo_Control", goto_start)
+    hooligan_basic = capture[hooligan_basic_start:goto_start]
     goto = capture[goto_start:goto_end]
+    for forbidden in ("$MessageFlag (", "#message_found_hooligan"):
+        if forbidden in hooligan_basic:
+            errors.append(
+                "Private Hooligan assignment must not emit Wizard's Curse "
+                f"flags: {forbidden}"
+            )
+    for forbidden in (
+        "$MessageFlag (",
+        "#message_arrested_all_hooligans",
+        'AIRootAgent\'s "Quest_Flag_2"',
+    ):
+        if forbidden in goto:
+            errors.append(
+                "Private Zoo arrival must not emit or advance Wizard's Curse: "
+                f"{forbidden}"
+            )
     prearrival_guard = goto.find("if ( $IsHidden ( thisagent ) == FALSE )")
     abandonment = goto.find('owner\'s "Target" != thisagent')
     hidden_arrival = goto.find("if ( $IsHidden ( thisagent ))")
@@ -1245,13 +1293,52 @@ def validate(root: Path) -> list[str]:
             "Zoo capture must complete stock monster_birth StartingScript "
             "initialization before Control_Monster can replace task pointers"
         )
+    capacity_start = capture.index("function Restore_Refresh_Zoo_Capacity")
     birth_start = capture.index("function Restore_Zoo_Building_Birth")
     upgrade_complete_start = capture.index("function Restore_Zoo_Upgrade_Complete")
     upgrade_start = capture.index("function Restore_Zoo_Upgrade", upgrade_complete_start + 1)
     captive_death_start = capture.index("function Restore_Captive_Hooligan_Death")
+    captive_death_end = capture.index(
+        "function Restore_Find_Available_Zoo", captive_death_start
+    )
+    capacity = capture[capacity_start:birth_start]
     birth = capture[birth_start:upgrade_complete_start]
     upgrade_complete = capture[upgrade_complete_start:upgrade_start]
     upgrade = capture[upgrade_start:captive_death_start]
+    captive_death = capture[captive_death_start:captive_death_end]
+    capacity_guards = tuple(
+        capacity.find(snippet)
+        for snippet in (
+            'zoo\'s "Type" != "building"',
+            'zoo\'s "Title" != "Zoo"',
+            '$HasAttribute ( "RevenueScript", zoo ) == FALSE',
+            'zoo\'s "RevenueScript" != $Restore_Zoo_Revenue',
+            '$HasAttribute ( "Occupants", zoo ) == FALSE',
+            'visitors = zoo\'s "Occupants"',
+        )
+    )
+    if -1 in capacity_guards or capacity_guards != tuple(sorted(capacity_guards)):
+        errors.append(
+            "Zoo capacity refresh must prove private Zoo identity before Occupants"
+        )
+    saved_tame_death_order = tuple(
+        captive_death.find(snippet)
+        for snippet in (
+            'thisagent\'s "Type" == "Hero"',
+            'thisagent\'s "SubType" == "Controlled"',
+            'thisagent\'s "IGDeathScript" = $Monster_GraveStone',
+            '$Monster_GraveStone ( thisagent )',
+            'zoo = thisagent\'s "Target"',
+            '$Hooligan_Death ( thisagent )',
+        )
+    )
+    if -1 in saved_tame_death_order or saved_tame_death_order != tuple(
+        sorted(saved_tame_death_order)
+    ):
+        errors.append(
+            "Saved Hero/Controlled tames must recover stock monster death before "
+            "the Hooligan Target/Zoo path"
+        )
     birth_building = birth.find("$Building_Birth ( zoo )")
     birth_refresh = birth.find("$Restore_Refresh_Zoo_Capacity ( zoo )")
     birth_repoint = birth.find(
@@ -1312,6 +1399,34 @@ def validate(root: Path) -> list[str]:
         errors.append("Capture overlay callback must literally delete the abandoned Zoo flag")
     if "$Restore_Stock_Zoo_Flag_Check" in callback or "$IsDead" in callback:
         errors.append("Capture must run from monster_gravestone, not the late overlay callback")
+    birth_start = capture.index("function Restore_Capture_Flag_Birth")
+    birth_end = capture.index("function Restore_Capture_Flag_Poll", birth_start)
+    flag_birth = capture[birth_start:birth_end]
+    flag_death_start = capture.index("function Restore_Capture_Flag_Death", callback_end)
+    flag_death_end = capture.index(
+        "Literal abandoned GPLMx Zoo capture deployment", flag_death_start
+    )
+    flag_death = capture[flag_death_start:flag_death_end]
+    if not all(
+        snippet in flag_birth
+        for snippet in (
+            '#ATTRIB_NotSpellTarget ) == 0',
+            '#ATTRIB_NotSpellTarget, 1',
+            'thisagent\'s "gavereward" = TRUE',
+        )
+    ):
+        errors.append("Capture Flag birth must reserve its hostile monster from stock charm")
+    if not all(
+        snippet in flag_death
+        for snippet in (
+            '$IsDead ( target ) == FALSE',
+            'target\'s "Type" == "Monster"',
+            '$GetUnitPlayerNumber ( target ) == #Monster_Player',
+            'thisagent\'s "gavereward" == FALSE',
+            '#ATTRIB_NotSpellTarget, 0',
+        )
+    ):
+        errors.append("Capture Flag cancellation must release only its own stock charm lock")
     gravestone_start = capture.index("function monster_gravestone")
     gravestone_end = capture.index("function Restore_Capture_Flag_Birth", gravestone_start)
     gravestone = capture[gravestone_start:gravestone_end]
@@ -1438,9 +1553,10 @@ def validate(root: Path) -> list[str]:
             'thisagent\'s "Guardian_Mod" = 5',
             "#ATTRIB_SightRange ) < 250",
             "$SetAttribute ( thisagent, #ATTRIB_SightRange, 250 )",
-            "palace = $GetTruePalace ( zoo )",
+            "palace = $Restore_Zoo_Get_True_Palace ( zoo )",
             'thisagent\'s "coord_home" = $LocationOf ( palace )',
             'thisagent\'s "coord_home" = $LocationOf ( zoo )',
+            'thisagent\'s "IGDeathScript" = $Monster_GraveStone',
             'thisagent\'s "BasicScript" = $Restore_Zoo_Tame_Guardian',
             'thisagent\'s "BackScript" = $Restore_Zoo_Tame_Guardian',
             'thisagent\'s "ActiveScript" = $Restore_Zoo_Tame_Guardian',
@@ -1755,7 +1871,7 @@ def validate(root: Path) -> list[str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate Restore Abandoned Zoo")
+    parser = argparse.ArgumentParser(description="Validate The Royal Menagerie")
     parser.add_argument("root", type=Path)
     args = parser.parse_args()
     errors = validate(args.root.resolve())

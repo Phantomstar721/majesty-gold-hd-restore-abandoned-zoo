@@ -1,9 +1,9 @@
-# Restore Abandoned Zoo
+# The Royal Menagerie
 
 Complete one of Majesty Gold HD's most intriguing abandoned features and put
 the kingdom's monsters on display.
 
-Restore Abandoned Zoo adds a fully playable three-level Zoo. Place private
+The Royal Menagerie adds a fully playable three-level Zoo. Place private
 Capture Flags on hostile monsters, let your heroes subdue and escort successful
 captures, and manage the resulting menagerie as a new part of your kingdom.
 
@@ -14,7 +14,7 @@ This mod requires Majesty Mod Manager:
 https://steamcommunity.com/sharedfiles/filedetails/?id=3793024054
 
 Subscribe to both items, run `Majesty Mod Manager.exe` from the manager's
-Workshop folder, select Restore Abandoned Zoo on the **Merge** tab, choose
+Workshop folder, select The Royal Menagerie on the **Merge** tab, choose
 **Prepare Selected Mods**, and use **Launch Majesty** inside the manager.
 
 Do not enable the raw Zoo package directly in Majesty's mod selector. The stock
@@ -42,6 +42,6 @@ Threat Rank is derived generically from each monster's stock combat experience
 bounty. Taming costs 500 gold per rank; hero rentals cost 100 gold per rank.
 Capture odds retain the abandoned stock Zoo formula and cap at 95 percent.
 
-Restore Abandoned Zoo is built as a merge-compatible package. Majesty Mod
+The Royal Menagerie is built as a merge-compatible package. Majesty Mod
 Manager can combine it with other supported custom content without relying on
 load order or replacing the original Palace reward system.
