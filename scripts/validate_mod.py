@@ -1577,7 +1577,8 @@ def validate(root: Path) -> list[str]:
     rental_visit_start = capture.index("function Restore_Zoo_Visited")
     tame_action_start = capture.index("function Restore_Zoo_Tame_Beast")
     rental_speed = capture[rental_speed_start:rental_follow_start]
-    rental_follow = capture[rental_follow_start:rental_check_start]
+    rental_identity_start = capture.index("function Restore_Zoo_Has_Rental")
+    rental_follow = capture[rental_follow_start:rental_identity_start]
     rental_check = capture[rental_check_start:rental_start]
     rental_release = capture[rental_start:rental_complete_start]
     rental_complete = capture[rental_complete_start:rental_finish_start]
@@ -1651,7 +1652,7 @@ def validate(root: Path) -> list[str]:
     rental_check_order = tuple(
         rental_check.find(snippet)
         for snippet in (
-            'thisagent\'s "Num_Followers" > 0',
+            '$Restore_Zoo_Has_Rental ( thisagent )',
             "$RandomNumber ( 100 ) + 1 >= #Percent_Chance_To_Buy_Stats",
             '#MyPlayer, #CheckTitles, "Zoo", #ATTRIB_FirstStageBuilt, 1',
             "#ATTRIB_EmbassyActiveFlag",
@@ -1703,7 +1704,7 @@ def validate(root: Path) -> list[str]:
         rental_complete.find(snippet)
         for snippet in (
             "#ATTRIB_EmbassyActiveFlag",
-            'thisagent\'s "Num_Followers" == 0',
+            '$Restore_Zoo_Has_Rental ( thisagent ) == FALSE',
             "$Restore_Zoo_Find_Rentable_Captive (",
             "$Total_Gold ( thisagent ) >= cost",
             "$Spend_Gold ( thisagent, zoo, cost )",

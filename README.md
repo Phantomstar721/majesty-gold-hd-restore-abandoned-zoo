@@ -26,7 +26,8 @@ monster-by-monster compatibility table.
 - **Tame Beast**, which releases a selected captive as a Palace guardian for
   500 gold per Threat Rank
 - Optional hero rentals: after ordinary shopping, a wealthy hero can rent a
-  captive follower for 100 gold per Threat Rank
+  captive follower for 100 gold per Threat Rank. Each hero can have one rental,
+  including heroes who already have charmed creatures or summoned followers
 - Separate Zoo-themed primary, Capture, and Tame interfaces plus private flag,
   button, cursor, and minimap art
 - Save-game compatibility for games in which the Zoo has not yet been built

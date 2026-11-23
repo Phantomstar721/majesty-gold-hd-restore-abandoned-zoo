@@ -289,6 +289,38 @@ begin
 end
 
 ///////////////////////////////////////////////////////////////////////////////
+function Restore_Zoo_Has_Rental ( agent thisagent ) is boolean
+///////////////////////////////////////////////////////////////////////////////
+// Like the capture reservation query, inspect stock ownership and task slots.
+// Control_Monster temporarily uses Hidden (MX) or Dead (Original), then
+// Become_Controlled copies our BackScript into BasicScript as a Hero. Combat
+// may replace BackScript later, but BasicScript retains the rental identity.
+// HP distinguishes Original's live charm delay from an actual gravestone.
+declare
+	list heroes, hidden, transitioning, candidates;
+	agent follower;
+	boolean found;
+begin
+	found = FALSE;
+	$ListObjects ( thisagent, "Hero", -1, heroes, #NoHiddenMap );
+	$ListObjects ( thisagent, "Hidden", -1, hidden, #NoHiddenMap );
+	$ListObjects ( thisagent, "Dead", -1, transitioning, #NoHiddenMap );
+	candidates = $AddLists ( heroes, hidden );
+	candidates = $AddLists ( candidates, transitioning );
+	foreach follower in candidates do
+		begin
+			if ( $IsValidGamePiece ( follower ))
+				if ( $HasAttribute ( "leader", follower ))
+					if ( follower's "leader" == thisagent )
+						if ( $GetAttribute ( follower, #ATTRIB_HP ) > 0 )
+							if ( follower's "BasicScript" == $Restore_Zoo_Rented_Monster_Follow ||
+								follower's "BackScript" == $Restore_Zoo_Rented_Monster_Follow )
+								found = TRUE;
+		end
+	return found;
+end
+
+///////////////////////////////////////////////////////////////////////////////
 function Restore_Zoo_Rental_Check ( agent thisagent ) is boolean
 ///////////////////////////////////////////////////////////////////////////////
 // This callback belongs at the final false branch of stock Purchase_Bazaar.
@@ -300,9 +332,8 @@ declare
 	agent zoo, captive;
 	integer search_dist;
 begin
-	// Stock Control_Monster accounts for followers on the hero. Ordinary heroes
-	// may rent one beast; existing Cultist/Priestess followers keep them out.
-	if ( thisagent's "Num_Followers" > 0 )
+	// One rental per buyer; ordinary charmed followers do not occupy this slot.
+	if ( $Restore_Zoo_Has_Rental ( thisagent ))
 		return FALSE;
 
 	if ( $RandomNumber ( 100 ) + 1 >= #Percent_Chance_To_Buy_Stats )
@@ -388,7 +419,7 @@ function Restore_Zoo_Complete_Rental ( agent thisagent )
 ///////////////////////////////////////////////////////////////////////////////
 // Stock Obtain_Upgrade revalidates and pays after the visit delay, then hands
 // off to a final exit task. Do the same so closing rentals, a breakout, another
-// buyer, or a new follower acquired in transit safely cancels the purchase.
+// buyer, or a rental acquired in transit safely cancels the purchase.
 declare
 	agent zoo, captive;
 	integer cost;
@@ -399,7 +430,7 @@ begin
 	if ( $IsValidGamePiece ( zoo ))
 		if ( $IsDead ( zoo ) == FALSE )
 			if ( $GetAttribute ( zoo, #ATTRIB_EmbassyActiveFlag ) != 0 )
-				if ( thisagent's "Num_Followers" == 0 )
+				if ( $Restore_Zoo_Has_Rental ( thisagent ) == FALSE )
 					begin
 						captive = $Restore_Zoo_Find_Rentable_Captive (
 							zoo, thisagent );
